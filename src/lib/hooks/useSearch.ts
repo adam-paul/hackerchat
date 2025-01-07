@@ -1,3 +1,5 @@
+// src/lib/hooks/useSearch.ts
+
 import { useState, useCallback } from 'react';
 import type { Message } from '@/types';
 

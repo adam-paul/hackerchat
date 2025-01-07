@@ -1,3 +1,5 @@
+// src/components/ui/SearchBar.tsx
+
 import { useEffect, useRef } from 'react';
 import { Message } from '@/types';
 import { Fira_Code } from 'next/font/google';
