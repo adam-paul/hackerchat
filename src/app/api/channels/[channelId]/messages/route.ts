@@ -17,12 +17,6 @@ export async function GET(
     const messages = await prisma.message.findMany({
       where: {
         channelId: params.channelId,
-        channel: {
-          OR: [
-            { isPrivate: false },
-            { members: { some: { id: userId } } }
-          ]
-        }
       },
       include: {
         author: {
@@ -67,10 +61,6 @@ export async function POST(
     const channel = await prisma.channel.findFirst({
       where: {
         id: params.channelId,
-        OR: [
-          { isPrivate: false },
-          { members: { some: { id: userId } } }
-        ]
       }
     });
 

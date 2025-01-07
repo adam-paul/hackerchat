@@ -1,9 +1,9 @@
-// src/components/ui/HomeUI.tsx
 'use client';
 
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { Fira_Code } from 'next/font/google';
 import { useEffect, useState } from 'react';
+import { ChannelList } from './ChannelList';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -26,18 +26,24 @@ interface Message {
 }
 
 export function HomeUI() {
-  const { user } = useUser();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  
-  // Fetch channels
+
+  // Initial fetch of channels
   useEffect(() => {
-    fetch('/api/channels')
-      .then(res => res.json())
-      .then(setChannels)
-      .catch(console.error);
+    const fetchChannels = async () => {
+      try {
+        const res = await fetch('/api/channels');
+        const data = await res.json();
+        setChannels(data);
+      } catch (error) {
+        console.error('Failed to fetch channels:', error);
+      }
+    };
+
+    fetchChannels();
   }, []);
 
   // Fetch messages when channel is selected
@@ -88,10 +94,10 @@ export function HomeUI() {
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-zinc-800 p-4">
+      <aside className="w-64 bg-zinc-800 p-4 flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <span className={`${firaCode.className} text-zinc-200 text-lg`}>
-            chat_genius
+            hacker_chat
           </span>
           <UserButton 
             afterSignOutUrl="/"
@@ -103,22 +109,14 @@ export function HomeUI() {
           />
         </div>
         
-        {/* Channel list */}
-        <div className="space-y-2">
-          {channels.map(channel => (
-            <button
-              key={channel.id}
-              onClick={() => setSelectedChannel(channel.id)}
-              className={`w-full text-left px-2 py-1 rounded ${
-                selectedChannel === channel.id
-                  ? 'bg-zinc-700 text-zinc-200'
-                  : 'text-zinc-400 hover:bg-zinc-700/50'
-              }`}
-            >
-              # {channel.name}
-            </button>
-          ))}
-        </div>
+        {/* Channel list with new component */}
+        <ChannelList
+          channels={channels}
+          selectedChannel={selectedChannel}
+          onSelectChannel={setSelectedChannel}
+          onChannelCreated={(newChannel) => setChannels(prev => [...prev, newChannel])}
+          className="flex-1"
+        />
       </aside>
 
       {/* Main content area */}

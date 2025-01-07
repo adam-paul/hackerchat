@@ -12,20 +12,7 @@ export async function GET() {
 
   try {
     const channels = await prisma.channel.findMany({
-      where: {
-        OR: [
-          { isPrivate: false },
-          { members: { some: { id: userId } } }
-        ]
-      },
       include: {
-        members: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true
-          }
-        },
         _count: {
           select: { messages: true }
         }
@@ -53,21 +40,15 @@ export async function POST(req: Request) {
       return new NextResponse("Name is required", { status: 400 });
     }
 
+    // Simple channel creation without membership
     const channel = await prisma.channel.create({
       data: {
         name,
         description,
-        members: {
-          connect: { id: userId }
-        }
       },
       include: {
-        members: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true
-          }
+        _count: {
+          select: { messages: true }
         }
       }
     });
@@ -78,4 +59,3 @@ export async function POST(req: Request) {
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
-

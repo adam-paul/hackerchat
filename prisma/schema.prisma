@@ -1,10 +1,12 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -14,7 +16,6 @@ model User {
   imageUrl  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  channels  Channel[] @relation("ChannelMembers")
   messages  Message[]
 }
 
@@ -22,10 +23,8 @@ model Channel {
   id          String    @id @default(cuid())
   name        String
   description String?
-  isPrivate   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  members     User[]    @relation("ChannelMembers")
   messages    Message[]
 }
 
