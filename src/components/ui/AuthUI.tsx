@@ -75,7 +75,7 @@ export function AuthUI() {
     <main className="min-h-screen flex flex-col items-center justify-center">
       <div className={`${firaCode.className} text-4xl text-zinc-300 mb-8`}>
         <span className="typing-animation">
-          welcome to chat_genius<span className="cursor-animation">_</span>
+          welcome to hacker_chat<span className="cursor-animation">_</span>
         </span>
       </div>
       
