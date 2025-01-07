@@ -1,7 +1,8 @@
 // src/app/api/channels/[channelId]/messages/route.ts
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db/prisma";
+import { getOrCreateUser } from '@/lib/db/user';
 
 export async function GET(
   req: Request,
@@ -51,6 +52,8 @@ export async function POST(
   }
 
   try {
+    await getOrCreateUser();
+
     const { content } = await req.json();
 
     if (!content) {

@@ -1,7 +1,7 @@
 // src/app/api/channels/route.ts
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db/prisma";
 
 export async function GET() {
   const { userId } = auth();

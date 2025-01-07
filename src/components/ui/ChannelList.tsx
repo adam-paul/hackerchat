@@ -17,6 +17,7 @@ interface ChannelListProps {
   selectedChannel: string | null;
   onSelectChannel: (channelId: string) => void;
   onChannelCreated: (channel: Channel) => void;
+  onChannelDeleted?: (channelId: string) => void;
   className?: string;
 }
 
@@ -25,6 +26,7 @@ export function ChannelList({
   selectedChannel, 
   onSelectChannel,
   onChannelCreated,
+  onChannelDeleted,
   className = '' 
 }: ChannelListProps) {
   const [isCreating, setIsCreating] = useState(false);
@@ -65,6 +67,23 @@ export function ChannelList({
     }
   };
 
+  const handleDeleteChannel = async (channelId: string) => {
+    try {
+      const response = await fetch(`/api/channels/${channelId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete channel');
+      
+      onChannelDeleted?.(channelId);
+      if (selectedChannel === channelId) {
+        onSelectChannel(channels[0]?.id || '');
+      }
+    } catch (error) {
+      console.error('Error deleting channel:', error);
+    }
+  };
+
   return (
     <div className={`${firaCode.className} ${className}`}>
       <div className="flex items-center justify-between mb-2 text-zinc-400 text-sm">
@@ -100,7 +119,7 @@ export function ChannelList({
               }}
               className="ml-2 hover:text-zinc-200"
             >
-              ×
+              x
             </button>
           </div>
         )}
@@ -108,7 +127,7 @@ export function ChannelList({
         {channels.map((channel, index) => (
           <div 
             key={channel.id}
-            className="flex items-center pl-2 text-zinc-400"
+            className="group flex items-center pl-2 text-zinc-400 relative"
           >
             <span className="mr-2">
               {index === channels.length - 1 ? '└──' : '├──'}
@@ -120,6 +139,16 @@ export function ChannelList({
               }`}
             >
               {channel.name}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteChannel(channel.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 ml-2 hover:text-zinc-200 transition-opacity absolute right-2 text-base"
+              aria-label="Delete channel"
+            >
+              ×
             </button>
           </div>
         ))}

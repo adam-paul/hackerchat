@@ -115,6 +115,12 @@ export function HomeUI() {
           selectedChannel={selectedChannel}
           onSelectChannel={setSelectedChannel}
           onChannelCreated={(newChannel) => setChannels(prev => [...prev, newChannel])}
+          onChannelDeleted={(deletedChannelId) => {
+            setChannels(prev => prev.filter(channel => channel.id !== deletedChannelId));
+            if (selectedChannel === deletedChannelId) {
+              setSelectedChannel(null);
+            }
+          }}
           className="flex-1"
         />
       </aside>
