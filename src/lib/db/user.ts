@@ -1,23 +1,31 @@
+// src/lib/db/user.ts
+
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs';
+import { auth, currentUser } from '@clerk/nextjs';
 
 export async function getOrCreateUser() {
-  const { userId, user } = auth();
+  const { userId } = auth();
   
-  if (!userId || !user) {
-    throw new Error('Unauthorized');
+  if (!userId) {
+    throw new Error('No user ID found');
+  }
+  
+  const user = await currentUser();
+  
+  if (!user) {
+    throw new Error('No user data found');
   }
 
   const dbUser = await prisma.user.upsert({
     where: { id: userId },
     update: {
-      name: user.firstName ? `${user.firstName} ${user.lastName}` : undefined,
+      name: user.username || (user.firstName ? `${user.firstName} ${user.lastName}` : undefined),
       imageUrl: user.imageUrl,
       email: user.emailAddresses[0]?.emailAddress,
     },
     create: {
       id: userId,
-      name: user.firstName ? `${user.firstName} ${user.lastName}` : undefined,
+      name: user.username || (user.firstName ? `${user.firstName} ${user.lastName}` : undefined),
       imageUrl: user.imageUrl,
       email: user.emailAddresses[0]?.emailAddress || '',
     },
@@ -25,4 +33,3 @@ export async function getOrCreateUser() {
 
   return dbUser;
 }
-

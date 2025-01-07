@@ -1,4 +1,5 @@
 // src/app/api/channels/route.ts
+
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -40,7 +41,6 @@ export async function POST(req: Request) {
       return new NextResponse("Name is required", { status: 400 });
     }
 
-    // Simple channel creation without membership
     const channel = await prisma.channel.create({
       data: {
         name,

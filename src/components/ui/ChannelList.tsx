@@ -1,16 +1,11 @@
+// src/components/ui/ChannelList.tsx
 'use client';
 
 import { useState } from 'react';
 import { Fira_Code } from 'next/font/google';
+import type { Channel } from '@/types';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
-
-interface Channel {
-  id: string;
-  name: string;
-  description?: string;
-  _count: { messages: number };
-}
 
 interface ChannelListProps {
   channels: Channel[];
@@ -49,8 +44,8 @@ export function ChannelList({
       if (!response.ok) throw new Error('Failed to create channel');
       
       const newChannel = await response.json();
-      onChannelCreated(newChannel);    // Update parent's channel list
-      onSelectChannel(newChannel.id);  // Auto-select the new channel
+      onChannelCreated(newChannel);
+      onSelectChannel(newChannel.id);
       setNewChannelName('');
       setIsCreating(false);
     } catch (error) {
@@ -69,15 +64,24 @@ export function ChannelList({
 
   const handleDeleteChannel = async (channelId: string) => {
     try {
+      // Updated to use the new consolidated endpoint
       const response = await fetch(`/api/channels/${channelId}`, {
         method: 'DELETE',
       });
 
-      if (!response.ok) throw new Error('Failed to delete channel');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
       
       onChannelDeleted?.(channelId);
       if (selectedChannel === channelId) {
-        onSelectChannel(channels[0]?.id || '');
+        const nextChannel = channels.find(c => c.id !== channelId);
+        if (nextChannel) {
+          onSelectChannel(nextChannel.id);
+        } else {
+          onSelectChannel('');
+        }
       }
     } catch (error) {
       console.error('Error deleting channel:', error);

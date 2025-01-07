@@ -1,3 +1,4 @@
+// src/lib/auth/context.tsx
 'use client';
 
 import { useAuth, useUser } from '@clerk/nextjs';

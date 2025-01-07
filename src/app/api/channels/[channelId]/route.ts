@@ -13,6 +13,14 @@ export async function DELETE(
   }
 
   try {
+    // First delete all messages in the channel
+    await prisma.message.deleteMany({
+      where: {
+        channelId: params.channelId,
+      },
+    });
+
+    // Then delete the channel
     const channel = await prisma.channel.delete({
       where: {
         id: params.channelId,
@@ -22,6 +30,13 @@ export async function DELETE(
     return NextResponse.json(channel);
   } catch (error) {
     console.error("[CHANNEL_DELETE]", error);
+    if (error instanceof Error) {
+      // Check if it's a Prisma error with a code property
+      if (typeof (error as any).code === 'string' && (error as any).code === 'P2025') {
+        return new NextResponse("Channel not found", { status: 404 });
+      }
+      return new NextResponse(error.message, { status: 500 });
+    }
     return new NextResponse("Internal Error", { status: 500 });
   }
 } 

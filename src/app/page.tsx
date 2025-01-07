@@ -1,3 +1,5 @@
+// src/app/page.tsx
+
 'use client';
 
 import { useAuth } from '@clerk/nextjs';

@@ -1,8 +1,10 @@
 // src/app/api/channels/[channelId]/messages/route.ts
+
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUser } from '@/lib/db/user';
+import type { Message } from "@/types";
 
 export async function GET(
   req: Request,
@@ -34,7 +36,12 @@ export async function GET(
       take: 50
     });
 
-    return NextResponse.json(messages);
+    const formattedMessages = messages.map(msg => ({
+      ...msg,
+      createdAt: msg.createdAt.toISOString(),
+    }));
+
+    return NextResponse.json(formattedMessages);
   } catch (error) {
     console.error("[MESSAGES_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
@@ -60,7 +67,6 @@ export async function POST(
       return new NextResponse("Content is required", { status: 400 });
     }
 
-    // Verify channel access
     const channel = await prisma.channel.findFirst({
       where: {
         id: params.channelId,
@@ -71,7 +77,7 @@ export async function POST(
       return new NextResponse("Channel not found", { status: 404 });
     }
 
-    const message = await prisma.message.create({
+    const dbMessage = await prisma.message.create({
       data: {
         content,
         channelId: params.channelId,
@@ -88,10 +94,14 @@ export async function POST(
       }
     });
 
+    const message: Message = {
+      ...dbMessage,
+      createdAt: dbMessage.createdAt.toISOString()
+    };
+
     return NextResponse.json(message);
   } catch (error) {
     console.error("[MESSAGES_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
-

@@ -6,10 +6,18 @@ const nextConfig = {
       's3.amazonaws.com',
     ],
   },
-  // Strict mode for better development experience
   reactStrictMode: true,
-  // Disable x-powered-by header for security
   poweredByHeader: false,
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('ws');
+    }
+    config.externals.push({
+      'utf-8-validate': 'commonjs utf-8-validate',
+      'bufferutil': 'commonjs bufferutil',
+    });
+    return config;
+  },
 }
 
 module.exports = nextConfig 

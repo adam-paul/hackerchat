@@ -1,3 +1,4 @@
+// src/components/ui/AuthUI.tsx
 'use client';
 
 import { SignInButton, SignUpButton } from "@clerk/nextjs";

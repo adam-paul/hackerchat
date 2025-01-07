@@ -1,3 +1,4 @@
+// src/lib/auth/guard.tsx
 'use client';
 
 import { useAuthContext } from './context';
