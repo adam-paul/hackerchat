@@ -46,7 +46,18 @@ export function HomeUI() {
           throw new Error('Failed to fetch channels');
         }
         const data = await res.json();
-        setChannels(data.sort((a: Channel, b: Channel) => a.name.localeCompare(b.name)));
+        // Sort channels by name, keeping threads under their parent channels
+        const sortChannels = (channels: Channel[]) => {
+          return channels.sort((a: Channel, b: Channel) => {
+            // If both are threads or both are not threads, sort by name
+            if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+              return a.name.localeCompare(b.name);
+            }
+            // If one is a thread and the other isn't, non-thread comes first
+            return a.parentId ? 1 : -1;
+          });
+        };
+        setChannels(sortChannels(data));
       } catch (error) {
         console.error('Failed to fetch channels:', error);
       } finally {
@@ -266,6 +277,24 @@ export function HomeUI() {
     }
   };
 
+  const getChannelPath = (channelId: string): string => {
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) return '';
+
+    const parts: string[] = [channel.name];
+    let current = channel;
+
+    // Traverse up the parent chain
+    while (current.parentId) {
+      const parent = channels.find(c => c.id === current.parentId);
+      if (!parent) break;
+      parts.unshift(parent.name);
+      current = parent;
+    }
+
+    return '_' + parts.join('.');
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -317,8 +346,8 @@ export function HomeUI() {
           <>
             {/* Channel header */}
             <div className="p-4 border-b border-zinc-800">
-              <h2 className={`${firaCode.className} text-zinc-200`}>
-                #{channels.find(c => c.id === selectedChannel)?.name}
+              <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
+                {getChannelPath(selectedChannel)}
               </h2>
             </div>
             

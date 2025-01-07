@@ -1,4 +1,4 @@
-# ChatGenius
+# hacker_chat
 
 A modern real-time chat application built with Next.js 14+.
 

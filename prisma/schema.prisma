@@ -26,6 +26,11 @@ model Channel {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   messages    Message[]
+  parent      Channel?  @relation("ThreadsToChannel", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId    String?
+  threads     Channel[] @relation("ThreadsToChannel")
+
+  @@index([parentId])
 }
 
 model Message {

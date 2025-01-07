@@ -3,10 +3,11 @@
 export interface Channel {
   id: string;
   name: string;
-  description: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  _count: {
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  parentId?: string | null;
+  _count?: {
     messages: number;
   };
 }

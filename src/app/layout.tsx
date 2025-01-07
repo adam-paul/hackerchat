@@ -5,7 +5,7 @@ import { AuthProvider } from '@/lib/auth/context';
 import './globals.css';
 
 export const metadata = {
-  title: 'ChatGenius',
+  title: 'hacker_chat',
   description: 'A modern real-time chat application',
 };
 

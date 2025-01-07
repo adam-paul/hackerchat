@@ -1,9 +1,10 @@
 // src/components/ui/Settings.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { useClerk } from '@clerk/nextjs';
+import Image from 'next/image';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -13,6 +14,36 @@ export function Settings() {
   const [isRejecting, setIsRejecting] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const { signOut } = useClerk();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isOpen &&
+        menuRef.current &&
+        buttonRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscKey);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isRejecting) {
@@ -44,8 +75,20 @@ export function Settings() {
 
   return (
     <div className="relative">
+      {/* Preload GIF */}
+      <div className="hidden">
+        <Image 
+          src="https://i.imgur.com/SEE4F4k.gif" 
+          alt="Preload Wrong"
+          width={128}
+          height={128}
+          priority
+        />
+      </div>
+
       {/* Gear Icon */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="text-zinc-400 hover:text-zinc-200 transition-colors"
         aria-label="Settings"
@@ -68,7 +111,10 @@ export function Settings() {
 
       {/* Settings Modal */}
       {isOpen && (
-        <div className={`${firaCode.className} absolute bottom-full left-0 mb-2 w-48 bg-zinc-800 rounded-md shadow-lg border border-zinc-700 overflow-hidden`}>
+        <div 
+          ref={menuRef}
+          className={`${firaCode.className} absolute bottom-full left-0 mb-2 w-48 bg-zinc-800 rounded-md shadow-lg border border-zinc-700 overflow-hidden`}
+        >
           {/* Theme Toggle */}
           <div className="p-3 border-b border-zinc-700 relative">
             <div className="flex items-center justify-center space-x-2 text-sm text-zinc-400">
@@ -89,12 +135,19 @@ export function Settings() {
             </div>
             {/* GIF Popup */}
             {showGif && (
-              <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-16 h-16">
-                <img 
-                  src="https://i.imgur.com/SEE4F4k.gif" 
-                  alt="Wrong!"
-                  className="w-full h-full object-cover rounded-lg"
-                />
+              <div className="fixed inset-0 flex items-end pb-[25vh] justify-left z-75 pointer-events-none">
+                <div className="bg-transparent w-32 h-32 flex items-center justify-center">
+                  <Image 
+                    src="https://i.imgur.com/SEE4F4k.gif" 
+                    alt="Wrong!"
+                    width={128}
+                    height={128}
+                    className="rounded-lg"
+                    priority
+                    onError={(e) => console.error('GIF failed to load:', e)}
+                    onLoad={() => console.log('GIF loaded successfully')}
+                  />
+                </div>
               </div>
             )}
           </div>

@@ -13,21 +13,40 @@ export async function DELETE(
   }
 
   try {
-    // First delete all messages in the channel
+    // First delete all messages in the channel and its threads
+    const channelWithThreads = await prisma.channel.findUnique({
+      where: { id: params.channelId },
+      include: { threads: true }
+    });
+
+    if (!channelWithThreads) {
+      return new NextResponse("Channel not found", { status: 404 });
+    }
+
+    // Delete messages from all threads
+    for (const thread of channelWithThreads.threads) {
+      await prisma.message.deleteMany({
+        where: { channelId: thread.id }
+      });
+    }
+
+    // Delete messages from the main channel
     await prisma.message.deleteMany({
-      where: {
-        channelId: params.channelId,
-      },
+      where: { channelId: params.channelId }
     });
 
-    // Then delete the channel
+    // Delete the channel (and its threads due to onDelete: Cascade)
     const channel = await prisma.channel.delete({
-      where: {
-        id: params.channelId,
-      },
+      where: { id: params.channelId }
     });
 
-    return NextResponse.json(channel);
+    const formattedChannel = {
+      ...channel,
+      createdAt: channel.createdAt.toISOString(),
+      updatedAt: channel.updatedAt.toISOString()
+    };
+
+    return NextResponse.json(formattedChannel);
   } catch (error) {
     console.error("[CHANNEL_DELETE]", error);
     if (error instanceof Error) {

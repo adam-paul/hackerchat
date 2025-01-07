@@ -17,10 +17,19 @@ export async function GET() {
         _count: {
           select: { messages: true }
         }
+      },
+      orderBy: {
+        name: 'asc'
       }
     });
 
-    return NextResponse.json(channels);
+    const formattedChannels = channels.map(channel => ({
+      ...channel,
+      createdAt: channel.createdAt.toISOString(),
+      updatedAt: channel.updatedAt.toISOString()
+    }));
+
+    return NextResponse.json(formattedChannels);
   } catch (error) {
     console.error("[CHANNELS_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
@@ -35,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name, description } = await req.json();
+    const { name, description, parentId } = await req.json();
 
     if (!name) {
       return new NextResponse("Name is required", { status: 400 });
@@ -45,6 +54,7 @@ export async function POST(req: Request) {
       data: {
         name,
         description,
+        parentId,
       },
       include: {
         _count: {
@@ -53,7 +63,13 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json(channel);
+    const formattedChannel = {
+      ...channel,
+      createdAt: channel.createdAt.toISOString(),
+      updatedAt: channel.updatedAt.toISOString()
+    };
+
+    return NextResponse.json(formattedChannel);
   } catch (error) {
     console.error("[CHANNELS_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
