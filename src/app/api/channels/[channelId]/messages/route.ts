@@ -31,7 +31,7 @@ export async function GET(
         }
       },
       orderBy: {
-        createdAt: "desc"
+        createdAt: "asc"
       },
       take: 50
     });
@@ -61,7 +61,7 @@ export async function POST(
   try {
     await getOrCreateUser();
 
-    const { content } = await req.json();
+    const { content, fileUrl, fileName, fileType, fileSize } = await req.json();
 
     if (!content) {
       return new NextResponse("Content is required", { status: 400 });
@@ -80,6 +80,10 @@ export async function POST(
     const dbMessage = await prisma.message.create({
       data: {
         content,
+        fileUrl,
+        fileName,
+        fileType,
+        fileSize,
         channelId: params.channelId,
         authorId: userId
       },
@@ -96,7 +100,11 @@ export async function POST(
 
     const message: Message = {
       ...dbMessage,
-      createdAt: dbMessage.createdAt.toISOString()
+      createdAt: dbMessage.createdAt.toISOString(),
+      fileUrl: dbMessage.fileUrl ?? undefined,
+      fileName: dbMessage.fileName ?? undefined,
+      fileType: dbMessage.fileType ?? undefined,
+      fileSize: dbMessage.fileSize ?? undefined
     };
 
     return NextResponse.json(message);

@@ -14,6 +14,10 @@ export interface Channel {
 export interface Message {
   id: string;
   content: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
   createdAt: string;
   author: {
     id: string;

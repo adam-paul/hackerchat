@@ -31,6 +31,10 @@ model Channel {
 model Message {
   id        String   @id @default(cuid())
   content   String
+  fileUrl   String?  // URL to the file in S3
+  fileName  String?  // Original file name
+  fileType  String?  // MIME type of the file
+  fileSize  Int?     // Size in bytes
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   author    User     @relation(fields: [authorId], references: [id])

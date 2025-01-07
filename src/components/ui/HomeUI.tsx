@@ -3,7 +3,7 @@
 
 import { UserButton, useAuth } from "@clerk/nextjs";
 import { Fira_Code } from 'next/font/google';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { ChannelList } from './ChannelList';
 import { Settings } from './Settings';
@@ -21,6 +21,8 @@ export function HomeUI() {
   const [newMessage, setNewMessage] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { 
     messages, 
@@ -186,6 +188,84 @@ export function HomeUI() {
     }
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChannel) return;
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload file');
+      }
+
+      const { url, fileName, fileType, fileSize } = await uploadRes.json();
+
+      // Create optimistic message with file
+      const optimisticMessage = {
+        id: Date.now().toString(),
+        content: fileName,
+        fileUrl: url,
+        fileName,
+        fileType,
+        fileSize,
+        channelId: selectedChannel,
+        createdAt: new Date().toISOString(),
+        author: {
+          id: userId || 'optimistic',
+          name: userName || 'Anonymous',
+          imageUrl: ''
+        }
+      };
+
+      // Optimistically update UI
+      addMessage(optimisticMessage);
+
+      const res = await fetch(`/api/channels/${selectedChannel}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: fileName,
+          fileUrl: url,
+          fileName,
+          fileType,
+          fileSize
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to send message');
+      }
+      
+      const actualMessage = await res.json();
+      
+      // Update the optimistic message with the real one
+      updateMessage(optimisticMessage.id, actualMessage);
+      
+      // Broadcast to other clients
+      socket?.emit('message', {
+        type: 'message',
+        channelId: selectedChannel,
+        message: actualMessage
+      });
+    } catch (error) {
+      console.error('Failed to upload file:', error);
+      setMessageError(error instanceof Error ? error.message : 'Failed to upload file');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -273,9 +353,35 @@ export function HomeUI() {
                             {new Date(message.createdAt).toLocaleString()}
                           </span>
                         </div>
-                        <p className={`${firaCode.className} text-sm text-zinc-300`}>
-                          {message.content}
-                        </p>
+                        {message.fileUrl ? (
+                          <div className="mt-1">
+                            {message.fileType?.startsWith('image/') ? (
+                              <img 
+                                src={message.fileUrl} 
+                                alt={message.fileName || 'Attached image'} 
+                                className="max-w-md max-h-64 rounded object-contain"
+                              />
+                            ) : (
+                              <a 
+                                href={message.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`${firaCode.className} text-sm text-[#00b300] hover:underline flex items-center`}
+                              >
+                                📎 {message.fileName}
+                                {message.fileSize && (
+                                  <span className="ml-2 text-zinc-500">
+                                    ({Math.round(message.fileSize / 1024)}KB)
+                                  </span>
+                                )}
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <p className={`${firaCode.className} text-sm text-zinc-300`}>
+                            {message.content}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -293,8 +399,30 @@ export function HomeUI() {
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className={`${firaCode.className} text-sm w-full pl-10 pr-4 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300]`}
+                    className={`${firaCode.className} text-sm w-full pl-10 pr-12 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300]`}
                   />
+                  <div className="absolute right-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      accept="image/*,.pdf,.doc,.docx,.txt"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className={`${firaCode.className} text-base text-zinc-400 hover:text-zinc-200 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      aria-label="Attach file"
+                    >
+                      {isUploading ? (
+                        <span className="animate-pulse">↑</span>
+                      ) : (
+                        '+'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
