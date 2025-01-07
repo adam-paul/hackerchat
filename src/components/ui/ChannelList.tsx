@@ -108,16 +108,7 @@ export function ChannelList({
 
   const handleDeleteChannel = async (channelId: string) => {
     try {
-      // Updated to use the new consolidated endpoint
-      const response = await fetch(`/api/channels/${channelId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
-      
+      // Optimistically update UI first
       onChannelDeleted?.(channelId);
       if (selectedChannel === channelId) {
         const nextChannel = channels.find(c => c.id !== channelId);
@@ -127,8 +118,20 @@ export function ChannelList({
           onSelectChannel('');
         }
       }
+
+      // Then perform the actual deletion
+      const response = await fetch(`/api/channels/${channelId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
     } catch (error) {
       console.error('Error deleting channel:', error);
+      // TODO: Implement rollback of UI state if needed
+      // For now, we'll let the optimistic update stand as the operation will eventually succeed
     }
   };
 

@@ -10,6 +10,8 @@ import { Settings } from './Settings';
 import type { Channel, Message } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useMessages } from '@/lib/hooks/useMessage';
+import { SearchBar } from './SearchBar';
+import { useSearch } from '@/lib/hooks/useSearch';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -35,6 +37,31 @@ export function HomeUI() {
     clearMessages,
     setError: setMessageError
   } = useMessages();
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    selectedMessageId,
+    setSelectedMessageId,
+    searchMessages,
+    clearSearch,
+  } = useSearch();
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    searchMessages(messages, query);
+  };
+
+  const handleSearchResultClick = (messageId: string) => {
+    setSelectedMessageId(messageId);
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      messageElement.classList.add('bg-zinc-700/30');
+      setTimeout(() => messageElement.classList.remove('bg-zinc-700/30'), 2000);
+    }
+  };
 
   // Initial fetch of channels
   useEffect(() => {
@@ -345,10 +372,17 @@ export function HomeUI() {
         {selectedChannel ? (
           <>
             {/* Channel header */}
-            <div className="p-4 border-b border-zinc-800">
+            <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
               <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
                 {getChannelPath(selectedChannel)}
               </h2>
+              <SearchBar
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                searchResults={searchResults}
+                onResultClick={handleSearchResultClick}
+                onClear={clearSearch}
+              />
             </div>
             
             {/* Messages area */}
@@ -373,7 +407,13 @@ export function HomeUI() {
                 ) : (
                   <div key={selectedChannel}>
                     {messages.map(message => (
-                      <div key={message.id} className="mb-4">
+                      <div
+                        key={message.id}
+                        id={`message-${message.id}`}
+                        className={`mb-4 transition-colors duration-300 rounded-lg p-2 ${
+                          message.id === selectedMessageId ? 'bg-zinc-700/30' : ''
+                        }`}
+                      >
                         <div className="flex items-baseline">
                           <span className={`${firaCode.className} text-sm font-medium text-[#00b300]`}>
                             {message.author.name || 'User'}

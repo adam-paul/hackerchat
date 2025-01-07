@@ -13,29 +13,7 @@ export async function DELETE(
   }
 
   try {
-    // First delete all messages in the channel and its threads
-    const channelWithThreads = await prisma.channel.findUnique({
-      where: { id: params.channelId },
-      include: { threads: true }
-    });
-
-    if (!channelWithThreads) {
-      return new NextResponse("Channel not found", { status: 404 });
-    }
-
-    // Delete messages from all threads
-    for (const thread of channelWithThreads.threads) {
-      await prisma.message.deleteMany({
-        where: { channelId: thread.id }
-      });
-    }
-
-    // Delete messages from the main channel
-    await prisma.message.deleteMany({
-      where: { channelId: params.channelId }
-    });
-
-    // Delete the channel (and its threads due to onDelete: Cascade)
+    // Delete the channel directly - cascading deletes will handle messages and threads
     const channel = await prisma.channel.delete({
       where: { id: params.channelId }
     });
