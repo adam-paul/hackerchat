@@ -1,27 +1,29 @@
 // src/components/ui/HomeUI.tsx
 'use client';
 
-import { UserButton, useAuth } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { Fira_Code } from 'next/font/google';
 import { useEffect, useState, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { ChannelList } from './ChannelList';
 import { Settings } from './Settings';
 import type { Channel, Message } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useMessages } from '@/lib/hooks/useMessage';
+import { useSocket } from '@/lib/socket/context';
 import { SearchBar } from './SearchBar';
 import { useSearch } from '@/lib/hooks/useSearch';
+import { UserList } from './UserList';
+import { useUsers } from '@/lib/hooks/useUsers';
+import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
+import { MessageComponent } from './Message';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 export function HomeUI() {
-  const { getToken } = useAuth();
   const { userName, userId } = useAuthContext();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +41,14 @@ export function HomeUI() {
   } = useMessages();
 
   const {
+    isConnected,
+    error: socketError,
+    joinChannel,
+    leaveChannel,
+    sendMessage: sendSocketMessage
+  } = useSocket();
+
+  const {
     searchQuery,
     setSearchQuery,
     searchResults,
@@ -47,6 +57,9 @@ export function HomeUI() {
     searchMessages,
     clearSearch,
   } = useSearch();
+
+  const { users, isLoading: isLoadingUsers } = useUsers();
+  const [isUserListCollapsed, setIsUserListCollapsed] = useLocalStorage('userListCollapsed', false);
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
@@ -73,14 +86,11 @@ export function HomeUI() {
           throw new Error('Failed to fetch channels');
         }
         const data = await res.json();
-        // Sort channels by name, keeping threads under their parent channels
         const sortChannels = (channels: Channel[]) => {
           return channels.sort((a: Channel, b: Channel) => {
-            // If both are threads or both are not threads, sort by name
             if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
               return a.name.localeCompare(b.name);
             }
-            // If one is a thread and the other isn't, non-thread comes first
             return a.parentId ? 1 : -1;
           });
         };
@@ -95,14 +105,15 @@ export function HomeUI() {
     fetchChannels();
   }, []);
 
-  // Fetch messages when channel is selected
+  // Join/Leave channel when selection changes
   useEffect(() => {
-    const fetchMessages = async () => {
-      if (!selectedChannel) {
-        clearMessages();
-        return;
-      }
+    if (!selectedChannel) {
+      clearMessages();
+      return;
+    }
 
+    // Fetch initial messages
+    const fetchMessages = async () => {
       try {
         startLoadingMessages();
         const res = await fetch(`/api/channels/${selectedChannel}/messages`);
@@ -118,71 +129,26 @@ export function HomeUI() {
     };
 
     fetchMessages();
-  }, [selectedChannel, clearMessages, startLoadingMessages, setMessages, setMessageError]);
 
-  // Set up Socket.IO connection
-  useEffect(() => {
-    const connectSocket = async () => {
-      const token = await getToken();
-      if (!token) return;
-
-      const newSocket = io({
-        path: '/api/socket',
-        addTrailingSlash: false,
-        reconnectionDelay: 1000,
-        reconnection: true,
-        reconnectionAttempts: 10,
-        auth: {
-          token
-        }
-      });
-
-      newSocket.on('connect', () => {
-        console.log('Connected to Socket.IO server');
-      });
-
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error.message);
-      });
-
-      newSocket.on('message', (data) => {
-        if (data.channelId === selectedChannel) {
-          addMessage(data.message);
-        }
-      });
-
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-      };
-    };
-
-    connectSocket();
-  }, [getToken, selectedChannel, addMessage]);
-
-  // Join/Leave channel when selection changes
-  useEffect(() => {
-    if (!socket) return;
-
-    if (selectedChannel) {
-      socket.emit('join-channel', selectedChannel);
+    // Join socket channel
+    if (isConnected) {
+      joinChannel(selectedChannel);
     }
 
     return () => {
-      if (selectedChannel) {
-        socket.emit('leave-channel', selectedChannel);
+      if (isConnected && selectedChannel) {
+        leaveChannel(selectedChannel);
       }
     };
-  }, [selectedChannel, socket]);
+  }, [selectedChannel, isConnected, clearMessages, startLoadingMessages, setMessages, setMessageError, joinChannel, leaveChannel]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedChannel || !newMessage.trim() || !socket) return;
+    if (!selectedChannel || !newMessage.trim() || !isConnected) return;
 
-    // Create optimistic message
-    const optimisticMessage = {
-      id: Date.now().toString(),
+    const messageId = `temp_${Date.now()}`;
+    const optimisticMessage: Message = {
+      id: messageId,
       content: newMessage,
       channelId: selectedChannel,
       createdAt: new Date().toISOString(),
@@ -193,42 +159,14 @@ export function HomeUI() {
       }
     };
 
-    // Optimistically update UI
     addMessage(optimisticMessage);
     setNewMessage('');
-
-    try {
-      const res = await fetch(`/api/channels/${selectedChannel}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: newMessage })
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to send message');
-      }
-      
-      const actualMessage = await res.json();
-      
-      // Update the optimistic message with the real one
-      updateMessage(optimisticMessage.id, actualMessage);
-      
-      // Broadcast to other clients
-      socket.emit('message', {
-        type: 'message',
-        channelId: selectedChannel,
-        message: actualMessage
-      });
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setMessageError(error instanceof Error ? error.message : 'Failed to send message');
-      setNewMessage(newMessage);
-    }
+    sendSocketMessage(messageId, selectedChannel, newMessage);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedChannel) return;
+    if (!file || !selectedChannel || !isConnected) return;
 
     try {
       setIsUploading(true);
@@ -245,10 +183,10 @@ export function HomeUI() {
       }
 
       const { url, fileName, fileType, fileSize } = await uploadRes.json();
+      const messageId = `temp_${Date.now()}`;
 
-      // Create optimistic message with file
-      const optimisticMessage = {
-        id: Date.now().toString(),
+      const optimisticMessage: Message = {
+        id: messageId,
         content: fileName,
         fileUrl: url,
         fileName,
@@ -263,35 +201,12 @@ export function HomeUI() {
         }
       };
 
-      // Optimistically update UI
       addMessage(optimisticMessage);
-
-      const res = await fetch(`/api/channels/${selectedChannel}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: fileName,
-          fileUrl: url,
-          fileName,
-          fileType,
-          fileSize
-        })
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to send message');
-      }
-      
-      const actualMessage = await res.json();
-      
-      // Update the optimistic message with the real one
-      updateMessage(optimisticMessage.id, actualMessage);
-      
-      // Broadcast to other clients
-      socket?.emit('message', {
-        type: 'message',
-        channelId: selectedChannel,
-        message: actualMessage
+      sendSocketMessage(messageId, selectedChannel, fileName, {
+        fileUrl: url,
+        fileName,
+        fileType,
+        fileSize
       });
     } catch (error) {
       console.error('Failed to upload file:', error);
@@ -330,14 +245,44 @@ export function HomeUI() {
           <span className={`${firaCode.className} text-zinc-200 text-lg`}>
             hacker_chat
           </span>
-          <UserButton 
-            afterSignOutUrl="/"
-            appearance={{
-              elements: {
-                userButtonAvatarBox: 'w-8 h-8'
-              }
-            }}
-          />
+          <div className="flex items-center gap-2">
+            {socketError && (
+              <span className="text-red-500 text-xs" title={socketError}>⚠️</span>
+            )}
+            <span className={`text-xs ${isConnected ? 'text-green-500' : 'text-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'}>
+              ●
+            </span>
+            <UserButton 
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: 'w-8 h-8',
+                  userButtonPopoverCard: 'border border-zinc-700 shadow-xl !bg-zinc-800 !rounded',
+                  userButtonPopoverActions: 'border-t border-zinc-700',
+                  userPreviewMainIdentifier: '!text-zinc-200 font-mono',
+                  userPreviewSecondaryIdentifier: '!text-zinc-400 font-mono',
+                  userButtonPopoverActionButton: '!text-zinc-400 hover:!text-zinc-200 font-mono',
+                  userButtonPopoverActionButtonText: 'font-mono !text-zinc-200',
+                  userButtonPopoverActionButtonIcon: '!text-zinc-400',
+                  footerActionLink: '!text-zinc-400 hover:!text-zinc-200',
+                  footerActionText: '!text-zinc-200',
+                  card: '!rounded',
+                  avatarBox: '!rounded',
+                  userPreviewAvatarBox: '!rounded',
+                  userButtonAvatarImage: '!rounded',
+                  organizationSwitcherTriggerIcon: '!text-zinc-200',
+                  organizationPreviewTextContainer: '!text-zinc-200',
+                  organizationSwitcherTrigger: '!text-zinc-200',
+                  organizationSwitcherTriggerButton: '!text-zinc-200',
+                  userButtonTrigger: '!text-zinc-200 !rounded focus:!ring-2 focus:!ring-[#00b300] focus:!ring-offset-2 focus:!ring-offset-zinc-800',
+                  userButtonPopoverActionButtonArrow: '!text-zinc-200',
+                  userButtonPopoverFooter: '!text-zinc-200 border-t border-zinc-700',
+                  userPreview: 'flex items-center pb-4',
+                  userPreviewTextContainer: 'flex flex-col justify-center'
+                }
+              }}
+            />
+          </div>
         </div>
         
         {/* Channel list */}
@@ -373,9 +318,16 @@ export function HomeUI() {
           <>
             {/* Channel header */}
             <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-              <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
-                {getChannelPath(selectedChannel)}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
+                  {getChannelPath(selectedChannel)}
+                </h2>
+                {!isConnected && (
+                  <span className="text-red-500 text-xs">
+                    Disconnected
+                  </span>
+                )}
+              </div>
               <SearchBar
                 searchQuery={searchQuery}
                 onSearchChange={handleSearchChange}
@@ -407,51 +359,11 @@ export function HomeUI() {
                 ) : (
                   <div key={selectedChannel}>
                     {messages.map(message => (
-                      <div
+                      <MessageComponent
                         key={message.id}
-                        id={`message-${message.id}`}
-                        className={`mb-4 transition-colors duration-300 rounded-lg p-2 ${
-                          message.id === selectedMessageId ? 'bg-zinc-700/30' : ''
-                        }`}
-                      >
-                        <div className="flex items-baseline">
-                          <span className={`${firaCode.className} text-sm font-medium text-[#00b300]`}>
-                            {message.author.name || 'User'}
-                          </span>
-                          <span className={`${firaCode.className} ml-2 text-xs text-zinc-500`}>
-                            {new Date(message.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        {message.fileUrl ? (
-                          <div className="mt-1">
-                            {message.fileType?.startsWith('image/') ? (
-                              <img 
-                                src={message.fileUrl} 
-                                alt={message.fileName || 'Attached image'} 
-                                className="max-w-md max-h-64 rounded object-contain"
-                              />
-                            ) : (
-                              <a 
-                                href={message.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`${firaCode.className} text-sm text-[#00b300] hover:underline flex items-center`}
-                              >
-                                📎 {message.fileName}
-                                {message.fileSize && (
-                                  <span className="ml-2 text-zinc-500">
-                                    ({Math.round(message.fileSize / 1024)}KB)
-                                  </span>
-                                )}
-                              </a>
-                            )}
-                          </div>
-                        ) : (
-                          <p className={`${firaCode.className} text-sm text-zinc-300`}>
-                            {message.content}
-                          </p>
-                        )}
-                      </div>
+                        message={message}
+                        isHighlighted={message.id === selectedMessageId}
+                      />
                     ))}
                   </div>
                 )}
@@ -467,8 +379,11 @@ export function HomeUI() {
                     type="text"
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    className={`${firaCode.className} text-sm w-full pl-10 pr-12 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300]`}
+                    placeholder={!isConnected ? 'Disconnected...' : 'Type a message...'}
+                    disabled={!isConnected}
+                    className={`${firaCode.className} text-sm w-full pl-10 pr-12 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300] ${
+                      !isConnected ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   />
                   <div className="absolute right-3">
                     <input
@@ -477,12 +392,15 @@ export function HomeUI() {
                       onChange={handleFileSelect}
                       className="hidden"
                       accept="image/*,.pdf,.doc,.docx,.txt"
+                      disabled={!isConnected || isUploading}
                     />
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className={`${firaCode.className} text-base text-zinc-400 hover:text-zinc-200 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={!isConnected || isUploading}
+                      className={`${firaCode.className} text-base text-zinc-400 hover:text-zinc-200 transition-colors ${
+                        (!isConnected || isUploading) ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                       aria-label="Attach file"
                     >
                       {isUploading ? (
@@ -502,6 +420,20 @@ export function HomeUI() {
           </div>
         )}
       </main>
+
+      {/* Right Sidebar - Users */}
+      <aside className="bg-zinc-800 p-4 flex flex-col">
+        {isLoadingUsers ? (
+          <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading users...</div>
+        ) : (
+          <UserList
+            users={users}
+            isCollapsed={isUserListCollapsed}
+            onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
+            className="flex-1"
+          />
+        )}
+      </aside>
     </div>
   );
 }

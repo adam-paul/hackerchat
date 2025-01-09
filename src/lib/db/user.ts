@@ -19,15 +19,13 @@ export async function getOrCreateUser() {
   const dbUser = await prisma.user.upsert({
     where: { id: userId },
     update: {
-      name: user.username || (user.firstName ? `${user.firstName} ${user.lastName}` : undefined),
+      name: user.username || 'Anonymous',
       imageUrl: user.imageUrl,
-      email: user.emailAddresses[0]?.emailAddress,
     },
     create: {
       id: userId,
-      name: user.username || (user.firstName ? `${user.firstName} ${user.lastName}` : undefined),
+      name: user.username || 'Anonymous',
       imageUrl: user.imageUrl,
-      email: user.emailAddresses[0]?.emailAddress || '',
     },
   });
 

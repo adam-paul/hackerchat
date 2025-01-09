@@ -1,3 +1,5 @@
+// src/app/api/channels/[channelId]/route.ts
+
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";

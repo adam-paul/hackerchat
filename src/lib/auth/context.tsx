@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: !clerkLoaded,
     userId: userId ?? null,
     userEmail: user?.emailAddresses[0]?.emailAddress ?? null,
-    userName: user?.fullName ?? user?.username ?? null,
+    userName: user?.username ?? null,
     userImageUrl: user?.imageUrl ?? null,
     userStatus,
     setUserStatus,

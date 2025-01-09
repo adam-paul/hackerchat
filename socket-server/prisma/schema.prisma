@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = "file:../../prisma/dev.db"
 }
 
 model User {
@@ -46,4 +46,4 @@ model Message {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   originalId String? // For tracking optimistic messages
-}
+} 

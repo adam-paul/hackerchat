@@ -15,6 +15,7 @@ export interface Channel {
 export interface Message {
   id: string;
   content: string;
+  channelId: string;
   fileUrl?: string;
   fileName?: string;
   fileType?: string;
@@ -41,5 +42,7 @@ export type MessageAction =
   | { type: 'FETCH_ERROR'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: Message }
   | { type: 'UPDATE_MESSAGE'; payload: { id: string; message: Message } }
+  | { type: 'MESSAGE_ERROR'; payload: { messageId: string; error: string } }
+  | { type: 'DELETE_MESSAGE'; payload: string }
   | { type: 'CLEAR_MESSAGES' };
   

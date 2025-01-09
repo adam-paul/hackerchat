@@ -1,7 +1,8 @@
-// src/lib/hooks/useMessages.ts
+// src/lib/hooks/useMessage.ts
 
-import { useReducer, useCallback } from 'react';
+import { useCallback, useReducer, useEffect } from 'react';
 import type { Message, MessageState, MessageAction } from '@/types';
+import { useSocket } from '../socket/context';
 
 const initialState: MessageState = {
   messages: [],
@@ -17,41 +18,52 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         status: 'loading',
         error: undefined
       };
-    
     case 'FETCH_SUCCESS':
       return {
-        messages: action.payload,
+        ...state,
         status: 'success',
+        messages: action.payload,
         error: undefined
       };
-    
     case 'FETCH_ERROR':
       return {
         ...state,
         status: 'error',
         error: action.payload
       };
-    
     case 'ADD_MESSAGE':
       return {
         ...state,
-        messages: [...state.messages, action.payload].slice(0, 50), // Keep last 50 messages
-        status: 'success'
+        status: 'success',
+        messages: [...state.messages, action.payload]
       };
-    
-    case 'UPDATE_MESSAGE': {
-      const updatedMessages = state.messages.map(msg => 
-        msg.id === action.payload.id ? action.payload.message : msg
-      );
+    case 'UPDATE_MESSAGE':
       return {
         ...state,
-        messages: updatedMessages
+        status: 'success',
+        messages: state.messages.map(msg =>
+          msg.id === action.payload.id ? action.payload.message : msg
+        )
       };
-    }
-    
+    case 'DELETE_MESSAGE':
+      return {
+        ...state,
+        status: 'success',
+        messages: state.messages.filter(msg => msg.id !== action.payload)
+      };
+    case 'MESSAGE_ERROR':
+      return {
+        ...state,
+        status: 'error',
+        error: action.payload.error
+      };
     case 'CLEAR_MESSAGES':
-      return initialState;
-    
+      return {
+        ...state,
+        status: 'idle',
+        messages: [],
+        error: undefined
+      };
     default:
       return state;
   }
@@ -59,6 +71,31 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
 
 export function useMessages() {
   const [state, dispatch] = useReducer(messageReducer, initialState);
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMessage = (message: Message) => {
+      dispatch({ type: 'ADD_MESSAGE', payload: message });
+    };
+
+    const handleMessageDeleted = (event: { messageId: string; originalId?: string }) => {
+      // Delete both the real message and any optimistic version
+      dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
+      if (event.originalId) {
+        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
+      }
+    };
+
+    socket.setMessageHandler(handleMessage);
+    socket.setMessageDeleteHandler(handleMessageDeleted);
+
+    return () => {
+      socket.setMessageHandler(() => {});
+      socket.setMessageDeleteHandler(() => {});
+    };
+  }, [socket]);
 
   const startLoading = useCallback(() => {
     dispatch({ type: 'FETCH_START' });
@@ -73,7 +110,10 @@ export function useMessages() {
   }, []);
 
   const updateMessage = useCallback((id: string, message: Message) => {
-    dispatch({ type: 'UPDATE_MESSAGE', payload: { id, message } });
+    dispatch({
+      type: 'UPDATE_MESSAGE',
+      payload: { id, message }
+    });
   }, []);
 
   const clearMessages = useCallback(() => {
@@ -85,7 +125,9 @@ export function useMessages() {
   }, []);
 
   return {
-    ...state,
+    messages: state.messages,
+    status: state.status,
+    error: state.error,
     startLoading,
     setMessages,
     addMessage,
