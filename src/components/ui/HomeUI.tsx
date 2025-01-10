@@ -16,11 +16,12 @@ import { UserList } from './UserList';
 import { useUsers } from '@/lib/hooks/useUsers';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import { MessageComponent } from './Message';
+import { ChatSection } from './ChatSection';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 export function HomeUI() {
-  const { userName, userId } = useAuthContext();
+  const { userName, userId, userImageUrl } = useAuthContext();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -62,6 +63,7 @@ export function HomeUI() {
 
   const { users, isLoading: isLoadingUsers } = useUsers();
   const [isUserListCollapsed, setIsUserListCollapsed] = useLocalStorage('userListCollapsed', false);
+  const [isChatSectionCollapsed, setIsChatSectionCollapsed] = useLocalStorage('chatSectionCollapsed', true);
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
@@ -157,18 +159,9 @@ export function HomeUI() {
       author: {
         id: userId || 'optimistic',
         name: userName || 'Anonymous',
-        imageUrl: ''
+        imageUrl: userImageUrl || '',
       },
-      ...(replyTo && {
-        replyTo: {
-          id: replyTo.id,
-          content: replyTo.content,
-          author: {
-            id: replyTo.author.id,
-            name: replyTo.author.name
-          }
-        }
-      })
+      reactions: []
     };
 
     addMessage(optimisticMessage);
@@ -215,8 +208,9 @@ export function HomeUI() {
         author: {
           id: userId || 'optimistic',
           name: userName || 'Anonymous',
-          imageUrl: ''
-        }
+          imageUrl: userImageUrl || '',
+        },
+        reactions: []
       };
 
       addMessage(optimisticMessage);
@@ -528,17 +522,48 @@ export function HomeUI() {
         )}
       </main>
 
-      {/* Right Sidebar - Users */}
+      {/* Right Sidebar - Users and Chat */}
       <aside className="bg-zinc-800 p-4 flex flex-col">
         {isLoadingUsers ? (
           <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading users...</div>
         ) : (
-          <UserList
-            users={users}
-            isCollapsed={isUserListCollapsed}
-            onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
-            className="flex-1"
-          />
+          <div className="flex flex-col h-full">
+            <UserList
+              users={users}
+              isCollapsed={isUserListCollapsed}
+              onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
+              className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
+            />
+            <ChatSection
+              isCollapsed={isChatSectionCollapsed}
+              isSidebarCollapsed={isUserListCollapsed}
+              onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
+              className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
+            />
+            {isUserListCollapsed && (
+              <div className="flex flex-col items-center gap-4 mt-auto pt-4">
+                <button
+                  onClick={() => setIsUserListCollapsed(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                  aria-label="Show users"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIsUserListCollapsed(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                  aria-label="Show chat"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </aside>
     </div>
