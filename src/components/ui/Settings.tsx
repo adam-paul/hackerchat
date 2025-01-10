@@ -1,10 +1,11 @@
 // src/components/ui/Settings.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { useClerk } from '@clerk/nextjs';
 import Image from 'next/image';
+import { SettingsModal } from './SettingsModal';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -13,6 +14,8 @@ export function Settings() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isRejecting, setIsRejecting] = useState(false);
   const [showGif, setShowGif] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'user' | 'chat'>('user');
   const { signOut } = useClerk();
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -73,20 +76,14 @@ export function Settings() {
     }
   };
 
+  const openSettings = (tab: 'user' | 'chat') => {
+    setSettingsTab(tab);
+    setSettingsModalOpen(true);
+    setIsOpen(false);
+  };
+
   return (
     <div className="relative">
-      {/* Preload GIF */}
-      <div className="hidden">
-        <Image 
-          src="https://i.imgur.com/SEE4F4k.gif" 
-          alt="Preload Wrong"
-          width={128}
-          height={128}
-          priority
-        />
-      </div>
-
-      {/* Gear Icon */}
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
@@ -109,7 +106,7 @@ export function Settings() {
         </svg>
       </button>
 
-      {/* Settings Modal */}
+      {/* Settings Menu */}
       {isOpen && (
         <div 
           ref={menuRef}
@@ -152,8 +149,17 @@ export function Settings() {
             )}
           </div>
 
+          {/* User Settings */}
+          <button
+            onClick={() => openSettings('user')}
+            className="w-full p-3 text-left text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+          >
+            User Settings
+          </button>
+
           {/* Chat Settings */}
           <button
+            onClick={() => openSettings('chat')}
             className="w-full p-3 text-left text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
           >
             Chat Settings
@@ -168,6 +174,13 @@ export function Settings() {
           </button>
         </div>
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+        initialTab={settingsTab}
+      />
     </div>
   );
 } 

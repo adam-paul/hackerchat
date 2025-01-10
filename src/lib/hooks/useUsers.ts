@@ -2,13 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSocket } from '../socket/context';
-
-interface User {
-  id: string;
-  name: string;
-  imageUrl?: string | null;
-  isOnline: boolean;
-}
+import type { User } from '@/types';
 
 export function useUsers() {
   const [users, setUsers] = useState<User[]>([]);
@@ -27,7 +21,7 @@ export function useUsers() {
         }
         const data = await res.json();
         // Keep users offline initially until we get the connected users list
-        setUsers(data.map((user: any) => ({ ...user, isOnline: false })));
+        setUsers(data.map((user: any) => ({ ...user, status: 'offline' as const })));
       } catch (error) {
         console.error('Failed to fetch users:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -47,21 +41,21 @@ export function useUsers() {
     const handleConnectedUsers = (connectedUserIds: string[]) => {
       setUsers(prev => prev.map(user => ({
         ...user,
-        isOnline: connectedUserIds.includes(user.id)
+        status: connectedUserIds.includes(user.id) ? 'online' : 'offline'
       })));
     };
 
     // Handle user connected
     const handleUserConnected = (userId: string) => {
       setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, isOnline: true } : user
+        user.id === userId ? { ...user, status: 'online' } : user
       ));
     };
 
     // Handle user disconnected
     const handleUserDisconnected = (userId: string) => {
       setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, isOnline: false } : user
+        user.id === userId ? { ...user, status: 'offline' } : user
       ));
     };
 

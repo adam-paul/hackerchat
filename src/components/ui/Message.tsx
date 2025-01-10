@@ -1,11 +1,12 @@
 // src/components/ui/Message.tsx
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Fira_Code } from 'next/font/google';
 import type { Message } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useSocket } from '@/lib/socket/context';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
+import { ClickableUsername } from './ClickableUsername';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -50,9 +51,10 @@ export function MessageComponent({ message, isHighlighted }: MessageProps) {
     >
       <div className="flex items-baseline justify-between">
         <div className="flex items-baseline">
-          <span className={`${firaCode.className} text-sm font-medium text-[#00b300]`}>
-            {message.author.name || 'User'}
-          </span>
+          <ClickableUsername
+            user={message.author}
+            className={`${firaCode.className} text-sm font-medium text-[#00b300]`}
+          />
           <span className={`${firaCode.className} ml-2 text-xs text-zinc-500`}>
             {new Date(message.createdAt).toLocaleString()}
           </span>

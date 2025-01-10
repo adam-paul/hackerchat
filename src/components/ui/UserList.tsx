@@ -1,18 +1,13 @@
 // src/components/ui/UserList.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
+import { ClickableUsername } from './ClickableUsername';
+import type { User } from '@/types';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
-
-interface User {
-  id: string;
-  name: string;
-  imageUrl?: string | null;
-  isOnline: boolean;
-}
 
 interface UserListProps {
   users: User[];
@@ -24,25 +19,22 @@ interface UserListProps {
 export function UserList({ users, className = '', isCollapsed, onToggleCollapse }: UserListProps) {
   // Separate and sort users by online status
   const { onlineUsers, offlineUsers } = useMemo(() => {
-    const sortByName = (a: User, b: User) => a.name.localeCompare(b.name);
+    const sortByName = (a: User, b: User) => (a.name || '').localeCompare(b.name || '');
     
     return {
-      onlineUsers: users.filter(user => user.isOnline).sort(sortByName),
-      offlineUsers: users.filter(user => !user.isOnline).sort(sortByName)
+      onlineUsers: users.filter(user => user.status === 'online').sort(sortByName),
+      offlineUsers: users.filter(user => user.status !== 'online').sort(sortByName)
     };
   }, [users]);
 
   const UserItem = ({ user }: { user: User }) => (
-    <div 
-      className="flex items-center justify-between px-2 py-1"
-    >
-      <span className={`${
-        user.isOnline ? 'text-[#00b300]' : 'text-zinc-500'
-      }`}>
-        {user.name}
-      </span>
+    <div className="flex items-center justify-between px-2 py-1">
+      <ClickableUsername
+        user={user}
+        className={`${user.status === 'online' ? 'text-[#00b300]' : 'text-zinc-500'}`}
+      />
       <StatusIndicator 
-        status={user.isOnline ? 'online' : 'offline'}
+        status={user.status || 'offline'}
         className="flex-shrink-0"
       />
     </div>
@@ -62,7 +54,7 @@ export function UserList({ users, className = '', isCollapsed, onToggleCollapse 
           {isCollapsed ? '<' : '>'}
         </button>
       </div>
-      
+
       {!isCollapsed && (
         <>
           <div className="border-b border-zinc-700 mb-2" />

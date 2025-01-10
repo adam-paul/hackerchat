@@ -45,4 +45,11 @@ export type MessageAction =
   | { type: 'MESSAGE_ERROR'; payload: { messageId: string; error: string } }
   | { type: 'DELETE_MESSAGE'; payload: string }
   | { type: 'CLEAR_MESSAGES' };
+
+export interface User {
+  id: string;
+  name?: string | null;
+  imageUrl?: string | null;
+  status?: 'online' | 'offline' | 'away' | 'busy';
+}
   
