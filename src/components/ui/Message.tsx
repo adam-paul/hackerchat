@@ -222,20 +222,27 @@ export function MessageComponent({
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
         >
-          <ContextMenuItem onClick={handleReplyClick}>
-            _reply
-          </ContextMenuItem>
-          <ContextMenuItem onClick={handleCreateThread}>
-            _create.thread
-          </ContextMenuItem>
-          {isOwnMessage && (
-            <ContextMenuItem
-              onClick={handleDelete}
-              className="text-red-400 hover:text-red-300"
-            >
-              _delete
+          <div className="flex flex-col w-full">
+            <ContextMenuItem onClick={() => {
+              setContextMenu(null);
+            }}>
+              _ASCIII.react
             </ContextMenuItem>
-          )}
+            <ContextMenuItem onClick={handleReplyClick}>
+              _reply
+            </ContextMenuItem>
+            <ContextMenuItem onClick={handleCreateThread}>
+              _create.thread
+            </ContextMenuItem>
+            {isOwnMessage && (
+              <ContextMenuItem
+                onClick={handleDelete}
+                className="!text-red-400 hover:!text-red-300"
+              >
+                _delete
+              </ContextMenuItem>
+            )}
+          </div>
         </ContextMenu>
       )}
     </div>
