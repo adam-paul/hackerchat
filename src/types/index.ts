@@ -23,19 +23,21 @@ export interface Message {
   createdAt: string;
   author: {
     id: string;
-    name: string | null;
-    imageUrl: string | null;
+    name: string;
+    imageUrl?: string;
   };
-  replyToId?: string;
   replyTo?: {
     id: string;
     content: string;
     author: {
       id: string;
-      name: string | null;
+      name: string;
     };
   };
+  replyToId?: string;
   originalId?: string;
+  threadId?: string;
+  threadName?: string;
 }
 
 export type MessageLoadingState = 'idle' | 'loading' | 'error' | 'success';

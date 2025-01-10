@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Fira_Code } from 'next/font/google';
-import type { Message } from '@/types';
+import type { Message, Channel } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useSocket } from '@/lib/socket/context';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -15,10 +15,23 @@ interface MessageProps {
   isHighlighted?: boolean;
   onReply?: (message: Message) => void;
   onHighlightMessage?: (messageId: string) => void;
+  onSelectChannel?: (channelId: string) => void;
+  onChannelCreated?: (channel: Channel) => void;
+  onMessageUpdate?: (id: string, message: Message) => void;
 }
 
-export function MessageComponent({ message, isHighlighted, onReply, onHighlightMessage }: MessageProps) {
+export function MessageComponent({ 
+  message, 
+  isHighlighted, 
+  onReply, 
+  onHighlightMessage, 
+  onSelectChannel,
+  onChannelCreated,
+  onMessageUpdate
+}: MessageProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [isNaming, setIsNaming] = useState(false);
+  const [threadName, setThreadName] = useState('');
   const { userId } = useAuthContext();
   const { socket } = useSocket();
   const messageRef = useRef<HTMLDivElement>(null);
@@ -53,6 +66,58 @@ export function MessageComponent({ message, isHighlighted, onReply, onHighlightM
       if (replyElement) {
         replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+    }
+  };
+
+  const handleCreateThread = () => {
+    setContextMenu(null);
+    setIsNaming(true);
+  };
+
+  const handleThreadNameSubmit = async () => {
+    if (!threadName.trim()) return;
+    
+    try {
+      // Create the thread with the user-provided name
+      const response = await fetch('/api/channels', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: threadName,
+          parentId: message.channelId,
+          initialMessage: {
+            content: message.content,
+            authorId: message.author.id,
+            fileUrl: message.fileUrl,
+            fileName: message.fileName,
+            fileType: message.fileType,
+            fileSize: message.fileSize
+          },
+          messageId: message.id // Pass the original message ID to update its thread info
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to create thread');
+      
+      const newThread = await response.json();
+      
+      // Add the new channel to the UI
+      onChannelCreated?.(newThread);
+
+      // Update the message with thread info
+      const updatedMessage = {
+        ...message,
+        threadId: newThread.id,
+        threadName: threadName
+      };
+      onMessageUpdate?.(message.id, updatedMessage);
+
+      setIsNaming(false);
+      setThreadName('');
+    } catch (error) {
+      console.error('Failed to create thread:', error);
     }
   };
 
@@ -121,6 +186,36 @@ export function MessageComponent({ message, isHighlighted, onReply, onHighlightM
         </p>
       )}
 
+      {isNaming && (
+        <div className={`${firaCode.className} text-xs flex items-center gap-1 pl-4 mt-1`}>
+          <span className="text-zinc-400">thread.name</span>
+          <input 
+            type="text" 
+            value={threadName}
+            onChange={(e) => setThreadName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleThreadNameSubmit();
+              } else if (e.key === 'Escape') {
+                setIsNaming(false);
+                setThreadName('');
+              }
+            }}
+            className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 text-xs"
+            autoFocus
+          />
+        </div>
+      )}
+
+      {message.threadId && message.threadName && (
+        <div 
+          className={`${firaCode.className} text-xs text-zinc-500 hover:text-zinc-400 cursor-pointer pl-4 mt-1`}
+          onClick={() => onSelectChannel?.(message.threadId!)}
+        >
+          ↳ {message.threadName}
+        </div>
+      )}
+
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -130,12 +225,7 @@ export function MessageComponent({ message, isHighlighted, onReply, onHighlightM
           <ContextMenuItem onClick={handleReplyClick}>
             _reply
           </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => {
-              console.log('Create thread not implemented');
-              setContextMenu(null);
-            }}
-          >
+          <ContextMenuItem onClick={handleCreateThread}>
             _create.thread
           </ContextMenuItem>
           {isOwnMessage && (

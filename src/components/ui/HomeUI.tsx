@@ -368,6 +368,17 @@ export function HomeUI() {
               if (selectedChannel === deletedChannelId) {
                 setSelectedChannel(null);
               }
+              // Update messages to clear thread links for the deleted channel
+              messages.forEach(message => {
+                if (message.threadId === deletedChannelId) {
+                  const updatedMessage = {
+                    ...message,
+                    threadId: undefined,
+                    threadName: undefined
+                  };
+                  updateMessage(message.id, updatedMessage);
+                }
+              });
             }}
             className="flex-1"
           />
@@ -432,6 +443,11 @@ export function HomeUI() {
                         isHighlighted={message.id === selectedMessageId}
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
+                        onSelectChannel={setSelectedChannel}
+                        onChannelCreated={(newChannel) => setChannels(prev => 
+                          [...prev, newChannel].sort((a, b) => a.name.localeCompare(b.name))
+                        )}
+                        onMessageUpdate={updateMessage}
                       />
                     ))}
                   </div>

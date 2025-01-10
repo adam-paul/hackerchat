@@ -22,8 +22,8 @@ export function UserList({ users, className = '', isCollapsed, onToggleCollapse 
     const sortByName = (a: User, b: User) => (a.name || '').localeCompare(b.name || '');
     
     return {
-      onlineUsers: users.filter(user => user.status === 'online').sort(sortByName),
-      offlineUsers: users.filter(user => user.status !== 'online').sort(sortByName)
+      onlineUsers: users.filter(user => user.status !== 'offline').sort(sortByName),
+      offlineUsers: users.filter(user => user.status === 'offline').sort(sortByName)
     };
   }, [users]);
 

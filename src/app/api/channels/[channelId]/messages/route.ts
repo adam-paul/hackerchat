@@ -69,7 +69,9 @@ export async function GET(
             name: message.replyTo.author.name
           }
         }
-      })
+      }),
+      threadId: message.threadId,
+      threadName: message.threadName
     }));
 
     return NextResponse.json(formattedMessages);

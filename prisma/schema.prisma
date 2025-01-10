@@ -52,4 +52,6 @@ model Message {
   replyToId String? // ID of the message being replied to
   replyTo   Message? @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   Message[] @relation("Replies")
+  threadId  String? // ID of the thread channel created from this message
+  threadName String? // Name of the thread created from this message
 }

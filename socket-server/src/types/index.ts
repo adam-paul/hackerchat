@@ -22,6 +22,8 @@ export interface Message {
       name: string | null;
     };
   };
+  threadId?: string;
+  threadName?: string;
 }
 
 export interface MessageEvent {

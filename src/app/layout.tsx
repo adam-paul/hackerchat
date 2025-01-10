@@ -21,6 +21,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link
+          rel="preload"
+          href="https://i.imgur.com/SEE4F4k.gif"
+          as="image"
+          type="image/gif"
+        />
+      </head>
       <body className={`${inter.className} bg-zinc-900 text-zinc-100`}>
         <ClerkProvider>
           <AuthProvider>
