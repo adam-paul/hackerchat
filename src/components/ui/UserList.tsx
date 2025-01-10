@@ -31,7 +31,7 @@ export function UserList({ users, className = '', isCollapsed, onToggleCollapse 
     <div className="flex items-center justify-between px-2 py-1">
       <ClickableUsername
         user={user}
-        className={`${user.status === 'online' ? 'text-[#00b300]' : 'text-zinc-500'}`}
+        className={`${user.status === 'offline' ? 'text-zinc-500' : 'text-[#00b300]'}`}
       />
       <StatusIndicator 
         status={user.status || 'offline'}

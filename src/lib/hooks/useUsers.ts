@@ -59,14 +59,23 @@ export function useUsers() {
       ));
     };
 
+    // Handle status changes
+    const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
+      setUsers(prev => prev.map(user =>
+        user.id === userId ? { ...user, status: newStatus } : user
+      ));
+    };
+
     socket.on('connected-users', handleConnectedUsers);
     socket.on('user-connected', handleUserConnected);
     socket.on('user-disconnected', handleUserDisconnected);
+    socket.setStatusChangeHandler(handleStatusChange);
 
     return () => {
       socket.off('connected-users', handleConnectedUsers);
       socket.off('user-connected', handleUserConnected);
       socket.off('user-disconnected', handleUserDisconnected);
+      socket.setStatusChangeHandler(() => {});
     };
   }, [socket, isConnected]);
 

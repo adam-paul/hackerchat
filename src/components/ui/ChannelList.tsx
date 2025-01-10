@@ -199,7 +199,7 @@ export function ChannelList({
               onChange={(e) => setNewChannelName(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="thread-name"
-              className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200"
+              className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 placeholder:text-zinc-500/50"
               autoFocus
             />
             <button
@@ -249,7 +249,7 @@ export function ChannelList({
               onChange={(e) => setNewChannelName(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="channel-name"
-              className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200"
+              className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 placeholder:text-zinc-500/50"
               autoFocus
             />
             <button

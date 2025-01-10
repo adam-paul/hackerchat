@@ -2,10 +2,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Fira_Code } from 'next/font/google';
+import { StatusIndicator } from './StatusIndicator';
+import { useSocket } from '@/lib/socket/context';
+import { useUsers } from '@/lib/hooks/useUsers';
+import { useAuthContext } from '@/lib/auth/context';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 type SettingsTab = 'user' | 'chat';
+type UserStatus = 'online' | 'away' | 'busy' | 'offline';
+type UserSettingType = 'status'; // More settings can be added here
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,7 +21,20 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [activeSetting, setActiveSetting] = useState<UserSettingType>('status');
   const modalRef = useRef<HTMLDivElement>(null);
+  const { updateStatus } = useSocket();
+  const { users } = useUsers();
+  const { userId } = useAuthContext();
+  const currentUser = users.find(user => user.id === userId);
+  const [currentStatus, setCurrentStatus] = useState<UserStatus>('online');
+
+  // Set initial status from current user
+  useEffect(() => {
+    if (currentUser?.status) {
+      setCurrentStatus(currentUser.status as UserStatus);
+    }
+  }, [currentUser]);
 
   // Reset active tab when initial tab changes
   useEffect(() => {
@@ -45,6 +64,23 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
       document.removeEventListener('keydown', handleEscKey);
     };
   }, [isOpen, onClose]);
+
+  const handleStatusChange = (status: UserStatus) => {
+    setCurrentStatus(status);
+    updateStatus(status);
+  };
+
+  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
+    <button
+      onClick={() => handleStatusChange(status)}
+      className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
+        currentStatus === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+      }`}
+    >
+      <StatusIndicator status={status} className="scale-75" />
+      <span className="text-zinc-300 text-sm">{label}</span>
+    </button>
+  );
 
   if (!isOpen) return null;
 
@@ -92,13 +128,34 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
 
         {/* Content */}
         <div className="p-4 overflow-y-auto">
-          <div className="text-zinc-400 text-sm">
-            {activeTab === 'user' ? (
-              'User settings coming soon...'
-            ) : (
-              'Chat settings coming soon...'
-            )}
-          </div>
+          {activeTab === 'user' ? (
+            <div>
+              {/* Status Selection */}
+              <div className="flex">
+                <div className="w-1/4 pr-4">
+                  <button
+                    onClick={() => setActiveSetting('status')}
+                    className={`text-sm px-2 py-1 rounded transition-colors text-zinc-200 w-full text-left ${
+                      activeSetting === 'status' ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+                    }`}
+                  >
+                    status
+                  </button>
+                </div>
+                <div className="border-l border-zinc-700" />
+                <div className="flex-1 pl-4 space-y-1">
+                  <StatusOption status="online" label="online" />
+                  <StatusOption status="away" label="away <AFK>" />
+                  <StatusOption status="busy" label="busy <DND>" />
+                  <StatusOption status="offline" label="appear offline" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-zinc-400 text-sm">
+              Chat settings coming soon...
+            </div>
+          )}
         </div>
       </div>
     </div>

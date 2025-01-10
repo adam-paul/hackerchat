@@ -18,6 +18,7 @@ export class SocketService {
   private readonly RECONNECT_DELAY = 1000;
   private onMessageHandler?: (message: Message) => void;
   private onMessageDeleteHandler?: (event: { messageId: string; originalId?: string }) => void;
+  private onStatusChangeHandler?: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void;
 
   constructor(private readonly url: string = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000') {}
 
@@ -100,6 +101,13 @@ export class SocketService {
     this.socket.on('message-deleted', (event) => {
       if (this.onMessageDeleteHandler) {
         this.onMessageDeleteHandler(event);
+      }
+    });
+
+    // Handle status change events from the server
+    this.socket.on('status-changed', (event) => {
+      if (this.onStatusChangeHandler) {
+        this.onStatusChangeHandler(event.userId, event.status);
       }
     });
   }
@@ -212,5 +220,14 @@ export class SocketService {
     if (this.onMessageDeleteHandler) {
       this.onMessageDeleteHandler({ messageId });
     }
+  }
+
+  updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+    this.socket.emit('status-update', status);
+  }
+
+  setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
+    this.onStatusChangeHandler = handler;
   }
 } 

@@ -16,13 +16,24 @@ interface ClickableUsernameProps {
 export function ClickableUsername({ user, className = '' }: ClickableUsernameProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  const getStatusTag = () => {
+    switch (user.status) {
+      case 'away':
+        return ' <AFK>';
+      case 'busy':
+        return ' <DND>';
+      default:
+        return '';
+    }
+  };
+
   return (
     <>
       <button
         onClick={() => setIsProfileOpen(true)}
         className={`hover:text-zinc-200 transition-colors ${className}`}
       >
-        {user.name || 'Anonymous User'}
+        {user.name || 'Anonymous User'}{getStatusTag()}
       </button>
 
       <UserProfileModal

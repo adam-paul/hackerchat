@@ -18,6 +18,7 @@ interface SocketContextType {
     fileType: string;
     fileSize: number;
   }) => void;
+  updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
   onMessage?: (message: Message) => void;
 }
 
@@ -27,7 +28,8 @@ const SocketContext = createContext<SocketContextType>({
   socket: null,
   joinChannel: () => {},
   leaveChannel: () => {},
-  sendMessage: () => {}
+  sendMessage: () => {},
+  updateStatus: () => {}
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
@@ -110,6 +112,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateStatus = (status: 'online' | 'away' | 'busy' | 'offline') => {
+    try {
+      socketService?.updateStatus(status);
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update status');
+    }
+  };
+
   return (
     <SocketContext.Provider value={{
       isConnected,
@@ -118,6 +129,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       joinChannel,
       leaveChannel,
       sendMessage,
+      updateStatus,
       onMessage: messageHandlerRef.current
     }}>
       {children}

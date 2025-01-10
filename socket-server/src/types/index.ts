@@ -46,6 +46,12 @@ export interface ErrorEvent {
   channelId?: string;
 }
 
+export interface StatusEvent {
+  userId: string;
+  status: 'online' | 'away' | 'busy' | 'offline';
+  timestamp: string;
+}
+
 export interface ServerToClientEvents {
   message: (event: MessageEvent) => void;
   'message-delivered': (event: MessageDeliveryEvent) => void;
@@ -56,6 +62,7 @@ export interface ServerToClientEvents {
   'typing-stop': (event: ChannelEvent) => void;
   'user-connected': (userId: string) => void;
   'user-disconnected': (userId: string) => void;
+  'status-changed': (event: StatusEvent) => void;
   error: (event: ErrorEvent) => void;
 }
 
@@ -66,6 +73,7 @@ export interface ClientToServerEvents {
   'message-received': (messageId: string) => void;
   'typing-start': (channelId: string) => void;
   'typing-stop': (channelId: string) => void;
+  'status-update': (status: 'online' | 'away' | 'busy' | 'offline') => void;
 }
 
 export interface SocketData {

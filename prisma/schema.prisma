@@ -14,9 +14,12 @@ model User {
   id        String    @id
   name      String?
   imageUrl  String?
+  status    String    @default("offline")
   messages  Message[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@map("users")
 }
 
 model Channel {

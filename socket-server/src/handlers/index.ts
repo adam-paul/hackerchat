@@ -4,6 +4,7 @@ import type { SocketType } from '../types/handlers';
 import type { MessageEvent } from '../types';
 import { handleJoinChannel, handleLeaveChannel, handleTyping } from './channel';
 import { handleMessage, handleMessageReceived, handleMessageDelete } from './message';
+import { handleStatusUpdate } from './status';
 import { EVENTS } from '../config/socket';
 
 // Track connected users
@@ -57,6 +58,11 @@ export const handleConnection = (socket: SocketType): void => {
 
   socket.on(EVENTS.MESSAGE_DELETED, async (messageId: string) => {
     await handleMessageDelete(socket, messageId);
+  });
+
+  // Status events
+  socket.on('status-update', async (status: 'online' | 'away' | 'busy' | 'offline') => {
+    await handleStatusUpdate(socket, status);
   });
 
   // Typing events
