@@ -2,12 +2,12 @@
 
 import { z } from 'zod';
 import type { Socket } from 'socket.io';
-import type { DefaultEventsMap } from 'socket.io/dist/typed-events';
+import type { DefaultEventsMap } from '@socket.io/component-emitter';
 
 export interface SocketData {
   userId: string;
-  userName?: string;
-  imageUrl?: string;
+  userName: string;
+  imageUrl: string | null;
 }
 
 export type SocketType = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, SocketData>;

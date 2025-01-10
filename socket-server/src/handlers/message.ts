@@ -104,13 +104,13 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
 // Clean up old mappings periodically
 setInterval(() => {
   const now = Date.now();
-  for (const [tempId] of tempToPermanentIds) {
+  Array.from(tempToPermanentIds.entries()).forEach(([tempId]) => {
     // Extract timestamp from temp_* ID and remove if older than 5 minutes
     const timestamp = parseInt(tempId.split('_')[1]);
     if (now - timestamp > 5 * 60 * 1000) {
       tempToPermanentIds.delete(tempId);
     }
-  }
+  });
 }, 60 * 1000); // Run cleanup every minute
 
 export const handleMessage = async (

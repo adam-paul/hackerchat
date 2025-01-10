@@ -1,5 +1,7 @@
 // src/app/api/upload/route.ts
 
+export * from '../route-config';
+
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
 import { put } from '@vercel/blob';

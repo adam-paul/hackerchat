@@ -12,6 +12,7 @@
     "@clerk/clerk-sdk-node": "^4.13.9",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^6.2.1",
+    "@socket.io/component-emitter": "^4.0.0",
     "@types/jsonwebtoken": "^9.0.7",
     "dotenv": "^16.4.7",
     "jsonwebtoken": "^9.0.2",
