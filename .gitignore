@@ -45,3 +45,8 @@ next-env.d.ts
 
 # Builds
 **/dist/
+
+# Environments
+**/.env.development
+**/.env.production
+socket-server/.env.development

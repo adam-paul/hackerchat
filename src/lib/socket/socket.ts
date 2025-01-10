@@ -29,7 +29,7 @@ export class SocketManager {
         throw new Error('No authentication token available');
       }
 
-      this.socket = io('http://localhost:4000', {
+      this.socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000', {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: this.maxRetries,
