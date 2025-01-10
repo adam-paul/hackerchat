@@ -12,6 +12,17 @@ export interface Channel {
   };
 }
 
+export interface Reaction {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+  };
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -26,6 +37,7 @@ export interface Message {
     name: string;
     imageUrl?: string;
   };
+  reactions: Reaction[];
   replyTo?: {
     id: string;
     content: string;
@@ -56,6 +68,8 @@ export type MessageAction =
   | { type: 'UPDATE_MESSAGE'; payload: { id: string; message: Message } }
   | { type: 'MESSAGE_ERROR'; payload: { messageId: string; error: string } }
   | { type: 'DELETE_MESSAGE'; payload: string }
+  | { type: 'ADD_REACTION'; payload: { messageId: string; reaction: Reaction } }
+  | { type: 'REMOVE_REACTION'; payload: { messageId: string; reactionId: string } }
   | { type: 'CLEAR_MESSAGES' };
 
 export interface User {

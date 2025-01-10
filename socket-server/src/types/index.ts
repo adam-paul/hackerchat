@@ -1,5 +1,16 @@
 // socket-server/src/types/index.ts
 
+export interface Reaction {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+  };
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -13,6 +24,7 @@ export interface Message {
     name: string | null;
     imageUrl: string | null;
   };
+  reactions: Reaction[];
   replyToId?: string;
   replyTo?: {
     id: string;
@@ -65,6 +77,13 @@ export interface StatusEvent {
   timestamp: string;
 }
 
+export interface ReactionEvent {
+  type: 'reaction';
+  channelId: string;
+  messageId: string;
+  reaction: Reaction;
+}
+
 export interface ServerToClientEvents {
   message: (event: MessageEvent) => void;
   'message-delivered': (event: MessageDeliveryEvent) => void;
@@ -76,6 +95,8 @@ export interface ServerToClientEvents {
   'user-connected': (userId: string) => void;
   'user-disconnected': (userId: string) => void;
   'status-changed': (event: StatusEvent) => void;
+  'reaction-added': (event: ReactionEvent) => void;
+  'reaction-removed': (event: ReactionEvent) => void;
   error: (event: ErrorEvent) => void;
 }
 
@@ -87,6 +108,8 @@ export interface ClientToServerEvents {
   'typing-start': (channelId: string) => void;
   'typing-stop': (channelId: string) => void;
   'status-update': (status: 'online' | 'away' | 'busy' | 'offline') => void;
+  'add-reaction': (event: ReactionEvent) => void;
+  'remove-reaction': (event: ReactionEvent) => void;
 }
 
 export interface SocketData {

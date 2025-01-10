@@ -1,7 +1,7 @@
 // src/lib/socket/service.ts
 
 import { io, Socket } from 'socket.io-client';
-import type { Message } from '@/types';
+import type { Message, Reaction } from '@/types';
 
 interface MessageCallbacks {
   onDelivered?: (messageId: string) => void;
@@ -19,6 +19,8 @@ export class SocketService {
   private onMessageHandler?: (message: Message) => void;
   private onMessageDeleteHandler?: (event: { messageId: string; originalId?: string }) => void;
   private onStatusChangeHandler?: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void;
+  private onReactionAddedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
+  private onReactionRemovedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
 
   constructor(private readonly url: string = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000') {}
 
@@ -114,6 +116,29 @@ export class SocketService {
     this.socket.on('status-changed', (event) => {
       if (this.onStatusChangeHandler) {
         this.onStatusChangeHandler(event.userId, event.status);
+      }
+    });
+
+    // Handle reaction events
+    this.socket.on('reaction-added', (event) => {
+      if (this.onReactionAddedHandler) {
+        // Skip if this is our own reaction (we already handled it optimistically)
+        const userId = (this.socket?.auth as { token: string })?.token;
+        if (event.reaction?.user?.id === userId) {
+          return;
+        }
+        this.onReactionAddedHandler(event);
+      }
+    });
+
+    this.socket.on('reaction-removed', (event) => {
+      if (this.onReactionRemovedHandler) {
+        // Skip if this is our own reaction (we already handled it optimistically)
+        const userId = (this.socket?.auth as { token: string })?.token;
+        if (event.reaction?.user?.id === userId) {
+          return;
+        }
+        this.onReactionRemovedHandler(event);
       }
     });
   }
@@ -243,5 +268,44 @@ export class SocketService {
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
     this.onStatusChangeHandler = handler;
+  }
+
+  addReaction(channelId: string, messageId: string, content: string): void {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+    
+    const optimisticId = `optimistic-${Date.now()}`;
+    
+    this.socket.emit('add-reaction', {
+      type: 'reaction',
+      channelId,
+      messageId,
+      reaction: {
+        id: optimisticId, // Add optimistic ID here
+        content,
+        optimisticId // Add this to help track optimistic updates
+      }
+    });
+  }
+
+  removeReaction(channelId: string, messageId: string, reactionId: string): void {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+    
+    this.socket.emit('remove-reaction', {
+      type: 'reaction',
+      channelId,
+      messageId,
+      reaction: {
+        id: reactionId,
+        user: null // We don't need user info for removal
+      }
+    });
+  }
+
+  setReactionAddedHandler(handler: (event: { messageId: string; reaction: Reaction }) => void): void {
+    this.onReactionAddedHandler = handler;
+  }
+
+  setReactionRemovedHandler(handler: (event: { messageId: string; reaction: Reaction }) => void): void {
+    this.onReactionRemovedHandler = handler;
   }
 } 

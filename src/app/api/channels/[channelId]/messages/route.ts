@@ -38,6 +38,17 @@ export async function GET(
               }
             }
           }
+        },
+        reactions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -60,6 +71,16 @@ export async function GET(
         name: message.author.name,
         imageUrl: message.author.imageUrl
       },
+      reactions: message.reactions.map(reaction => ({
+        id: reaction.id,
+        content: reaction.content,
+        createdAt: reaction.createdAt.toISOString(),
+        user: {
+          id: reaction.user.id,
+          name: reaction.user.name,
+          imageUrl: reaction.user.imageUrl
+        }
+      })),
       ...(message.replyTo && {
         replyTo: {
           id: message.replyTo.id,

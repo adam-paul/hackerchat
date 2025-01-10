@@ -16,6 +16,7 @@ model User {
   imageUrl  String?
   status    String    @default("offline")
   messages  Message[]
+  reactions Reaction[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -46,6 +47,7 @@ model Message {
   channelId String
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId  String
+  reactions  Reaction[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   originalId String? // For tracking optimistic messages
@@ -54,4 +56,18 @@ model Message {
   replies   Message[] @relation("Replies")
   threadId  String? // ID of the thread channel created from this message
   threadName String? // Name of the thread created from this message
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  content   String   // SQLite doesn't support varchar length constraints
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([messageId, userId]) // One reaction per user per message initially
+  @@map("reactions")
 }

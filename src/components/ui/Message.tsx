@@ -1,8 +1,8 @@
 // src/components/ui/Message.tsx
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Fira_Code } from 'next/font/google';
-import type { Message, Channel } from '@/types';
+import type { Message, Channel, Reaction } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useSocket } from '@/lib/socket/context';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -32,9 +32,28 @@ export function MessageComponent({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isNaming, setIsNaming] = useState(false);
   const [threadName, setThreadName] = useState('');
+  const [isReacting, setIsReacting] = useState(false);
+  const [reactionInput, setReactionInput] = useState('');
   const { userId } = useAuthContext();
   const { socket } = useSocket();
   const messageRef = useRef<HTMLDivElement>(null);
+  const reactionInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isReacting) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (reactionInputRef.current && !reactionInputRef.current.contains(event.target as Node)) {
+        setIsReacting(false);
+        setReactionInput('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isReacting]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -121,7 +140,53 @@ export function MessageComponent({
     }
   };
 
+  const handleReactionClick = () => {
+    if (hasUserReacted) return;
+    setContextMenu(null);
+    setIsReacting(true);
+  };
+
+  const handleReactionSubmit = () => {
+    if (!reactionInput.trim() || !socket) return;
+    
+    // Create optimistic reaction
+    const optimisticReaction: Reaction = {
+      id: `optimistic-${Date.now()}`,
+      content: reactionInput,
+      createdAt: new Date().toISOString(),
+      user: {
+        id: userId!,
+        name: null,
+        imageUrl: null,
+      },
+    };
+
+    // Update message with optimistic reaction
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: [...(message.reactions || []), optimisticReaction],
+    });
+    
+    // Send to server
+    socket.addReaction(message.channelId, message.id, reactionInput);
+    setIsReacting(false);
+    setReactionInput('');
+  };
+
+  const handleRemoveReaction = (reactionId: string) => {
+    if (!socket) return;
+
+    // Optimistically remove the reaction
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: (message.reactions || []).filter(r => r.id !== reactionId),
+    });
+    
+    socket.removeReaction(message.channelId, message.id, reactionId);
+  };
+
   const isOwnMessage = message.author.id === userId;
+  const hasUserReacted = message.reactions?.some(reaction => reaction.user.id === userId);
 
   return (
     <div
@@ -153,6 +218,32 @@ export function MessageComponent({
           <span className={`${firaCode.className} ml-2 text-xs text-zinc-500`}>
             {new Date(message.createdAt).toLocaleString()}
           </span>
+          {isReacting && (
+            <div className={`${firaCode.className} text-xs flex items-center ml-2`}>
+              <input 
+                ref={reactionInputRef}
+                type="text"
+                value={reactionInput}
+                onChange={(e) => {
+                  if (e.target.value.length <= 10) {
+                    setReactionInput(e.target.value);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleReactionSubmit();
+                  } else if (e.key === 'Escape') {
+                    setIsReacting(false);
+                    setReactionInput('');
+                  }
+                }}
+                placeholder="ASCII react"
+                className="bg-transparent border border-zinc-700 rounded px-1 py-0.5 focus:outline-none focus:border-[#00b300] text-zinc-200 w-24 placeholder:text-zinc-600"
+                maxLength={10}
+                autoFocus
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -184,6 +275,26 @@ export function MessageComponent({
         <p className={`${firaCode.className} text-sm text-zinc-300`}>
           {message.content}
         </p>
+      )}
+
+      {message.reactions && message.reactions.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-1 pl-4">
+          {message.reactions.map((reaction) => (
+            <div
+              key={reaction.id}
+              onClick={() => reaction.user.id === userId && handleRemoveReaction(reaction.id)}
+              className={`${firaCode.className} text-xs px-1.5 py-0.5 rounded bg-zinc-800/50 hover:bg-zinc-800 cursor-pointer flex items-center gap-1 group ${
+                reaction.user.id === userId ? 'hover:bg-red-900/20' : ''
+              }`}
+              title={`Added by ${reaction.user.name || 'Anonymous'}`}
+            >
+              <span>{reaction.content}</span>
+              {reaction.user.id === userId && (
+                <span className="text-zinc-500 group-hover:text-red-400">×</span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {isNaming && (
@@ -223,10 +334,12 @@ export function MessageComponent({
           onClose={() => setContextMenu(null)}
         >
           <div className="flex flex-col w-full">
-            <ContextMenuItem onClick={() => {
-              setContextMenu(null);
-            }}>
-              _ASCIII.react
+            <ContextMenuItem 
+              onClick={handleReactionClick}
+              disabled={hasUserReacted}
+              className={hasUserReacted ? "opacity-50 cursor-not-allowed" : ""}
+            >
+              _ASCII.react {hasUserReacted}
             </ContextMenuItem>
             <ContextMenuItem onClick={handleReplyClick}>
               _reply

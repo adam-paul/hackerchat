@@ -1,10 +1,11 @@
 // socket-server/src/handlers/index.ts
 
 import type { SocketType } from '../types/handlers';
-import type { MessageEvent } from '../types';
+import type { MessageEvent, ReactionEvent } from '../types';
 import { handleJoinChannel, handleLeaveChannel, handleTyping } from './channel';
 import { handleMessage, handleMessageReceived, handleMessageDelete } from './message';
 import { handleStatusUpdate } from './status';
+import { handleAddReaction, handleRemoveReaction } from './reaction';
 import { EVENTS } from '../config/socket';
 
 // Track connected users
@@ -59,6 +60,15 @@ export const handleConnection = (socket: SocketType): void => {
 
   socket.on(EVENTS.MESSAGE_DELETED, async (messageId: string) => {
     await handleMessageDelete(socket, messageId);
+  });
+
+  // Reaction events
+  socket.on(EVENTS.ADD_REACTION, async (data: ReactionEvent) => {
+    await handleAddReaction(socket, data);
+  });
+
+  socket.on(EVENTS.REMOVE_REACTION, async (data: ReactionEvent) => {
+    await handleRemoveReaction(socket, data);
   });
 
   // Status events

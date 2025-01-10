@@ -1,7 +1,7 @@
 // src/lib/hooks/useMessage.ts
 
 import { useCallback, useReducer, useEffect } from 'react';
-import type { Message, MessageState, MessageAction } from '@/types';
+import type { Message, MessageState, MessageAction, Reaction } from '@/types';
 import { useSocket } from '../socket/context';
 
 const initialState: MessageState = {
@@ -73,6 +73,34 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         messages: [],
         error: undefined
       };
+    case 'ADD_REACTION':
+      return {
+        ...state,
+        status: 'success',
+        messages: state.messages.map(msg =>
+          msg.id === action.payload.messageId ? {
+            ...msg,
+            reactions: [
+              ...msg.reactions.filter(r => 
+                // Remove any optimistic version of this reaction
+                !(r.id.startsWith('optimistic-') && r.content === action.payload.reaction.content)
+              ),
+              action.payload.reaction
+            ]
+          } : msg
+        )
+      };
+    case 'REMOVE_REACTION':
+      return {
+        ...state,
+        status: 'success',
+        messages: state.messages.map(msg =>
+          msg.id === action.payload.messageId ? {
+            ...msg,
+            reactions: msg.reactions.filter(r => r.id !== action.payload.reactionId)
+          } : msg
+        )
+      };
     default:
       return state;
   }
@@ -97,12 +125,27 @@ export function useMessages() {
       }
     };
 
+    const handleReactionAdded = (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
+      dispatch({ type: 'ADD_REACTION', payload: event });
+    };
+
+    const handleReactionRemoved = (event: { messageId: string; reaction: Reaction }) => {
+      dispatch({ type: 'REMOVE_REACTION', payload: { 
+        messageId: event.messageId, 
+        reactionId: event.reaction.id 
+      }});
+    };
+
     socket.setMessageHandler(handleMessage);
     socket.setMessageDeleteHandler(handleMessageDeleted);
+    socket.setReactionAddedHandler(handleReactionAdded);
+    socket.setReactionRemovedHandler(handleReactionRemoved);
 
     return () => {
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
+      socket.setReactionAddedHandler(() => {});
+      socket.setReactionRemovedHandler(() => {});
     };
   }, [socket]);
 

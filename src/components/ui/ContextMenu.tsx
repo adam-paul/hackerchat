@@ -78,9 +78,9 @@ interface ContextMenuItemProps {
 export function ContextMenuItem({ onClick, children, className = '', disabled = false }: ContextMenuItemProps) {
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      className={`w-full text-left px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-700/50 ${className}`}
       disabled={disabled}
-      className={`w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     >
       {children}
     </button>

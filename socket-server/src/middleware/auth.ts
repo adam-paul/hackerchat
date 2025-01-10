@@ -27,7 +27,7 @@ export const authMiddleware = async (
         secretKey: ENV.CLERK_SECRET_KEY,
         issuer: ENV.CLERK_ISSUER,
         audience: ENV.CLERK_AUDIENCE,
-        clockSkewInMs: 5000 // Allow 5 seconds of clock skew
+        clockSkewInMs: 60000 // Allow 1 minute of clock skew
       });
 
       if (!session?.sub) {

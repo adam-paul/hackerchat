@@ -47,6 +47,12 @@ export const EVENTS = {
   MESSAGE_ERROR: 'message-error' as const,
   MESSAGE_DELETED: 'message-deleted' as const,
   
+  // Reaction events
+  ADD_REACTION: 'add-reaction' as const,
+  REMOVE_REACTION: 'remove-reaction' as const,
+  REACTION_ADDED: 'reaction-added' as const,
+  REACTION_REMOVED: 'reaction-removed' as const,
+  
   // Typing events
   TYPING_START: 'typing-start' as const,
   TYPING_STOP: 'typing-stop' as const
