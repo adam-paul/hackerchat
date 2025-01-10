@@ -13,9 +13,11 @@ const firaCode = Fira_Code({ subsets: ['latin'] });
 interface MessageProps {
   message: Message;
   isHighlighted?: boolean;
+  onReply?: (message: Message) => void;
+  onHighlightMessage?: (messageId: string) => void;
 }
 
-export function MessageComponent({ message, isHighlighted }: MessageProps) {
+export function MessageComponent({ message, isHighlighted, onReply, onHighlightMessage }: MessageProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const { userId } = useAuthContext();
   const { socket } = useSocket();
@@ -39,16 +41,44 @@ export function MessageComponent({ message, isHighlighted }: MessageProps) {
     setContextMenu(null);
   };
 
+  const handleReplyClick = () => {
+    onReply?.(message);
+    setContextMenu(null);
+  };
+
+  const handleReplyPreviewClick = () => {
+    if (message.replyTo && onHighlightMessage) {
+      onHighlightMessage(message.replyTo.id);
+      const replyElement = document.getElementById(`message-${message.replyTo.id}`);
+      if (replyElement) {
+        replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
   const isOwnMessage = message.author.id === userId;
 
   return (
     <div
       ref={messageRef}
+      id={`message-${message.id}`}
       onContextMenu={handleContextMenu}
       className={`mb-4 transition-colors duration-300 rounded-lg p-2 hover:bg-zinc-700/10 ${
         isHighlighted ? 'bg-zinc-700/30' : ''
       }`}
     >
+      {message.replyTo && (
+        <div 
+          onClick={handleReplyPreviewClick}
+          className={`${firaCode.className} mb-1 text-xs text-zinc-500 hover:text-zinc-400 cursor-pointer flex items-center gap-1`}
+        >
+          <span>↱</span>
+          <span className="text-[#00b300]">{message.replyTo.author.name || 'Unknown'}</span>
+          <span>:</span>
+          <span className="truncate max-w-[300px]">{message.replyTo.content}</span>
+        </div>
+      )}
+      
       <div className="flex items-baseline justify-between">
         <div className="flex items-baseline">
           <ClickableUsername
@@ -60,6 +90,7 @@ export function MessageComponent({ message, isHighlighted }: MessageProps) {
           </span>
         </div>
       </div>
+
       {message.fileUrl ? (
         <div className="mt-1">
           {message.fileType?.startsWith('image/') ? (
@@ -96,12 +127,7 @@ export function MessageComponent({ message, isHighlighted }: MessageProps) {
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
         >
-          <ContextMenuItem
-            onClick={() => {
-              console.log('Reply not implemented');
-              setContextMenu(null);
-            }}
-          >
+          <ContextMenuItem onClick={handleReplyClick}>
             _reply
           </ContextMenuItem>
           <ContextMenuItem

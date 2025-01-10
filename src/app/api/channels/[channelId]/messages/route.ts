@@ -26,6 +26,18 @@ export async function GET(
             name: true,
             imageUrl: true
           }
+        },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            author: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -47,7 +59,17 @@ export async function GET(
         id: message.author.id,
         name: message.author.name,
         imageUrl: message.author.imageUrl
-      }
+      },
+      ...(message.replyTo && {
+        replyTo: {
+          id: message.replyTo.id,
+          content: message.replyTo.content,
+          author: {
+            id: message.replyTo.author.id,
+            name: message.replyTo.author.name
+          }
+        }
+      })
     }));
 
     return NextResponse.json(formattedMessages);

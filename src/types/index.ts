@@ -26,6 +26,16 @@ export interface Message {
     name: string | null;
     imageUrl: string | null;
   };
+  replyToId?: string;
+  replyTo?: {
+    id: string;
+    content: string;
+    author: {
+      id: string;
+      name: string | null;
+    };
+  };
+  originalId?: string;
 }
 
 export type MessageLoadingState = 'idle' | 'loading' | 'error' | 'success';

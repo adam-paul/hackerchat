@@ -13,6 +13,9 @@ type MessageResult = {
   messageId: string;
 };
 
+// Map to track temporary to permanent ID mappings
+const tempToPermanentIds = new Map<string, string>();
+
 const persistMessage = async (data: MessagePayload, userId: string, retryCount = 0): Promise<any> => {
   try {
     // Verify channel exists
@@ -36,7 +39,17 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
     // Generate a new unique ID for the message using cuid
     const messageId = `msg_${createId()}`;
 
-    return await prisma.message.create({
+    // If this message is replying to a temporary message, get its permanent ID
+    let replyToId = data.replyToId;
+    if (replyToId?.startsWith('temp_')) {
+      const permanentId = tempToPermanentIds.get(replyToId);
+      if (!permanentId) {
+        throw new Error('Referenced message not found');
+      }
+      replyToId = permanentId;
+    }
+
+    const result = await prisma.message.create({
       data: {
         id: messageId,
         content: data.content,
@@ -46,7 +59,8 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         fileSize: data.fileSize,
         channelId: data.channelId,
         authorId: userId,
-        originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined
+        originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,
+        replyToId
       },
       include: {
         author: {
@@ -55,9 +69,28 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
             name: true,
             imageUrl: true
           }
+        },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            author: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
         }
       }
     });
+
+    // Store the mapping if this was a temporary message
+    if (data.messageId.startsWith('temp_')) {
+      tempToPermanentIds.set(data.messageId, messageId);
+    }
+
+    return result;
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002' && retryCount < MAX_RETRIES) {
       // If we hit a unique constraint error, retry with a new ID
@@ -67,6 +100,18 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
     throw error;
   }
 };
+
+// Clean up old mappings periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [tempId] of tempToPermanentIds) {
+    // Extract timestamp from temp_* ID and remove if older than 5 minutes
+    const timestamp = parseInt(tempId.split('_')[1]);
+    if (now - timestamp > 5 * 60 * 1000) {
+      tempToPermanentIds.delete(tempId);
+    }
+  }
+}, 60 * 1000); // Run cleanup every minute
 
 export const handleMessage = async (
   socket: SocketType,
@@ -79,20 +124,44 @@ export const handleMessage = async (
     // Persist message to database with retries
     const dbMessage = await persistMessage(data, socket.data.userId);
 
+    // If this was a temporary message, update any replies that reference it
+    if (data.messageId.startsWith('temp_')) {
+      await prisma.message.updateMany({
+        where: { replyToId: data.messageId },
+        data: { replyToId: dbMessage.id }
+      });
+    }
+
     // Create the message event
     const messageEvent: MessageEvent = {
       type: 'message',
       channelId: data.channelId,
-      messageId: dbMessage.id, // Use the database-generated ID
+      messageId: dbMessage.id,
       message: {
-        ...data,
-        id: dbMessage.id, // Use the database-generated ID
+        id: dbMessage.id,
+        content: dbMessage.content,
+        channelId: dbMessage.channelId,
+        fileUrl: dbMessage.fileUrl || undefined,
+        fileName: dbMessage.fileName || undefined,
+        fileType: dbMessage.fileType || undefined,
+        fileSize: dbMessage.fileSize || undefined,
         createdAt: dbMessage.createdAt.toISOString(),
         author: {
           id: socket.data.userId,
           name: socket.data.userName || 'Anonymous',
           imageUrl: socket.data.imageUrl || null
-        }
+        },
+        ...(dbMessage.replyTo && {
+          replyTo: {
+            id: dbMessage.replyTo.id,
+            content: dbMessage.replyTo.content,
+            author: {
+              id: dbMessage.replyTo.author.id,
+              name: dbMessage.replyTo.author.name
+            }
+          }
+        }),
+        originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined
       }
     };
 
@@ -101,9 +170,11 @@ export const handleMessage = async (
 
     // Send delivery confirmation to sender
     socket.emit(EVENTS.MESSAGE_DELIVERED, {
-      messageId: dbMessage.id, // Use the database-generated ID
+      messageId: dbMessage.id,
+      originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,
       channelId: data.channelId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      message: messageEvent.message
     });
 
     return {

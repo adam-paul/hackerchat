@@ -13,6 +13,15 @@ export interface Message {
     name: string | null;
     imageUrl: string | null;
   };
+  replyToId?: string;
+  replyTo?: {
+    id: string;
+    content: string;
+    author: {
+      id: string;
+      name: string | null;
+    };
+  };
 }
 
 export interface MessageEvent {
@@ -30,8 +39,10 @@ export interface ChannelEvent {
 
 export interface MessageDeliveryEvent {
   messageId: string;
+  originalId?: string;
   channelId: string;
   timestamp: string;
+  message: Message;
 }
 
 export interface MessageReceivedEvent {

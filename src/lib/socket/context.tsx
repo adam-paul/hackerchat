@@ -17,7 +17,7 @@ interface SocketContextType {
     fileName: string;
     fileType: string;
     fileSize: number;
-  }) => void;
+  }, replyToId?: string) => void;
   updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
   onMessage?: (message: Message) => void;
 }
@@ -103,9 +103,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     fileName: string;
     fileType: string;
     fileSize: number;
-  }) => {
+  }, replyToId?: string) => {
     try {
-      socketService?.sendMessage(messageId, channelId, content, fileData);
+      socketService?.sendMessage(messageId, channelId, content, fileData, replyToId);
     } catch (error) {
       console.error('Failed to send message:', error);
       setError(error instanceof Error ? error.message : 'Failed to send message');

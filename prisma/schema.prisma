@@ -49,4 +49,7 @@ model Message {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   originalId String? // For tracking optimistic messages
+  replyToId String? // ID of the message being replied to
+  replyTo   Message? @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("Replies")
 }

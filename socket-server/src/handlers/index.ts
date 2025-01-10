@@ -48,7 +48,8 @@ export const handleConnection = (socket: SocketType): void => {
       fileName: data.message.fileName,
       fileType: data.message.fileType,
       fileSize: data.message.fileSize,
-      messageId: data.messageId
+      messageId: data.messageId,
+      replyToId: data.message.replyToId
     });
   });
 

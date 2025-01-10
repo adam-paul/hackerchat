@@ -85,10 +85,16 @@ export class SocketService {
       this.onMessageHandler?.(event.message);
     });
 
-    this.socket.on('message-delivered', ({ messageId }) => {
-      const callbacks = this.messageCallbacks.get(messageId);
-      callbacks?.onDelivered?.(messageId);
-      this.messageCallbacks.delete(messageId);
+    this.socket.on('message-delivered', (event) => {
+      const callbacks = this.messageCallbacks.get(event.originalId || event.messageId);
+      if (callbacks) {
+        callbacks.onDelivered?.(event.messageId);
+        // If there's a message handler, update the message with the new ID
+        if (this.onMessageHandler && event.message) {
+          this.onMessageHandler(event.message);
+        }
+        this.messageCallbacks.delete(event.originalId || event.messageId);
+      }
     });
 
     this.socket.on('message-error', ({ messageId, error }) => {
@@ -163,22 +169,30 @@ export class SocketService {
       fileType: string;
       fileSize: number;
     },
+    replyToId?: string,
     callbacks?: MessageCallbacks
   ): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
 
     const message = {
+      type: 'message',
       messageId,
       channelId,
-      content,
-      ...fileData
+      message: {
+        content,
+        fileUrl: fileData?.fileUrl,
+        fileName: fileData?.fileName,
+        fileType: fileData?.fileType,
+        fileSize: fileData?.fileSize,
+        replyToId
+      }
     };
 
     if (callbacks) {
       this.messageCallbacks.set(messageId, callbacks);
     }
 
-    this.socket.emit('message', { messageId, channelId, message });
+    this.socket.emit('message', message);
 
     // Set up timeout to clean up callbacks
     setTimeout(() => {

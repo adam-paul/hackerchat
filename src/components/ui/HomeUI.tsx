@@ -26,7 +26,9 @@ export function HomeUI() {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   
   const { 
     messages, 
@@ -156,12 +158,28 @@ export function HomeUI() {
         id: userId || 'optimistic',
         name: userName || 'Anonymous',
         imageUrl: ''
-      }
+      },
+      ...(replyTo && {
+        replyTo: {
+          id: replyTo.id,
+          content: replyTo.content,
+          author: {
+            id: replyTo.author.id,
+            name: replyTo.author.name
+          }
+        }
+      })
     };
 
     addMessage(optimisticMessage);
     setNewMessage('');
-    sendSocketMessage(messageId, selectedChannel, newMessage);
+    setReplyTo(null);
+    sendSocketMessage(messageId, selectedChannel, newMessage, undefined, replyTo?.id);
+  };
+
+  const handleReply = (message: Message) => {
+    setReplyTo(message);
+    messageInputRef.current?.focus();
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,6 +254,55 @@ export function HomeUI() {
 
     return '_' + parts.join('.');
   };
+
+  // Clear reply indicator on channel change
+  useEffect(() => {
+    setReplyTo(null);
+  }, [selectedChannel]);
+
+  // Handle ESC key and click-away for message highlighting
+  useEffect(() => {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedMessageId) {
+        setSelectedMessageId(null);
+      }
+    };
+
+    const handleClickAway = (e: MouseEvent) => {
+      const clickedElement = e.target as HTMLElement;
+      const clickedMessage = clickedElement.closest('[id^="message-"]');
+      
+      // Clear highlight if:
+      // 1. Clicked outside any message OR
+      // 2. Clicked on a different message than the currently highlighted one
+      if (selectedMessageId && 
+          (!clickedMessage || 
+           clickedMessage.id !== `message-${selectedMessageId}`)) {
+        setSelectedMessageId(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    document.addEventListener('click', handleClickAway);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+      document.removeEventListener('click', handleClickAway);
+    };
+  }, [selectedMessageId, setSelectedMessageId]);
+
+  // Update replyTo when a message gets its permanent ID
+  useEffect(() => {
+    if (replyTo && messages.length > 0) {
+      const updatedMessage = messages.find(m => 
+        m.id === replyTo.id || // Check permanent ID
+        (m.originalId === replyTo.id && m.id !== replyTo.id) // Check if temp ID was updated
+      );
+      if (updatedMessage && updatedMessage.id !== replyTo.id) {
+        setReplyTo(updatedMessage);
+      }
+    }
+  }, [messages, replyTo]);
 
   return (
     <div className="min-h-screen flex">
@@ -363,6 +430,8 @@ export function HomeUI() {
                         key={message.id}
                         message={message}
                         isHighlighted={message.id === selectedMessageId}
+                        onReply={handleReply}
+                        onHighlightMessage={setSelectedMessageId}
                       />
                     ))}
                   </div>
@@ -373,42 +442,64 @@ export function HomeUI() {
             {/* Message input */}
             <div className="border-t border-zinc-800">
               <form onSubmit={sendMessage} className="p-4">
-                <div className="relative flex items-center">
-                  <span className={`${firaCode.className} absolute left-3 text-zinc-500`}>{'>'}_</span>
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    placeholder={!isConnected ? 'Disconnected...' : 'Type a message...'}
-                    disabled={!isConnected}
-                    className={`${firaCode.className} text-sm w-full pl-10 pr-12 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300] ${
-                      !isConnected ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  />
-                  <div className="absolute right-3">
+                <div className="relative flex flex-col gap-2">
+                  {replyTo && (
+                    <div className={`${firaCode.className} flex items-center gap-1 px-2 py-0.5 text-[14px] rounded bg-zinc-800/50`}>
+                      <span className="text-zinc-400">replying.to</span>
+                      <span className="text-[#00b300]">{replyTo.author.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setReplyTo(null)}
+                        className="ml-auto text-zinc-400 hover:text-zinc-200"
+                        aria-label="Cancel reply"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                  <div className="relative flex items-center">
+                    <span className={`${firaCode.className} absolute left-3 text-zinc-500`}>{'>'}_</span>
                     <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      accept="image/*,.pdf,.doc,.docx,.txt"
-                      disabled={!isConnected || isUploading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={!isConnected || isUploading}
-                      className={`${firaCode.className} text-base text-zinc-400 hover:text-zinc-200 transition-colors ${
-                        (!isConnected || isUploading) ? 'opacity-50 cursor-not-allowed' : ''
+                      ref={messageInputRef}
+                      type="text"
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Escape' && replyTo) {
+                          setReplyTo(null);
+                        }
+                      }}
+                      placeholder={!isConnected ? 'Disconnected...' : 'Type a message...'}
+                      disabled={!isConnected}
+                      className={`${firaCode.className} text-sm w-full pl-10 pr-12 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300] ${
+                        !isConnected ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
-                      aria-label="Attach file"
-                    >
-                      {isUploading ? (
-                        <span className="animate-pulse">↑</span>
-                      ) : (
-                        '+'
-                      )}
-                    </button>
+                    />
+                    <div className="absolute right-3">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept="image/*,.pdf,.doc,.docx,.txt"
+                        disabled={!isConnected || isUploading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!isConnected || isUploading}
+                        className={`${firaCode.className} text-base text-zinc-400 hover:text-zinc-200 transition-colors ${
+                          (!isConnected || isUploading) ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        aria-label="Attach file"
+                      >
+                        {isUploading ? (
+                          <span className="animate-pulse">↑</span>
+                        ) : (
+                          '+'
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </form>
