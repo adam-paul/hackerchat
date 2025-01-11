@@ -529,7 +529,6 @@ export function HomeUI() {
         ) : (
           <div className="flex flex-col h-full">
             <UserList
-              users={users}
               isCollapsed={isUserListCollapsed}
               onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
               className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
