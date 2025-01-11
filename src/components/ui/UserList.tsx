@@ -16,8 +16,26 @@ interface UserListProps {
   onToggleCollapse: () => void;
 }
 
+// Move UserItem outside main component
+const UserItem = ({ user }: { user: User }) => {
+  console.log('UserItem rendering for user:', { userId: user.id, status: user.status });
+  return (
+    <div className="flex items-center justify-between px-2 py-1">
+      <ClickableUsername
+        user={user}
+        className={`${user.status === 'offline' ? 'text-zinc-500' : 'text-[#00b300]'}`}
+      />
+      <StatusIndicator 
+        status={user.status || 'offline'}
+        className="flex-shrink-0"
+      />
+    </div>
+  );
+};
+
 export function UserList({ className = '', isCollapsed, onToggleCollapse }: UserListProps) {
   const { users } = useUsers();
+  console.log('UserList rendering with users:', users);
 
   useEffect(() => {
     console.log('UserList received updated users:', users);
@@ -33,22 +51,6 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
     console.log('UserList categorized users:', { online, offline });
     return { onlineUsers: online, offlineUsers: offline };
   }, [users]);
-
-  const UserItem = ({ user }: { user: User }) => {
-    console.log('Rendering UserItem:', { userId: user.id, status: user.status });
-    return (
-      <div className="flex items-center justify-between px-2 py-1">
-        <ClickableUsername
-          user={user}
-          className={`${user.status === 'offline' ? 'text-zinc-500' : 'text-[#00b300]'}`}
-        />
-        <StatusIndicator 
-          status={user.status || 'offline'}
-          className="flex-shrink-0"
-        />
-      </div>
-    );
-  };
 
   return (
     <div className={`${firaCode.className} ${className} flex flex-col transition-all duration-300 overflow-x-hidden`} style={{ width: isCollapsed ? '24px' : '256px' }}>
@@ -82,7 +84,7 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
             {onlineUsers.length > 0 && (
               <div className="space-y-1">
                 {onlineUsers.map((user) => (
-                  <UserItem key={user.id} user={user} />
+                  <UserItem key={`${user.id}-${user.status}`} user={user} />
                 ))}
               </div>
             )}
@@ -91,7 +93,7 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
             {offlineUsers.length > 0 && (
               <div className="space-y-1">
                 {offlineUsers.map((user) => (
-                  <UserItem key={user.id} user={user} />
+                  <UserItem key={`${user.id}-${user.status}`} user={user} />
                 ))}
               </div>
             )}
