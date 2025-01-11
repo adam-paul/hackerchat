@@ -22,15 +22,15 @@ export function useUsers() {
         const data = await res.json();
         console.log('Fetched users from API:', data); // Debug log
         
-        // If we're connected, preserve online status for connected users
+        // If we're connected, respect database status but ensure current user is online
         if (isConnected && socket) {
           const currentUserId = socket.getCurrentUserId();
           console.log('Current user ID:', currentUserId); // Debug log
           
           setUsers(data.map((user: User) => ({
             ...user,
-            // Keep the user's actual status from the database, but ensure current user is online
-            status: user.id === currentUserId ? 'online' : (user.status || 'offline')
+            // Only override status for current user on initial connection
+            status: user.id === currentUserId && !user.status ? 'online' : (user.status || 'offline')
           })));
         } else {
           // If not connected, everyone starts as offline
@@ -56,8 +56,8 @@ export function useUsers() {
       console.log('Connected users:', connectedUserIds); // Debug log
       setUsers(prev => prev.map(user => ({
         ...user,
-        // Keep the user's current status if they're connected, otherwise offline
-        status: connectedUserIds.includes(user.id) ? (user.status || 'online') : 'offline'
+        // Respect the user's current status if they're connected
+        status: connectedUserIds.includes(user.id) ? user.status : 'offline'
       })));
     };
 
@@ -65,7 +65,7 @@ export function useUsers() {
     const handleUserConnected = (userId: string) => {
       console.log('User connected:', userId); // Debug log
       setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, status: user.status || 'online' } : user
+        user.id === userId ? { ...user, status: 'online' } : user
       ));
     };
 

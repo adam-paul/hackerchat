@@ -59,6 +59,9 @@ export class SocketService {
 
         this.setupEventHandlers();
         await this.waitForConnection();
+        
+        // Set status to online after successful connection
+        this.updateStatus('online');
       } else {
         throw new Error('Invalid token format');
       }
@@ -249,9 +252,19 @@ export class SocketService {
 
   disconnect(): void {
     if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-      this.token = null;
+      // Set status to offline before disconnecting
+      try {
+        this.updateStatus('offline');
+      } catch (error) {
+        console.error('Error updating status to offline during disconnect:', error);
+      }
+      
+      // Wait a brief moment for the status update to be sent
+      setTimeout(() => {
+        this.socket?.disconnect();
+        this.socket = null;
+        this.token = null;
+      }, 100);
     }
   }
 
