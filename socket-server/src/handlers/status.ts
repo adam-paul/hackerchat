@@ -3,13 +3,9 @@ import { handleSocketError } from '../utils/errors';
 import { prisma } from '../lib/db';
 import { z } from 'zod';
 
-const statusSchema = z.object({
-  userId: z.string(),
-  status: z.enum(['online', 'away', 'busy', 'offline'])
-});
+const statusSchema = z.enum(['online', 'away', 'busy', 'offline']);
 
-type Status = z.infer<typeof statusSchema>['status'];
-type StatusPayload = z.infer<typeof statusSchema>;
+type Status = z.infer<typeof statusSchema>;
 
 type StatusResult = {
   userId: string;
@@ -19,17 +15,18 @@ type StatusResult = {
 
 export const handleStatusUpdate = async (
   socket: SocketType,
-  payload: StatusPayload
+  status: Status
 ): Promise<HandlerResult<StatusResult>> => {
   try {
-    // Validate status payload
-    const validPayload = statusSchema.parse(payload);
+    // Validate status
+    const validStatus = statusSchema.parse(status);
     const timestamp = new Date().toISOString();
+    const userId = socket.data.userId;
 
     // Update user status in database first
     const updatedUser = await prisma.user.update({
-      where: { id: validPayload.userId },
-      data: { status: validPayload.status },
+      where: { id: userId },
+      data: { status: validStatus },
       select: {
         id: true,
         status: true
