@@ -44,10 +44,18 @@ export function useUsers() {
 
   // Update user status
   const updateUserStatus = useCallback(async (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-    if (socket?.isConnected()) {
-      socket.updateStatus(newStatus);
-      // Let the socket event handler update the UI
+    if (!socket?.isConnected()) {
+      console.error('Socket not connected');
+      return;
     }
+
+    // Update UI immediately
+    setUsers(current => current.map(user =>
+      user.id === userId ? { ...user, status: newStatus } : user
+    ));
+
+    // Send update via socket - this will update the database and notify other clients
+    socket.updateStatus(newStatus);
   }, [socket]);
 
   return {
