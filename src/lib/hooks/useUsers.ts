@@ -33,19 +33,23 @@ export function useUsers() {
     fetchUsers();
 
     if (socket && isConnected) {
+      // Handle status updates from other clients
       const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
         console.log('Socket status change received:', { userId, newStatus });
-        setUsers(current => {
-          const updated = current.map(user =>
+        setUsers(current => 
+          current.map(user => 
             user.id === userId ? { ...user, status: newStatus } : user
-          );
-          console.log('Users after socket update:', updated);
-          return updated;
-        });
+          )
+        );
       };
 
+      // Set up status change handler
       socket.setStatusChangeHandler(handleStatusChange);
-      return () => socket.setStatusChangeHandler(() => {});
+
+      // Cleanup handler on unmount
+      return () => {
+        socket.setStatusChangeHandler(() => {});
+      };
     }
   }, [socket, isConnected, fetchUsers]);
 
@@ -56,20 +60,25 @@ export function useUsers() {
       return;
     }
 
-    console.log('Updating status locally:', { userId, newStatus });
-    // Update UI immediately
-    setUsers(current => {
-      const updated = current.map(user =>
-        user.id === userId ? { ...user, status: newStatus } : user
+    try {
+      console.log('Updating status locally:', { userId, newStatus });
+      
+      // Update UI immediately
+      setUsers(current => 
+        current.map(user =>
+          user.id === userId ? { ...user, status: newStatus } : user
+        )
       );
-      console.log('Users after local update:', updated);
-      return updated;
-    });
 
-    // Send update via socket - this will update the database and notify other clients
-    console.log('Sending status update to socket:', newStatus);
-    socket.updateStatus(newStatus);
-  }, [socket]);
+      // Send update via socket
+      console.log('Sending status update to socket:', newStatus);
+      socket.updateStatus(newStatus);
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      // Revert the local update on error
+      fetchUsers();
+    }
+  }, [socket, fetchUsers]);
 
   return {
     users,

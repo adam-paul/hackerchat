@@ -279,9 +279,7 @@ export class SocketService {
 
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
-    
-    // Simply emit the status update to server
-    this.socket.emit('status-update', status);
+    this.socket.emit('status:update', status);
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
