@@ -61,14 +61,17 @@ export function useUsers() {
     }
 
     try {
-      console.log('Updating status locally:', { userId, newStatus });
+      console.log('updateUserStatus called with:', { userId, newStatus });
       
       // Update UI immediately
-      setUsers(current => 
-        current.map(user =>
+      setUsers(current => {
+        console.log('Current users before update:', current);
+        const updated = current.map(user =>
           user.id === userId ? { ...user, status: newStatus } : user
-        )
-      );
+        );
+        console.log('Users after update:', updated);
+        return updated;
+      });
 
       // Send update via socket
       console.log('Sending status update to socket:', { userId, newStatus });
