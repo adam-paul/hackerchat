@@ -272,10 +272,7 @@ export class SocketService {
     const userId = this.getCurrentUserId();
     if (!userId) return;
     
-    this.socket.emit('status-update', {
-      userId,
-      status
-    });
+    this.socket.emit('status-update', status);
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
