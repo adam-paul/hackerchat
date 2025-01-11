@@ -68,16 +68,17 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   const handleStatusChange = (status: UserStatus) => {
     if (!userId) return;
     
-    // Update local state
+    // Update local state immediately
     setCurrentStatus(status);
     
     // Send update to server
     try {
+      console.log('Updating status to:', status); // Debug log
       updateStatus(status);
     } catch (error) {
       console.error('Failed to update status:', error);
       // Revert on error
-      setCurrentStatus(currentUser?.status || 'online');
+      setCurrentStatus(currentUser?.status || 'offline');
     }
   };
 

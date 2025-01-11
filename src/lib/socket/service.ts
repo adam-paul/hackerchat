@@ -264,20 +264,38 @@ export class SocketService {
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
+    console.log('Socket service: Emitting status update:', status); // Debug log
+    
+    // Get current user ID
+    const userId = (this.socket?.auth as { token: string })?.token;
+    if (!userId) {
+      console.error('No user ID available for status update');
+      return;
+    }
+    
     // Emit status update to server
     this.socket.emit('status-update', status);
     
     // Trigger immediate local update for the current user
     if (this.onStatusChangeHandler) {
-      const userId = (this.socket?.auth as { token: string })?.token;
-      if (userId) {
-        this.onStatusChangeHandler(userId, status);
-      }
+      console.log('Socket service: Triggering local status update:', userId, status); // Debug log
+      this.onStatusChangeHandler(userId, status);
     }
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
     this.onStatusChangeHandler = handler;
+    
+    // Re-attach the status-changed event listener
+    if (this.socket) {
+      this.socket.off('status-changed'); // Remove any existing listeners
+      this.socket.on('status-changed', (event) => {
+        console.log('Socket service: Received status-changed event:', event); // Debug log
+        if (this.onStatusChangeHandler) {
+          this.onStatusChangeHandler(event.userId, event.status);
+        }
+      });
+    }
   }
 
   addReaction(channelId: string, messageId: string, content: string): void {

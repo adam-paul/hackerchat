@@ -20,7 +20,8 @@ export function useUsers() {
           throw new Error('Failed to fetch users');
         }
         const data = await res.json();
-        setUsers(data);
+        // Ensure all users start as offline
+        setUsers(data.map((user: User) => ({ ...user, status: 'offline' })));
       } catch (error) {
         console.error('Failed to fetch users:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -40,14 +41,14 @@ export function useUsers() {
     const handleConnectedUsers = (connectedUserIds: string[]) => {
       setUsers(prev => prev.map(user => ({
         ...user,
-        status: connectedUserIds.includes(user.id) ? user.status || 'online' : 'offline'
+        status: connectedUserIds.includes(user.id) ? 'online' : 'offline'
       })));
     };
 
     // Handle user connected
     const handleUserConnected = (userId: string) => {
       setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, status: user.status || 'online' } : user
+        user.id === userId ? { ...user, status: 'online' } : user
       ));
     };
 
@@ -60,9 +61,14 @@ export function useUsers() {
 
     // Handle status changes
     const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      setUsers(prev => prev.map(user =>
-        user.id === userId ? { ...user, status: newStatus } : user
-      ));
+      console.log('Status change received:', userId, newStatus); // Debug log
+      setUsers(prev => {
+        const newUsers = prev.map(user =>
+          user.id === userId ? { ...user, status: newStatus } : user
+        );
+        console.log('Updated users:', newUsers); // Debug log
+        return newUsers;
+      });
     };
 
     // Set up event listeners
@@ -80,17 +86,9 @@ export function useUsers() {
     };
   }, [socket, isConnected]);
 
-  // Add optimistic updates for status changes
-  const updateUserStatus = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-    setUsers(prev => prev.map(user =>
-      user.id === userId ? { ...user, status: newStatus } : user
-    ));
-  };
-
   return {
     users,
     isLoading,
-    error,
-    updateUserStatus // Export the optimistic update function
+    error
   };
 } 
