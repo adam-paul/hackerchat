@@ -18,7 +18,6 @@ interface UserListProps {
 
 // Move UserItem outside main component
 const UserItem = ({ user }: { user: User }) => {
-  console.log('UserItem rendering for user:', { userId: user.id, status: user.status });
   return (
     <div className="flex items-center justify-between px-2 py-1">
       <ClickableUsername

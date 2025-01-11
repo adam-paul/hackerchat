@@ -13,11 +13,25 @@ export const authMiddleware = async (
 ) => {
   try {
     const token = socket.handshake.auth.token;
+    const authType = socket.handshake.auth.type;
+
     if (!token) {
       console.error('Authentication token missing');
       return next(new Error('Authentication token missing'));
     }
 
+    // Handle webhook authentication
+    if (authType === 'webhook') {
+      if (token !== process.env.SOCKET_WEBHOOK_SECRET) {
+        return next(new Error('Invalid webhook token'));
+      }
+      
+      socket.data.userId = 'webhook';
+      socket.data.userName = 'System';
+      return next();
+    }
+
+    // Regular user authentication
     // Remove 'Bearer ' prefix if present
     const cleanToken = token.replace('Bearer ', '');
 

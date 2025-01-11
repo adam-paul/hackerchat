@@ -8,6 +8,44 @@ import { io } from 'socket.io-client';
 // Webhook secret from environment variable
 const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
 const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
+const socketSecret = process.env.SOCKET_WEBHOOK_SECRET;
+
+async function broadcastStatusChange(userId: string, status: 'offline') {
+  return new Promise<void>((resolve, reject) => {
+    try {
+      const socket = io(socketUrl, {
+        auth: {
+          token: socketSecret,
+          type: 'webhook'
+        }
+      });
+
+      socket.on('connect', () => {
+        socket.emit('status-update', status);
+        
+        // Wait briefly to ensure event is sent
+        setTimeout(() => {
+          socket.disconnect();
+          resolve();
+        }, 1000);
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        socket.disconnect();
+        reject(error);
+      });
+
+      // Set a timeout for the entire operation
+      setTimeout(() => {
+        socket.disconnect();
+        reject(new Error('Socket broadcast timeout'));
+      }, 5000);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 export async function POST(req: Request) {
   // Verify webhook signature
@@ -40,25 +78,27 @@ export async function POST(req: Request) {
     return new NextResponse('Error verifying webhook', { status: 400 });
   }
 
-  // Handle session ended event (sign out)
-  if (evt.type === 'session.ended') {
+  // Handle both session.ended and session.removed events
+  if (evt.type === 'session.ended' || evt.type === 'session.removed') {
     const { user_id } = evt.data;
-
+    
     try {
       // Update user status to offline in database
-      const updatedUser = await prisma.user.update({
+      await prisma.user.update({
         where: { id: user_id },
-        data: { status: 'offline' }
+        data: { 
+          status: 'offline',
+          updatedAt: new Date()
+        }
       });
 
-      // Connect to socket server to broadcast status change
-      const socket = io(socketUrl);
-      socket.emit('status-broadcast', {
-        userId: user_id,
-        status: 'offline',
-        timestamp: new Date().toISOString()
-      });
-      socket.disconnect();
+      // Try to broadcast the status change
+      try {
+        await broadcastStatusChange(user_id, 'offline');
+      } catch (error) {
+        // Log but don't fail the webhook if broadcast fails
+        console.error('Failed to broadcast status change:', error);
+      }
 
       return NextResponse.json({ success: true });
     } catch (error) {

@@ -78,20 +78,14 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      console.log('updateUserStatus called with:', { userId, newStatus });
-      
       // Update UI optimistically
-      setUsers(current => {
-        console.log('Current users before update:', current);
-        const updated = current.map(user =>
+      setUsers(current => 
+        current.map(user =>
           user.id === userId ? { ...user, status: newStatus } : user
-        );
-        console.log('Users after update:', updated);
-        return updated;
-      });
+        )
+      );
 
       // Send update via socket
-      console.log('Sending status update to socket:', { userId, newStatus });
       socket.updateStatus(newStatus);
     } catch (error) {
       console.error('Failed to update status:', error);
