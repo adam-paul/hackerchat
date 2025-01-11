@@ -19,6 +19,7 @@ export function useUsers() {
         throw new Error('Failed to fetch users');
       }
       const data = await res.json();
+      console.log('Fetched users from backend:', data); // Debug log
       setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -28,36 +29,37 @@ export function useUsers() {
     }
   }, []);
 
-  // Initial fetch on mount
+  // Initial fetch and socket status setup
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
 
-  // Handle socket status updates
-  useEffect(() => {
-    if (!socket || !isConnected) return;
+    // Set up socket status handler
+    if (socket && isConnected) {
+      const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
+        console.log('Received status change:', { userId, newStatus }); // Debug log
+        setUsers(prev => prev.map(user =>
+          user.id === userId ? { ...user, status: newStatus } : user
+        ));
+      };
 
-    const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      setUsers(prev => prev.map(user =>
-        user.id === userId ? { ...user, status: newStatus } : user
-      ));
-    };
+      socket.setStatusChangeHandler(handleStatusChange);
 
-    socket.setStatusChangeHandler(handleStatusChange);
+      return () => {
+        socket.setStatusChangeHandler(() => {});
+      };
+    }
+  }, [socket, isConnected, fetchUsers]);
 
-    return () => {
-      socket.setStatusChangeHandler(() => {});
-    };
-  }, [socket, isConnected]);
-
-  // Update user status - both UI and backend
+  // Update user status function
   const updateUserStatus = useCallback((userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
+    console.log('Updating user status:', { userId, newStatus }); // Debug log
+
     // Update UI immediately
     setUsers(prev => prev.map(user =>
       user.id === userId ? { ...user, status: newStatus } : user
     ));
 
-    // Update backend if socket is connected
+    // Update backend
     if (socket?.isConnected()) {
       socket.updateStatus(newStatus);
     }

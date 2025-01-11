@@ -1,22 +1,24 @@
 // src/components/ui/UserList.tsx
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
 import { ClickableUsername } from './ClickableUsername';
+import { useUsers } from '@/lib/hooks/useUsers';
 import type { User } from '@/types';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 interface UserListProps {
-  users: User[];
   className?: string;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-export function UserList({ users, className = '', isCollapsed, onToggleCollapse }: UserListProps) {
+export function UserList({ className = '', isCollapsed, onToggleCollapse }: UserListProps) {
+  const { users } = useUsers();
+
   // Separate and sort users by online status
   const { onlineUsers, offlineUsers } = useMemo(() => {
     const sortByName = (a: User, b: User) => (a.name || '').localeCompare(b.name || '');
