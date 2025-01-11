@@ -12,8 +12,7 @@ type StatusResult = {
 
 export const handleStatusUpdate = async (
   socket: SocketType,
-  status: 'online' | 'away' | 'busy' | 'offline',
-  callback?: (response: { success: boolean; error?: string }) => void
+  status: 'online' | 'away' | 'busy' | 'offline'
 ): Promise<HandlerResult<StatusResult>> => {
   try {
     // Validate status
@@ -32,11 +31,6 @@ export const handleStatusUpdate = async (
       timestamp: new Date().toISOString()
     });
 
-    // Send acknowledgment to the client
-    if (callback) {
-      callback({ success: true });
-    }
-
     return {
       success: true,
       data: {
@@ -45,13 +39,6 @@ export const handleStatusUpdate = async (
       }
     };
   } catch (error) {
-    // Send error to the client
-    if (callback) {
-      callback({
-        success: false,
-        error: error instanceof Error ? error.message : 'Status update failed'
-      });
-    }
     return handleSocketError(socket, error);
   }
 }; 

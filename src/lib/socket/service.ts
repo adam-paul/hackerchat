@@ -46,10 +46,10 @@ export class SocketService {
       const tokenParts = token.split('.');
       if (tokenParts.length === 3) {
         const payload = JSON.parse(atob(tokenParts[1]));
-        const userId = payload.sub;
+        const userId = payload.sub; // The user ID is in the 'sub' claim
         
         this.socket = io(this.url, {
-          auth: { token, userId },
+          auth: { token, userId }, // Pass userId in auth
           reconnection: true,
           reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
           reconnectionDelay: this.RECONNECT_DELAY,
@@ -60,8 +60,8 @@ export class SocketService {
         this.setupEventHandlers();
         await this.waitForConnection();
         
-        // Set status to online and wait for confirmation
-        await this.updateStatus('online');
+        // Set status to online after successful connection
+        this.updateStatus('online');
       } else {
         throw new Error('Invalid token format');
       }
@@ -75,19 +75,11 @@ export class SocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('Socket connected');
       this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('Socket disconnected:', reason);
-      // If this was not a clean disconnect (like calling disconnect()), set status to offline
-      if (reason !== 'io client disconnect') {
-        const userId = this.getCurrentUserId();
-        if (userId && this.onStatusChangeHandler) {
-          this.onStatusChangeHandler(userId, 'offline');
-        }
-      }
     });
 
     this.socket.on('connect_error', (error) => {
@@ -258,28 +250,22 @@ export class SocketService {
     this.onMessageDeleteHandler = handler;
   }
 
-  disconnect(): Promise<void> {
-    if (!this.socket) return Promise.resolve();
-
-    return new Promise((resolve) => {
-      // Set status to offline and wait for acknowledgment before disconnecting
-      this.updateStatus('offline')
-        .then(() => {
-          console.log('Successfully set status to offline, disconnecting socket');
-          this.socket?.disconnect();
-          this.socket = null;
-          this.token = null;
-          resolve();
-        })
-        .catch((error) => {
-          console.error('Failed to set status to offline:', error);
-          // Disconnect anyway
-          this.socket?.disconnect();
-          this.socket = null;
-          this.token = null;
-          resolve();
-        });
-    });
+  disconnect(): void {
+    if (this.socket) {
+      // Set status to offline before disconnecting
+      try {
+        this.updateStatus('offline');
+      } catch (error) {
+        console.error('Error updating status to offline during disconnect:', error);
+      }
+      
+      // Wait a brief moment for the status update to be sent
+      setTimeout(() => {
+        this.socket?.disconnect();
+        this.socket = null;
+        this.token = null;
+      }, 100);
+    }
   }
 
   isConnected(): boolean {
@@ -298,7 +284,7 @@ export class SocketService {
     }
   }
 
-  updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): Promise<void> {
+  updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
     console.log('Socket service: Emitting status update:', status); // Debug log
@@ -307,30 +293,17 @@ export class SocketService {
     const userId = this.getCurrentUserId();
     if (!userId) {
       console.error('No user ID available for status update');
-      return Promise.reject(new Error('No user ID available'));
+      return;
     }
     
-    return new Promise((resolve, reject) => {
-      // Emit status update and wait for acknowledgment
-      this.socket!.emit('status-update', status, (response: { success: boolean, error?: string }) => {
-        if (response.success) {
-          // Trigger immediate local update for the current user
-          if (this.onStatusChangeHandler) {
-            console.log('Socket service: Status update confirmed by server:', status); // Debug log
-            this.onStatusChangeHandler(userId, status);
-          }
-          resolve();
-        } else {
-          console.error('Status update failed:', response.error);
-          reject(new Error(response.error || 'Status update failed'));
-        }
-      });
-
-      // Set a timeout for the acknowledgment
-      setTimeout(() => {
-        reject(new Error('Status update timeout'));
-      }, 5000);
-    });
+    // Emit status update to server
+    this.socket.emit('status-update', status);
+    
+    // Trigger immediate local update for the current user
+    if (this.onStatusChangeHandler) {
+      console.log('Socket service: Triggering local status update:', userId, status); // Debug log
+      this.onStatusChangeHandler(userId, status);
+    }
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {

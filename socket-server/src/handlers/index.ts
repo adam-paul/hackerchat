@@ -7,9 +7,6 @@ import { handleMessage, handleMessageReceived, handleMessageDelete } from './mes
 import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
 import { EVENTS } from '../config/socket';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 // Track connected users
 const connectedUsers = new Set<string>();
@@ -74,9 +71,9 @@ export const handleConnection = (socket: SocketType): void => {
     await handleRemoveReaction(socket, data);
   });
 
-  // Status events with acknowledgment
-  socket.on('status-update', async (status: 'online' | 'away' | 'busy' | 'offline', callback?: (response: { success: boolean; error?: string }) => void) => {
-    await handleStatusUpdate(socket, status, callback);
+  // Status events
+  socket.on('status-update', async (status: 'online' | 'away' | 'busy' | 'offline') => {
+    await handleStatusUpdate(socket, status);
   });
 
   // Typing events
@@ -89,26 +86,10 @@ export const handleConnection = (socket: SocketType): void => {
   });
 
   // Disconnect event
-  socket.on('disconnect', async () => {
+  socket.on(EVENTS.DISCONNECT, () => {
     // Remove user from connected users
     connectedUsers.delete(userId);
-
-    try {
-      // Update user status to offline in database
-      await prisma.user.update({
-        where: { id: userId },
-        data: { status: 'offline' }
-      });
-
-      // Broadcast user disconnected and status change events
-      socket.broadcast.emit('user-disconnected', userId);
-      socket.broadcast.emit('status-changed', {
-        userId,
-        status: 'offline',
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Error updating user status on disconnect:', error);
-    }
+    // Broadcast user disconnected event to all clients
+    socket.broadcast.emit('user-disconnected', userId);
   });
 }; 
