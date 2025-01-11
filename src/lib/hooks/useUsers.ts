@@ -1,6 +1,6 @@
 // src/lib/hooks/useUsers.ts
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSocket } from '../socket/context';
 import type { User } from '@/types';
 
@@ -18,6 +18,12 @@ export function useUsers() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
+  const usersRef = useRef<User[]>([]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // Register listener for global updates
   useEffect(() => {
@@ -60,7 +66,7 @@ export function useUsers() {
       console.log('Setting up socket status handler');
       const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
         console.log('Socket status change received:', { userId, newStatus });
-        const updatedUsers = users.map(user =>
+        const updatedUsers = usersRef.current.map(user =>
           user.id === userId ? { ...user, status: newStatus } : user
         );
         updateGlobalUsers(updatedUsers);
@@ -70,14 +76,14 @@ export function useUsers() {
       socket.setStatusChangeHandler(handleStatusChange);
       return () => socket.setStatusChangeHandler(() => {});
     }
-  }, [socket, isConnected, fetchUsers, users]);
+  }, [socket, isConnected, fetchUsers]);
 
   // Update user status function
   const updateUserStatus = useCallback((userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
     console.log('updateUserStatus called:', { userId, newStatus });
     
     // Update both global and local state immediately
-    const updatedUsers = users.map(user =>
+    const updatedUsers = usersRef.current.map(user =>
       user.id === userId ? { ...user, status: newStatus } : user
     );
     updateGlobalUsers(updatedUsers);
@@ -90,7 +96,7 @@ export function useUsers() {
     } else {
       console.warn('Socket not connected, status update may fail');
     }
-  }, [socket, users]);
+  }, [socket]);
 
   return {
     users,
