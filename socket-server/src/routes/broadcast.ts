@@ -1,13 +1,13 @@
 // socket-server/src/routes/broadcast.ts
 
-import express from 'express';
+import { Router } from 'express';
 import { prisma } from '../lib/db';
 import { io } from '../index';
 
-const router = express.Router();
+const router = Router();
 
 // Middleware to verify webhook secret
-const verifyWebhookSecret = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const verifyWebhookSecret = (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== `Bearer ${process.env.SOCKET_WEBHOOK_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -24,6 +24,9 @@ router.post('/broadcast-status', verifyWebhookSecret, async (req, res) => {
   }
 
   try {
+    // Log the broadcast attempt
+    console.log('Broadcasting status change:', { userId, status });
+
     // Broadcast the status change to all connected clients
     io.emit('status-changed', {
       userId,

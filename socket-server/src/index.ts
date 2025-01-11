@@ -2,33 +2,29 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
-
-// Load environment variables from local .env file
-config({ 
-  path: resolve(__dirname, '../.env'),
-  override: true // This will make .env take precedence over system env vars
-});
-
+import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { authMiddleware } from './middleware/auth';
 import { handleConnection } from './handlers';
-import { SOCKET_TIMEOUT, PING_INTERVAL, PING_TIMEOUT } from './config/constants';
+import { SOCKET_CONFIG } from './config/socket';
+import broadcastRouter from './routes/broadcast';
 
-const httpServer = createServer();
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST'],
-    credentials: true
-  },
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
-  },
-  pingInterval: PING_INTERVAL,
-  pingTimeout: PING_TIMEOUT,
-  connectTimeout: SOCKET_TIMEOUT
+// Load environment variables
+config({ 
+  path: resolve(__dirname, '../.env'),
+  override: true
 });
+
+const app = express();
+const httpServer = createServer(app);
+export const io = new Server(httpServer, SOCKET_CONFIG);
+
+// Enable JSON parsing for REST endpoints
+app.use(express.json());
+
+// Add broadcast routes
+app.use('/api', broadcastRouter);
 
 // Apply authentication middleware
 io.use(authMiddleware);
@@ -40,4 +36,9 @@ io.on('connection', handleConnection);
 const PORT = process.env.PORT || 4000;
 httpServer.listen(PORT, () => {
   console.log(`Socket.IO server running on port ${PORT}`);
-}); 
+});
+
+// For testing/debugging
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
