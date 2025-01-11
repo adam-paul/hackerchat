@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { io } from 'socket.io-client';
 
 // Webhook secret from environment variable
-const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+const webhookSecret = process.env.SOCKET_WEBHOOK_SECRET;
 const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
 const socketSecret = process.env.SOCKET_WEBHOOK_SECRET;
 
@@ -58,84 +58,110 @@ async function broadcastStatusChange(userId: string, status: 'offline') {
 }
 
 export async function POST(req: Request) {
-  console.log('Webhook received - starting processing');
-  
-  // Verify webhook signature
-  const headerPayload = headers();
-  const svix_id = headerPayload.get("svix-id");
-  const svix_timestamp = headerPayload.get("svix-timestamp");
-  const svix_signature = headerPayload.get("svix-signature");
-
-  console.log('Webhook headers:', {
-    svix_id,
-    svix_timestamp,
-    svix_signature: svix_signature ? 'present' : 'missing'
-  });
-
-  if (!svix_id || !svix_timestamp || !svix_signature) {
-    console.log('Missing required Svix headers');
-    return new NextResponse("Missing svix headers", { status: 400 });
-  }
-
-  // Get the body
-  const payload = await req.json();
-  console.log('Webhook payload:', JSON.stringify(payload, null, 2));
-  const body = JSON.stringify(payload);
-
-  // Create a new Svix instance with your secret
-  const wh = new Webhook(webhookSecret || "");
-  console.log('Webhook secret present:', !!webhookSecret);
-
-  let evt: WebhookEvent;
-
   try {
-    evt = wh.verify(body, {
-      "svix-id": svix_id,
-      "svix-timestamp": svix_timestamp,
-      "svix-signature": svix_signature,
-    }) as WebhookEvent;
-    console.log('Webhook verification successful');
-  } catch (err) {
-    console.error('Error verifying webhook:', err);
-    return new NextResponse('Error verifying webhook', { status: 400 });
-  }
-
-  console.log('Received webhook event:', {
-    type: evt.type,
-    data: evt.data
-  });
-
-  // Handle both session.ended and session.removed events
-  if (evt.type === 'session.ended' || evt.type === 'session.removed') {
-    const { user_id } = evt.data;
-    console.log('Processing session end for user:', user_id);
+    console.log('Webhook received - starting processing');
+    console.log('Request URL:', req.url);
+    console.log('Request method:', req.method);
     
-    try {
-      // Update user status to offline in database
-      const updatedUser = await prisma.user.update({
-        where: { id: user_id },
-        data: { 
-          status: 'offline',
-          updatedAt: new Date()
-        }
-      });
-      console.log('Updated user status in database:', updatedUser);
+    // Verify webhook signature
+    const headerPayload = headers();
+    const svix_id = headerPayload.get("svix-id");
+    const svix_timestamp = headerPayload.get("svix-timestamp");
+    const svix_signature = headerPayload.get("svix-signature");
 
-      // Try to broadcast the status change
-      try {
-        await broadcastStatusChange(user_id, 'offline');
-        console.log('Successfully broadcast status change');
-      } catch (error) {
-        // Log but don't fail the webhook if broadcast fails
-        console.error('Failed to broadcast status change:', error);
-      }
+    // Log all headers for debugging
+    const allHeaders = Array.from(headerPayload.entries());
+    console.log('All headers:', allHeaders);
 
-      return NextResponse.json({ success: true });
-    } catch (error) {
-      console.error('Error updating user status:', error);
-      return new NextResponse('Error updating user status', { status: 500 });
+    console.log('Webhook headers:', {
+      svix_id,
+      svix_timestamp,
+      svix_signature: svix_signature ? 'present' : 'missing'
+    });
+
+    if (!svix_id || !svix_timestamp || !svix_signature) {
+      console.log('Missing required Svix headers');
+      return new NextResponse("Missing svix headers", { status: 400 });
     }
-  }
 
-  return NextResponse.json({ success: true });
+    // Get the body
+    const payload = await req.json();
+    console.log('Webhook payload:', JSON.stringify(payload, null, 2));
+    const body = JSON.stringify(payload);
+
+    // Create a new Svix instance with your secret
+    const wh = new Webhook(webhookSecret || "");
+    console.log('Webhook secret present:', !!webhookSecret);
+    console.log('Webhook secret length:', webhookSecret?.length);
+
+    let evt: WebhookEvent;
+
+    try {
+      evt = wh.verify(body, {
+        "svix-id": svix_id,
+        "svix-timestamp": svix_timestamp,
+        "svix-signature": svix_signature,
+      }) as WebhookEvent;
+      console.log('Webhook verification successful');
+    } catch (err) {
+      console.error('Error verifying webhook:', err);
+      if (err instanceof Error) {
+        console.error('Error details:', {
+          name: err.name,
+          message: err.message,
+          stack: err.stack
+        });
+      }
+      return new NextResponse('Error verifying webhook: ' + (err instanceof Error ? err.message : 'Unknown error'), { status: 400 });
+    }
+
+    console.log('Received webhook event:', {
+      type: evt.type,
+      data: evt.data
+    });
+
+    // Handle both session.ended and session.removed events
+    if (evt.type === 'session.ended' || evt.type === 'session.removed') {
+      const { user_id } = evt.data;
+      console.log('Processing session end for user:', user_id);
+      
+      try {
+        // Update user status to offline in database
+        const updatedUser = await prisma.user.update({
+          where: { id: user_id },
+          data: { 
+            status: 'offline',
+            updatedAt: new Date()
+          }
+        });
+        console.log('Updated user status in database:', updatedUser);
+
+        // Try to broadcast the status change
+        try {
+          await broadcastStatusChange(user_id, 'offline');
+          console.log('Successfully broadcast status change');
+        } catch (error) {
+          // Log but don't fail the webhook if broadcast fails
+          console.error('Failed to broadcast status change:', error);
+        }
+
+        return NextResponse.json({ success: true });
+      } catch (error) {
+        console.error('Error updating user status:', error);
+        return new NextResponse('Error updating user status', { status: 500 });
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Unhandled error in webhook handler:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    return new NextResponse('Internal server error', { status: 500 });
+  }
 } 
