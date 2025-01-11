@@ -71,7 +71,7 @@ export function useUsers() {
       );
 
       // Send update via socket
-      console.log('Sending status update to socket:', newStatus);
+      console.log('Sending status update to socket:', { userId, newStatus });
       socket.updateStatus(newStatus);
     } catch (error) {
       console.error('Failed to update status:', error);
