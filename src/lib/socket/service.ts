@@ -266,8 +266,8 @@ export class SocketService {
     
     console.log('Socket service: Emitting status update:', status); // Debug log
     
-    // Get current user ID
-    const userId = (this.socket?.auth as { token: string })?.token;
+    // Get current user ID from socket data instead of auth token
+    const userId = (this.socket as any).data?.userId;
     if (!userId) {
       console.error('No user ID available for status update');
       return;

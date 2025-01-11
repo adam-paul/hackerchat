@@ -10,7 +10,7 @@ export function useUsers() {
   const [error, setError] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
 
-  // Fetch users when component mounts
+  // Fetch users when component mounts or when socket connection changes
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -20,8 +20,19 @@ export function useUsers() {
           throw new Error('Failed to fetch users');
         }
         const data = await res.json();
-        // Ensure all users start as offline
-        setUsers(data.map((user: User) => ({ ...user, status: 'offline' })));
+        console.log('Fetched users from API:', data); // Debug log
+        
+        // If we're connected, preserve online status for connected users
+        if (isConnected && socket) {
+          const currentUserId = (socket as any).data?.userId;
+          setUsers(data.map((user: User) => ({
+            ...user,
+            status: user.id === currentUserId ? 'online' : 'offline'
+          })));
+        } else {
+          // If not connected, everyone starts as offline
+          setUsers(data.map((user: User) => ({ ...user, status: 'offline' })));
+        }
       } catch (error) {
         console.error('Failed to fetch users:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -31,7 +42,7 @@ export function useUsers() {
     };
 
     fetchUsers();
-  }, []);
+  }, [socket, isConnected]);
 
   // Set up socket event listeners only when socket is connected
   useEffect(() => {
@@ -39,6 +50,7 @@ export function useUsers() {
 
     // Handle initial connected users
     const handleConnectedUsers = (connectedUserIds: string[]) => {
+      console.log('Connected users:', connectedUserIds); // Debug log
       setUsers(prev => prev.map(user => ({
         ...user,
         status: connectedUserIds.includes(user.id) ? 'online' : 'offline'
@@ -47,6 +59,7 @@ export function useUsers() {
 
     // Handle user connected
     const handleUserConnected = (userId: string) => {
+      console.log('User connected:', userId); // Debug log
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, status: 'online' } : user
       ));
@@ -54,6 +67,7 @@ export function useUsers() {
 
     // Handle user disconnected
     const handleUserDisconnected = (userId: string) => {
+      console.log('User disconnected:', userId); // Debug log
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, status: 'offline' } : user
       ));

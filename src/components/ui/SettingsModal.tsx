@@ -32,6 +32,7 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   // Set initial status from current user
   useEffect(() => {
     if (currentUser?.status) {
+      console.log('Setting initial status from user:', currentUser.status); // Debug log
       setCurrentStatus(currentUser.status as UserStatus);
     }
   }, [currentUser]);
@@ -68,17 +69,21 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   const handleStatusChange = (status: UserStatus) => {
     if (!userId) return;
     
+    console.log('Status change requested:', status); // Debug log
+    
     // Update local state immediately
     setCurrentStatus(status);
     
     // Send update to server
     try {
-      console.log('Updating status to:', status); // Debug log
+      console.log('Sending status update to server:', status); // Debug log
       updateStatus(status);
     } catch (error) {
       console.error('Failed to update status:', error);
       // Revert on error
-      setCurrentStatus(currentUser?.status || 'offline');
+      const fallbackStatus = currentUser?.status || 'offline';
+      console.log('Reverting to fallback status:', fallbackStatus); // Debug log
+      setCurrentStatus(fallbackStatus);
     }
   };
 
