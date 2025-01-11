@@ -14,7 +14,7 @@ const updateGlobalUsers = (users: User[]) => {
 };
 
 export function useUsers() {
-  const [users, setUsers] = useState<User[]>(globalUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
@@ -40,8 +40,9 @@ export function useUsers() {
       const data = await res.json();
       console.log('Raw API response:', data);
 
-      // Use status directly from backend, no defaults
+      // Update both global and local state
       updateGlobalUsers(data);
+      setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -59,24 +60,28 @@ export function useUsers() {
       console.log('Setting up socket status handler');
       const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
         console.log('Socket status change received:', { userId, newStatus });
-        updateGlobalUsers(globalUsers.map(user =>
+        const updatedUsers = users.map(user =>
           user.id === userId ? { ...user, status: newStatus } : user
-        ));
+        );
+        updateGlobalUsers(updatedUsers);
+        setUsers(updatedUsers);
       };
 
       socket.setStatusChangeHandler(handleStatusChange);
       return () => socket.setStatusChangeHandler(() => {});
     }
-  }, [socket, isConnected, fetchUsers]);
+  }, [socket, isConnected, fetchUsers, users]);
 
   // Update user status function
   const updateUserStatus = useCallback((userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
     console.log('updateUserStatus called:', { userId, newStatus });
     
-    // Update global state immediately
-    updateGlobalUsers(globalUsers.map(user =>
+    // Update both global and local state immediately
+    const updatedUsers = users.map(user =>
       user.id === userId ? { ...user, status: newStatus } : user
-    ));
+    );
+    updateGlobalUsers(updatedUsers);
+    setUsers(updatedUsers);
 
     // Update backend
     if (socket?.isConnected()) {
@@ -85,7 +90,7 @@ export function useUsers() {
     } else {
       console.warn('Socket not connected, status update may fail');
     }
-  }, [socket]);
+  }, [socket, users]);
 
   return {
     users,
