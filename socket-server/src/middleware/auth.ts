@@ -44,11 +44,13 @@ export const authMiddleware = async (
         create: {
           id: session.sub,
           name: user.username || 'Anonymous',
-          imageUrl: user.imageUrl
+          imageUrl: user.imageUrl,
+          status: 'online'
         },
         update: {
           name: user.username || 'Anonymous',
-          imageUrl: user.imageUrl
+          imageUrl: user.imageUrl,
+          // Don't update status on reconnect - keep existing status
         }
       });
 

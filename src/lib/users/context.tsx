@@ -41,11 +41,11 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
 
     if (socket && isConnected) {
       // Handle status updates from other clients
-      const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-        console.log('Socket status change received:', { userId, newStatus });
+      const handleStatusChange = (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
+        console.log('Socket status change received:', event);
         setUsers(current => 
           current.map(user => 
-            user.id === userId ? { ...user, status: newStatus } : user
+            user.id === event.userId ? { ...user, status: event.status } : user
           )
         );
       };

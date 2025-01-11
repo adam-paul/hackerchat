@@ -7,6 +7,9 @@ import { handleMessage, handleMessageReceived, handleMessageDelete } from './mes
 import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
 import { EVENTS } from '../config/socket';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Track connected users
 const connectedUsers = new Set<string>();
@@ -28,8 +31,20 @@ export const handleConnection = (socket: SocketType): void => {
   // Send currently connected users to the new client
   socket.emit('connected-users', Array.from(connectedUsers));
 
-  // Broadcast user connected event to all clients except the sender
-  socket.broadcast.emit('user-connected', userId);
+  // Get user's current status and broadcast connection
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: { status: true }
+  }).then(user => {
+    if (user) {
+      // Broadcast user connected event with their current status
+      socket.broadcast.emit('status-changed', {
+        userId,
+        status: user.status,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
 
   // Channel events
   socket.on(EVENTS.JOIN_CHANNEL, async (channelId: string) => {

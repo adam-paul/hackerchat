@@ -18,7 +18,7 @@ export class SocketService {
   private readonly RECONNECT_DELAY = 1000;
   private onMessageHandler?: (message: Message) => void;
   private onMessageDeleteHandler?: (event: { messageId: string; originalId?: string }) => void;
-  private onStatusChangeHandler?: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void;
+  private onStatusChangeHandler?: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void;
   private onReactionAddedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
   private onReactionRemovedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
 
@@ -95,7 +95,7 @@ export class SocketService {
 
     this.socket.on('status-changed', (event: { userId: string, status: 'online' | 'away' | 'busy' | 'offline' }) => {
       if (this.onStatusChangeHandler) {
-        this.onStatusChangeHandler(event.userId, event.status);
+        this.onStatusChangeHandler(event);
       }
     });
 
@@ -275,7 +275,7 @@ export class SocketService {
     this.socket.emit('status-update', status);
   }
 
-  setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
+  setStatusChangeHandler(handler: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void): void {
     this.onStatusChangeHandler = handler;
   }
 
