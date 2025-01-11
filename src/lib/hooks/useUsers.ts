@@ -28,10 +28,27 @@ export function useUsers() {
     }
   }, []);
 
-  // Initial fetch only on mount or reconnect
+  // Initial fetch on mount
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers, isConnected]);
+  }, [fetchUsers]);
+
+  // Handle socket status updates
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
+      setUsers(prev => prev.map(user =>
+        user.id === userId ? { ...user, status: newStatus } : user
+      ));
+    };
+
+    socket.setStatusChangeHandler(handleStatusChange);
+
+    return () => {
+      socket.setStatusChangeHandler(() => {});
+    };
+  }, [socket, isConnected]);
 
   // Update user status - both UI and backend
   const updateUserStatus = useCallback((userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
