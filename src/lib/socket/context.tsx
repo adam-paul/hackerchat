@@ -33,7 +33,7 @@ const SocketContext = createContext<SocketContextType>({
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const tokenGetterRef = useRef(getToken);
   const [socketService, setSocketService] = useState<SocketService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -47,6 +47,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, [getToken]);
 
   useEffect(() => {
+    // Only attempt connection if auth is loaded
+    if (!isLoaded) return;
+
     // Only create the service once
     if (!serviceRef.current) {
       const service = new SocketService();
@@ -78,7 +81,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         serviceRef.current.disconnect();
       }
     };
-  }, []);
+  }, [isLoaded]);
 
   const joinChannel = (channelId: string) => {
     try {
