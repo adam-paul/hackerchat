@@ -46,10 +46,10 @@ export class SocketService {
       const tokenParts = token.split('.');
       if (tokenParts.length === 3) {
         const payload = JSON.parse(atob(tokenParts[1]));
-        const userId = payload.sub; // The user ID is in the 'sub' claim
+        const userId = payload.sub;
         
         this.socket = io(this.url, {
-          auth: { token, userId }, // Pass userId in auth
+          auth: { token, userId },
           reconnection: true,
           reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
           reconnectionDelay: this.RECONNECT_DELAY,
@@ -60,8 +60,7 @@ export class SocketService {
         this.setupEventHandlers();
         await this.waitForConnection();
         
-        // Set status to online after successful connection
-        this.updateStatus('online');
+        // No need to manually set status - server will handle initial status
       } else {
         throw new Error('Invalid token format');
       }
@@ -76,9 +75,11 @@ export class SocketService {
 
     this.socket.on('connect', () => {
       this.reconnectAttempts = 0;
+      // Server will handle setting initial status
     });
 
     this.socket.on('disconnect', (reason) => {
+      // No need to manually handle disconnect status - webhook will handle it
       console.log('Socket disconnected:', reason);
     });
 
@@ -127,8 +128,9 @@ export class SocketService {
 
     // Handle status change events from the server
     this.socket.on('status-changed', (event) => {
+      const { userId, status, timestamp } = event;
       if (this.onStatusChangeHandler) {
-        this.onStatusChangeHandler(event.userId, event.status);
+        this.onStatusChangeHandler(userId, status);
       }
     });
 
@@ -252,19 +254,10 @@ export class SocketService {
 
   disconnect(): void {
     if (this.socket) {
-      // Set status to offline before disconnecting
-      try {
-        this.updateStatus('offline');
-      } catch (error) {
-        console.error('Error updating status to offline during disconnect:', error);
-      }
-      
-      // Wait a brief moment for the status update to be sent
-      setTimeout(() => {
-        this.socket?.disconnect();
-        this.socket = null;
-        this.token = null;
-      }, 100);
+      // No need to manually set offline status - webhook will handle it
+      this.socket.disconnect();
+      this.socket = null;
+      this.token = null;
     }
   }
 
@@ -287,38 +280,12 @@ export class SocketService {
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
-    console.log('Socket service: Emitting status update:', status); // Debug log
-    
-    // Get current user ID from auth
-    const userId = this.getCurrentUserId();
-    if (!userId) {
-      console.error('No user ID available for status update');
-      return;
-    }
-    
-    // Emit status update to server
+    // Emit status update
     this.socket.emit('status-update', status);
-    
-    // Trigger immediate local update for the current user
-    if (this.onStatusChangeHandler) {
-      console.log('Socket service: Triggering local status update:', userId, status); // Debug log
-      this.onStatusChangeHandler(userId, status);
-    }
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
     this.onStatusChangeHandler = handler;
-    
-    // Re-attach the status-changed event listener
-    if (this.socket) {
-      this.socket.off('status-changed'); // Remove any existing listeners
-      this.socket.on('status-changed', (event) => {
-        console.log('Socket service: Received status-changed event:', event); // Debug log
-        if (this.onStatusChangeHandler) {
-          this.onStatusChangeHandler(event.userId, event.status);
-        }
-      });
-    }
   }
 
   addReaction(channelId: string, messageId: string, content: string): void {

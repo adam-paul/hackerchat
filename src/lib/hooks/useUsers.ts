@@ -20,22 +20,9 @@ export function useUsers() {
           throw new Error('Failed to fetch users');
         }
         const data = await res.json();
-        console.log('Fetched users from API:', data); // Debug log
         
-        // If we're connected, respect database status but ensure current user is online
-        if (isConnected && socket) {
-          const currentUserId = socket.getCurrentUserId();
-          console.log('Current user ID:', currentUserId); // Debug log
-          
-          setUsers(data.map((user: User) => ({
-            ...user,
-            // Only override status for current user on initial connection
-            status: user.id === currentUserId && !user.status ? 'online' : (user.status || 'offline')
-          })));
-        } else {
-          // If not connected, everyone starts as offline
-          setUsers(data.map((user: User) => ({ ...user, status: 'offline' })));
-        }
+        // Use status directly from database - no manual overrides
+        setUsers(data);
       } catch (error) {
         console.error('Failed to fetch users:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -44,62 +31,30 @@ export function useUsers() {
       }
     };
 
+    // Initial fetch
     fetchUsers();
+
+    // Set up periodic rehydration
+    const rehydrationInterval = setInterval(fetchUsers, 30000); // Rehydrate every 30 seconds
+
+    return () => {
+      clearInterval(rehydrationInterval);
+    };
   }, [socket, isConnected]);
 
-  // Set up socket event listeners only when socket is connected
+  // Handle real-time status updates
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    // Handle initial connected users
-    const handleConnectedUsers = (connectedUserIds: string[]) => {
-      console.log('Connected users:', connectedUserIds); // Debug log
-      setUsers(prev => prev.map(user => ({
-        ...user,
-        // Respect the user's current status if they're connected
-        status: connectedUserIds.includes(user.id) ? user.status : 'offline'
-      })));
-    };
-
-    // Handle user connected
-    const handleUserConnected = (userId: string) => {
-      console.log('User connected:', userId); // Debug log
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, status: 'online' } : user
-      ));
-    };
-
-    // Handle user disconnected
-    const handleUserDisconnected = (userId: string) => {
-      console.log('User disconnected:', userId); // Debug log
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, status: 'offline' } : user
-      ));
-    };
-
-    // Handle status changes
     const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      console.log('Status change received:', userId, newStatus); // Debug log
-      setUsers(prev => {
-        const newUsers = prev.map(user =>
-          user.id === userId ? { ...user, status: newStatus } : user
-        );
-        console.log('Updated users:', newUsers); // Debug log
-        return newUsers;
-      });
+      setUsers(prev => prev.map(user =>
+        user.id === userId ? { ...user, status: newStatus } : user
+      ));
     };
 
-    // Set up event listeners
-    socket.on('connected-users', handleConnectedUsers);
-    socket.on('user-connected', handleUserConnected);
-    socket.on('user-disconnected', handleUserDisconnected);
     socket.setStatusChangeHandler(handleStatusChange);
 
-    // Clean up event listeners
     return () => {
-      socket.off('connected-users', handleConnectedUsers);
-      socket.off('user-connected', handleUserConnected);
-      socket.off('user-disconnected', handleUserDisconnected);
       socket.setStatusChangeHandler(() => {});
     };
   }, [socket, isConnected]);
