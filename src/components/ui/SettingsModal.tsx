@@ -27,15 +27,6 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   const { users } = useUsers();
   const { userId } = useAuthContext();
   const currentUser = users.find(user => user.id === userId);
-  const [currentStatus, setCurrentStatus] = useState<UserStatus>('online');
-
-  // Set initial status from current user
-  useEffect(() => {
-    if (currentUser?.status) {
-      console.log('Setting initial status from user:', currentUser.status); // Debug log
-      setCurrentStatus(currentUser.status as UserStatus);
-    }
-  }, [currentUser]);
 
   // Reset active tab when initial tab changes
   useEffect(() => {
@@ -66,49 +57,16 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
     };
   }, [isOpen, onClose]);
 
-  const handleStatusChange = async (status: UserStatus) => {
+  const handleStatusChange = (status: UserStatus) => {
     if (!userId) return;
-    
-    console.log('Status change requested:', status); // Debug log
-    
-    // Store previous status for rollback
-    const previousStatus = currentStatus;
-    
-    try {
-      // Update local state immediately (optimistic update)
-      setCurrentStatus(status);
-      
-      // Send update to server
-      updateStatus(status);
-      
-      console.log('Status update sent to server:', status); // Debug log
-    } catch (error) {
-      console.error('Failed to update status:', error);
-      // Revert on error
-      setCurrentStatus(previousStatus);
-    }
+    updateStatus(status);
   };
-
-  // Listen for external status changes
-  useEffect(() => {
-    if (currentUser?.status) {
-      console.log('External status change detected:', { 
-        current: currentStatus, 
-        new: currentUser.status 
-      }); // Debug log
-      
-      // Only update if the status is actually different
-      if (currentUser.status !== currentStatus) {
-        setCurrentStatus(currentUser.status as UserStatus);
-      }
-    }
-  }, [currentUser?.status, currentStatus]);
 
   const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
     <button
       onClick={() => handleStatusChange(status)}
       className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
-        currentStatus === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+        currentUser?.status === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
       }`}
     >
       <StatusIndicator status={status} className="scale-75" />
