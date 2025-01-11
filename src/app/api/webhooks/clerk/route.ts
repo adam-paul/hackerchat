@@ -78,23 +78,31 @@ export async function POST(req: Request) {
     return new NextResponse('Error verifying webhook', { status: 400 });
   }
 
+  console.log('Received webhook event:', {
+    type: evt.type,
+    data: evt.data
+  });
+
   // Handle both session.ended and session.removed events
   if (evt.type === 'session.ended' || evt.type === 'session.removed') {
     const { user_id } = evt.data;
+    console.log('Processing session end for user:', user_id);
     
     try {
       // Update user status to offline in database
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: user_id },
         data: { 
           status: 'offline',
           updatedAt: new Date()
         }
       });
+      console.log('Updated user status in database:', updatedUser);
 
       // Try to broadcast the status change
       try {
         await broadcastStatusChange(user_id, 'offline');
+        console.log('Successfully broadcast status change');
       } catch (error) {
         // Log but don't fail the webhook if broadcast fails
         console.error('Failed to broadcast status change:', error);
