@@ -128,7 +128,6 @@ export class SocketService {
 
     // Handle status change events from the server
     this.socket.on('status-changed', (event) => {
-      console.log('Received status change from server:', event);
       const { userId, status } = event;
       if (this.onStatusChangeHandler) {
         this.onStatusChangeHandler(userId, status);
@@ -281,17 +280,8 @@ export class SocketService {
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
-    // Get current user ID for logging
-    const userId = this.getCurrentUserId();
-    console.log('Sending status update:', { userId, status });
-    
-    // Emit status update to server
+    // Simply emit the status update to server
     this.socket.emit('status-update', status);
-    
-    // Optimistically update local state via the status change handler
-    if (this.onStatusChangeHandler && userId) {
-      this.onStatusChangeHandler(userId, status);
-    }
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {

@@ -19,7 +19,6 @@ export function useUsers() {
         throw new Error('Failed to fetch users');
       }
       const data = await res.json();
-      console.log('Fetched users from backend:', data);
       setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -29,50 +28,28 @@ export function useUsers() {
     }
   }, []);
 
-  // Initial fetch and periodic refresh
+  // Initial fetch only on mount or reconnect
   useEffect(() => {
-    console.log('Initializing users from backend');
     fetchUsers();
-    const refreshInterval = setInterval(fetchUsers, 60000);
-    return () => clearInterval(refreshInterval);
-  }, [fetchUsers]);
+  }, [fetchUsers, isConnected]);
 
-  // Handle real-time status updates
-  useEffect(() => {
-    if (!socket || !isConnected) return;
+  // Update user status - both UI and backend
+  const updateUserStatus = useCallback((userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
+    // Update UI immediately
+    setUsers(prev => prev.map(user =>
+      user.id === userId ? { ...user, status: newStatus } : user
+    ));
 
-    const handleStatusChange = useCallback((userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      console.log('Handling status change:', { userId, newStatus });
-      setUsers(prev => {
-        // Ensure we're not returning the same array if nothing changed
-        const userToUpdate = prev.find(u => u.id === userId);
-        if (!userToUpdate || userToUpdate.status === newStatus) {
-          return prev;
-        }
-        const updated = prev.map(user =>
-          user.id === userId ? { ...user, status: newStatus } : user
-        );
-        console.log('Updated users after status change:', updated);
-        return updated;
-      });
-    }, []);
-
-    socket.setStatusChangeHandler(handleStatusChange);
-
-    // Fetch initial state when socket connects
-    if (isConnected) {
-      fetchUsers();
+    // Update backend if socket is connected
+    if (socket?.isConnected()) {
+      socket.updateStatus(newStatus);
     }
-
-    return () => {
-      socket.setStatusChangeHandler(() => {});
-    };
-  }, [socket, isConnected, fetchUsers]);
+  }, [socket]);
 
   return {
     users,
     isLoading,
     error,
-    refetch: fetchUsers
+    updateUserStatus
   };
 } 

@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
-import { useSocket } from '@/lib/socket/context';
 import { useUsers } from '@/lib/hooks/useUsers';
 import { useAuthContext } from '@/lib/auth/context';
 
@@ -11,7 +10,7 @@ const firaCode = Fira_Code({ subsets: ['latin'] });
 
 type SettingsTab = 'user' | 'chat';
 type UserStatus = 'online' | 'away' | 'busy' | 'offline';
-type UserSettingType = 'status';
+type UserSettingType = 'status'; // More settings can be added here
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -22,37 +21,17 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [activeSetting, setActiveSetting] = useState<UserSettingType>('status');
-  const [selectedStatus, setSelectedStatus] = useState<UserStatus | undefined>();
   const modalRef = useRef<HTMLDivElement>(null);
-  const { updateStatus } = useSocket();
-  const { users } = useUsers();
+  const { users, updateUserStatus } = useUsers();
   const { userId } = useAuthContext();
+  const currentUser = users.find(user => user.id === userId);
 
-  // Memoize current user to prevent unnecessary re-renders
-  const currentUser = useMemo(() => users.find(user => user.id === userId), [users, userId]);
-  
   // Reset active tab when initial tab changes
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  // Set initial status when modal opens or currentUser changes
   useEffect(() => {
-    if (isOpen && currentUser?.status) {
-      setSelectedStatus(currentUser.status as UserStatus);
-    }
-  }, [isOpen, currentUser?.status]);
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedStatus(undefined);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
     const handleClickOutside = (event: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
         onClose();
@@ -65,8 +44,10 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscKey);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscKey);
+    }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -75,26 +56,21 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   }, [isOpen, onClose]);
 
   const handleStatusChange = (status: UserStatus) => {
-    if (!userId || !isOpen) return;
-    setSelectedStatus(status);
-    updateStatus(status);
+    if (!userId) return;
+    updateUserStatus(userId, status);
   };
 
-  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => {
-    const isSelected = selectedStatus === status;
-    
-    return (
-      <button
-        onClick={() => handleStatusChange(status)}
-        className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
-          isSelected ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
-        }`}
-      >
-        <StatusIndicator status={status} className="scale-75" />
-        <span className="text-zinc-300 text-sm">{label}</span>
-      </button>
-    );
-  };
+  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
+    <button
+      onClick={() => handleStatusChange(status)}
+      className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
+        currentUser?.status === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+      }`}
+    >
+      <StatusIndicator status={status} className="scale-75" />
+      <span className="text-zinc-300 text-sm">{label}</span>
+    </button>
+  );
 
   if (!isOpen) return null;
 
@@ -174,4 +150,4 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
       </div>
     </div>
   );
-}
+} 
