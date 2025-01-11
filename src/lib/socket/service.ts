@@ -41,17 +41,27 @@ export class SocketService {
 
     try {
       this.token = token;
-      this.socket = io(this.url, {
-        auth: { token },
-        reconnection: true,
-        reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
-        reconnectionDelay: this.RECONNECT_DELAY,
-        timeout: 5000,
-        transports: ['websocket']
-      });
+      
+      // Parse the JWT token to get the user ID
+      const tokenParts = token.split('.');
+      if (tokenParts.length === 3) {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        const userId = payload.sub; // The user ID is in the 'sub' claim
+        
+        this.socket = io(this.url, {
+          auth: { token, userId }, // Pass userId in auth
+          reconnection: true,
+          reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
+          reconnectionDelay: this.RECONNECT_DELAY,
+          timeout: 5000,
+          transports: ['websocket']
+        });
 
-      this.setupEventHandlers();
-      await this.waitForConnection();
+        this.setupEventHandlers();
+        await this.waitForConnection();
+      } else {
+        throw new Error('Invalid token format');
+      }
     } catch (error) {
       console.error('Socket connection error:', error);
       throw new Error('Failed to connect to socket server');
@@ -266,8 +276,8 @@ export class SocketService {
     
     console.log('Socket service: Emitting status update:', status); // Debug log
     
-    // Get current user ID from socket data instead of auth token
-    const userId = (this.socket as any).data?.userId;
+    // Get current user ID from auth
+    const userId = this.getCurrentUserId();
     if (!userId) {
       console.error('No user ID available for status update');
       return;
@@ -335,5 +345,28 @@ export class SocketService {
 
   setReactionRemovedHandler(handler: (event: { messageId: string; reaction: Reaction }) => void): void {
     this.onReactionRemovedHandler = handler;
+  }
+
+  getCurrentUserId(): string | null {
+    if (!this.socket) return null;
+    
+    // First try to get from auth object
+    const authUserId = (this.socket.auth as { userId?: string })?.userId;
+    if (authUserId) return authUserId;
+    
+    // Fallback to parsing from token if auth is not set
+    if (this.token) {
+      try {
+        const tokenParts = this.token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          return payload.sub;
+        }
+      } catch (error) {
+        console.error('Error parsing token:', error);
+      }
+    }
+    
+    return null;
   }
 } 
