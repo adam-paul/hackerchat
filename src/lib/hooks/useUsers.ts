@@ -73,9 +73,6 @@ export function useUsers() {
       // Send update via socket
       console.log('Sending status update to socket:', newStatus);
       socket.updateStatus(newStatus);
-
-      // Fetch latest users to ensure consistency
-      await fetchUsers();
     } catch (error) {
       console.error('Failed to update status:', error);
       // Revert the local update on error
