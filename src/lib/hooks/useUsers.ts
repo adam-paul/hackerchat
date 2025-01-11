@@ -19,6 +19,7 @@ export function useUsers() {
         throw new Error('Failed to fetch users');
       }
       const data = await res.json();
+      console.log('Fetched users from API:', data); // Debug log
       setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -45,9 +46,14 @@ export function useUsers() {
     if (!socket || !isConnected) return;
 
     const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      setUsers(prev => prev.map(user =>
-        user.id === userId ? { ...user, status: newStatus } : user
-      ));
+      console.log('Status change received:', { userId, newStatus }); // Debug log
+      setUsers(prev => {
+        const updated = prev.map(user =>
+          user.id === userId ? { ...user, status: newStatus } : user
+        );
+        console.log('Updated users after status change:', updated); // Debug log
+        return updated;
+      });
     };
 
     // Set up status change handler
@@ -55,6 +61,7 @@ export function useUsers() {
 
     // Fetch users when connection is established
     if (isConnected) {
+      console.log('Socket connected, fetching users...'); // Debug log
       fetchUsers();
     }
 
@@ -67,6 +74,6 @@ export function useUsers() {
     users,
     isLoading,
     error,
-    refetch: fetchUsers // Expose refetch function
+    refetch: fetchUsers
   };
 } 

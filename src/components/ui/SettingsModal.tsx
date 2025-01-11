@@ -32,6 +32,7 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   // Set initial status from current user
   useEffect(() => {
     if (currentUser?.status) {
+      console.log('Setting initial status from user:', currentUser.status); // Debug log
       setCurrentStatus(currentUser.status as UserStatus);
     }
   }, [currentUser]);
@@ -68,15 +69,19 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   const handleStatusChange = async (status: UserStatus) => {
     if (!userId) return;
     
+    console.log('Status change requested:', status); // Debug log
+    
     // Store previous status for rollback
     const previousStatus = currentStatus;
     
-    // Update local state immediately (optimistic update)
-    setCurrentStatus(status);
-    
-    // Send update to server
     try {
+      // Update local state immediately (optimistic update)
+      setCurrentStatus(status);
+      
+      // Send update to server
       updateStatus(status);
+      
+      console.log('Status update sent to server:', status); // Debug log
     } catch (error) {
       console.error('Failed to update status:', error);
       // Revert on error
@@ -86,8 +91,16 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
 
   // Listen for external status changes
   useEffect(() => {
-    if (currentUser?.status && currentUser.status !== currentStatus) {
-      setCurrentStatus(currentUser.status as UserStatus);
+    if (currentUser?.status) {
+      console.log('External status change detected:', { 
+        current: currentStatus, 
+        new: currentUser.status 
+      }); // Debug log
+      
+      // Only update if the status is actually different
+      if (currentUser.status !== currentStatus) {
+        setCurrentStatus(currentUser.status as UserStatus);
+      }
     }
   }, [currentUser?.status, currentStatus]);
 

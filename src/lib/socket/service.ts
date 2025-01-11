@@ -130,6 +130,7 @@ export class SocketService {
 
     // Handle status change events from the server
     this.socket.on('status-changed', (event) => {
+      console.log('Received status change event:', event); // Debug log
       const { userId, status, timestamp } = event;
       if (this.onStatusChangeHandler) {
         this.onStatusChangeHandler(userId, status);
@@ -286,11 +287,14 @@ export class SocketService {
     const userId = this.getCurrentUserId();
     if (!userId) throw new Error('No user ID available');
 
+    console.log('Emitting status update:', { status, userId }); // Debug log
+
     // Emit status update with user ID
-    this.socket.emit('status-update', { status, userId });
+    this.socket.emit('status-update', status); // Changed to match server expectation
 
     // Trigger optimistic update locally
     if (this.onStatusChangeHandler) {
+      console.log('Triggering optimistic update:', { userId, status }); // Debug log
       this.onStatusChangeHandler(userId, status);
     }
   }
