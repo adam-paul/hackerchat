@@ -47,6 +47,10 @@ export const EVENTS = {
   MESSAGE_ERROR: 'message-error' as const,
   MESSAGE_DELETED: 'message-deleted' as const,
   
+  // Status events
+  STATUS_UPDATE: 'status-update' as const,
+  STATUS_CHANGED: 'status-changed' as const,
+  
   // Reaction events
   ADD_REACTION: 'add-reaction' as const,
   REMOVE_REACTION: 'remove-reaction' as const,

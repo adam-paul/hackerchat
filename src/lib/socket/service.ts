@@ -76,29 +76,27 @@ export class SocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      this.reconnectAttempts = 0;
+      console.log('Socket connected');
     });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+    this.socket.on('disconnect', () => {
+      console.log('Socket disconnected');
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-      this.handleReconnect();
+    this.socket.on('error', (error: string) => {
+      console.error('Socket error:', error);
     });
 
-    this.socket.on('message', (event) => {
-      // Only process messages from other users
-      const userId = (this.socket?.auth as { token: string })?.token;
-      const messageAuthorId = event.message.author.id;
-      
-      // Skip if this is our own message
-      if (messageAuthorId === userId || messageAuthorId === 'optimistic') {
-        return;
+    this.socket.on('message', (message: Message) => {
+      if (this.onMessageHandler) {
+        this.onMessageHandler(message);
       }
-      
-      this.onMessageHandler?.(event.message);
+    });
+
+    this.socket.on('status-changed', (event: { userId: string, status: 'online' | 'away' | 'busy' | 'offline' }) => {
+      if (this.onStatusChangeHandler) {
+        this.onStatusChangeHandler(event.userId, event.status);
+      }
     });
 
     this.socket.on('message-delivered', (event) => {
@@ -123,14 +121,6 @@ export class SocketService {
     this.socket.on('message-deleted', (event) => {
       if (this.onMessageDeleteHandler) {
         this.onMessageDeleteHandler(event);
-      }
-    });
-
-    // Handle status change events from the server
-    this.socket.on('status-changed', (event) => {
-      const { userId, status } = event;
-      if (this.onStatusChangeHandler) {
-        this.onStatusChangeHandler(userId, status);
       }
     });
 
@@ -278,11 +268,14 @@ export class SocketService {
   }
 
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
-    if (!this.socket?.connected) throw new Error('Socket not connected');
+    if (!this.socket) return;
     const userId = this.getCurrentUserId();
-    if (!userId) throw new Error('No user ID available');
+    if (!userId) return;
     
-    this.socket.emit('status-update', { userId, status });
+    this.socket.emit('status-update', {
+      userId,
+      status
+    });
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {

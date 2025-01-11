@@ -45,11 +45,11 @@ export const handleConnection = (socket: SocketType): void => {
     await handleMessage(socket, {
       content: data.message.content,
       channelId: data.channelId,
+      messageId: data.messageId,
       fileUrl: data.message.fileUrl,
       fileName: data.message.fileName,
       fileType: data.message.fileType,
       fileSize: data.message.fileSize,
-      messageId: data.messageId,
       replyToId: data.message.replyToId
     });
   });
@@ -72,8 +72,8 @@ export const handleConnection = (socket: SocketType): void => {
   });
 
   // Status events
-  socket.on('status-update', async (payload: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
-    await handleStatusUpdate(socket, payload);
+  socket.on(EVENTS.STATUS_UPDATE, async (data: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
+    await handleStatusUpdate(socket, data);
   });
 
   // Typing events
