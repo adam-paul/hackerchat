@@ -3,9 +3,11 @@ import { WebhookEvent } from '@clerk/nextjs/server';
 import { Webhook } from 'svix';
 import { prisma } from '@/lib/db/prisma';
 import { NextResponse } from 'next/server';
+import { io } from 'socket.io-client';
 
 // Webhook secret from environment variable
 const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
 
 export async function POST(req: Request) {
   // Verify webhook signature
@@ -44,10 +46,19 @@ export async function POST(req: Request) {
 
     try {
       // Update user status to offline in database
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: user_id },
         data: { status: 'offline' }
       });
+
+      // Connect to socket server to broadcast status change
+      const socket = io(socketUrl);
+      socket.emit('status-broadcast', {
+        userId: user_id,
+        status: 'offline',
+        timestamp: new Date().toISOString()
+      });
+      socket.disconnect();
 
       return NextResponse.json({ success: true });
     } catch (error) {

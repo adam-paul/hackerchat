@@ -65,7 +65,7 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
     };
   }, [isOpen, onClose]);
 
-  const handleStatusChange = (status: UserStatus) => {
+  const handleStatusChange = async (status: UserStatus) => {
     if (!userId) return;
     
     // Store previous status for rollback
@@ -83,6 +83,13 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
       setCurrentStatus(previousStatus);
     }
   };
+
+  // Listen for external status changes
+  useEffect(() => {
+    if (currentUser?.status && currentUser.status !== currentStatus) {
+      setCurrentStatus(currentUser.status as UserStatus);
+    }
+  }, [currentUser?.status, currentStatus]);
 
   const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
     <button

@@ -1,6 +1,6 @@
 // src/lib/hooks/useUsers.ts
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSocket } from '../socket/context';
 import type { User } from '@/types';
 
@@ -10,37 +10,35 @@ export function useUsers() {
   const [error, setError] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
 
-  // Fetch users when component mounts or when socket connection changes
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setIsLoading(true);
-        const res = await fetch('/api/users');
-        if (!res.ok) {
-          throw new Error('Failed to fetch users');
-        }
-        const data = await res.json();
-        
-        // Use status directly from database - no manual overrides
-        setUsers(data);
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-        setError(error instanceof Error ? error.message : 'Failed to fetch users');
-      } finally {
-        setIsLoading(false);
+  // Fetch users function
+  const fetchUsers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/users');
+      if (!res.ok) {
+        throw new Error('Failed to fetch users');
       }
-    };
+      const data = await res.json();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch users');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    // Initial fetch
+  // Initial fetch and rehydration
+  useEffect(() => {
     fetchUsers();
 
     // Set up periodic rehydration
-    const rehydrationInterval = setInterval(fetchUsers, 30000); // Rehydrate every 30 seconds
+    const rehydrationInterval = setInterval(fetchUsers, 30000);
 
     return () => {
       clearInterval(rehydrationInterval);
     };
-  }, [socket, isConnected]);
+  }, [fetchUsers]);
 
   // Handle real-time status updates
   useEffect(() => {
@@ -52,16 +50,23 @@ export function useUsers() {
       ));
     };
 
+    // Set up status change handler
     socket.setStatusChangeHandler(handleStatusChange);
+
+    // Fetch users when connection is established
+    if (isConnected) {
+      fetchUsers();
+    }
 
     return () => {
       socket.setStatusChangeHandler(() => {});
     };
-  }, [socket, isConnected]);
+  }, [socket, isConnected, fetchUsers]);
 
   return {
     users,
     isLoading,
-    error
+    error,
+    refetch: fetchUsers // Expose refetch function
   };
 } 

@@ -54,13 +54,15 @@ export class SocketService {
           reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
           reconnectionDelay: this.RECONNECT_DELAY,
           timeout: 5000,
-          transports: ['websocket']
+          transports: ['websocket'],
+          query: { 
+            // Pass initial connection flag to server
+            initialConnection: 'true'
+          }
         });
 
         this.setupEventHandlers();
         await this.waitForConnection();
-        
-        // No need to manually set status - server will handle initial status
       } else {
         throw new Error('Invalid token format');
       }
@@ -280,8 +282,17 @@ export class SocketService {
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
-    // Emit status update
-    this.socket.emit('status-update', status);
+    // Get current user ID
+    const userId = this.getCurrentUserId();
+    if (!userId) throw new Error('No user ID available');
+
+    // Emit status update with user ID
+    this.socket.emit('status-update', { status, userId });
+
+    // Trigger optimistic update locally
+    if (this.onStatusChangeHandler) {
+      this.onStatusChangeHandler(userId, status);
+    }
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
