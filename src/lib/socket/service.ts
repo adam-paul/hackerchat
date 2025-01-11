@@ -61,7 +61,7 @@ export class SocketService {
         await this.waitForConnection();
         
         // Set status to online after successful connection
-        this.updateStatus('online');
+        this.socket.emit('status-update', 'online');
       } else {
         throw new Error('Invalid token format');
       }
@@ -75,11 +75,19 @@ export class SocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
+      console.log('Socket connected');
       this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('Socket disconnected:', reason);
+      // If this was not a clean disconnect (like calling disconnect()), set status to offline
+      if (reason !== 'io client disconnect') {
+        const userId = this.getCurrentUserId();
+        if (userId && this.onStatusChangeHandler) {
+          this.onStatusChangeHandler(userId, 'offline');
+        }
+      }
     });
 
     this.socket.on('connect_error', (error) => {
@@ -252,19 +260,12 @@ export class SocketService {
 
   disconnect(): void {
     if (this.socket) {
-      // Set status to offline before disconnecting
-      try {
-        this.updateStatus('offline');
-      } catch (error) {
-        console.error('Error updating status to offline during disconnect:', error);
-      }
-      
-      // Wait a brief moment for the status update to be sent
-      setTimeout(() => {
+      // Emit offline status and disconnect in a single operation
+      this.socket.emit('status-update', 'offline', () => {
         this.socket?.disconnect();
         this.socket = null;
         this.token = null;
-      }, 100);
+      });
     }
   }
 
