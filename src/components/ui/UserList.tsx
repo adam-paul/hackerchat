@@ -1,7 +1,7 @@
 // src/components/ui/UserList.tsx
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
 import { ClickableUsername } from './ClickableUsername';
@@ -19,11 +19,6 @@ interface UserListProps {
 export function UserList({ className = '', isCollapsed, onToggleCollapse }: UserListProps) {
   const { users } = useUsers();
 
-  // Debug log users state
-  useEffect(() => {
-    console.log('UserList received users:', users);
-  }, [users]);
-
   // Separate and sort users by online status
   const { onlineUsers, offlineUsers } = useMemo(() => {
     const sortByName = (a: User, b: User) => (a.name || '').localeCompare(b.name || '');
@@ -31,27 +26,21 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
     const online = users.filter(user => user.status !== 'offline').sort(sortByName);
     const offline = users.filter(user => user.status === 'offline').sort(sortByName);
     
-    console.log('UserList categorized users:', { online, offline }); // Debug log
     return { onlineUsers: online, offlineUsers: offline };
   }, [users]);
 
-  const UserItem = ({ user }: { user: User }) => {
-    // Debug log individual user render
-    console.log('Rendering UserItem:', { userId: user.id, status: user.status });
-    
-    return (
-      <div className="flex items-center justify-between px-2 py-1">
-        <ClickableUsername
-          user={user}
-          className={`${user.status === 'offline' ? 'text-zinc-500' : 'text-[#00b300]'}`}
-        />
-        <StatusIndicator 
-          status={user.status || 'offline'}
-          className="flex-shrink-0"
-        />
-      </div>
-    );
-  };
+  const UserItem = ({ user }: { user: User }) => (
+    <div className="flex items-center justify-between px-2 py-1">
+      <ClickableUsername
+        user={user}
+        className={`${user.status === 'offline' ? 'text-zinc-500' : 'text-[#00b300]'}`}
+      />
+      <StatusIndicator 
+        status={user.status || 'offline'}
+        className="flex-shrink-0"
+      />
+    </div>
+  );
 
   return (
     <div className={`${firaCode.className} ${className} flex flex-col transition-all duration-300 overflow-x-hidden`} style={{ width: isCollapsed ? '24px' : '256px' }}>
