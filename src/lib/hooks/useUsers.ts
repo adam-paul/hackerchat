@@ -20,8 +20,7 @@ export function useUsers() {
           throw new Error('Failed to fetch users');
         }
         const data = await res.json();
-        // Keep users offline initially until we get the connected users list
-        setUsers(data.map((user: any) => ({ ...user, status: 'offline' as const })));
+        setUsers(data);
       } catch (error) {
         console.error('Failed to fetch users:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -41,14 +40,14 @@ export function useUsers() {
     const handleConnectedUsers = (connectedUserIds: string[]) => {
       setUsers(prev => prev.map(user => ({
         ...user,
-        status: connectedUserIds.includes(user.id) ? 'online' : 'offline'
+        status: connectedUserIds.includes(user.id) ? user.status || 'online' : 'offline'
       })));
     };
 
     // Handle user connected
     const handleUserConnected = (userId: string) => {
       setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, status: 'online' } : user
+        user.id === userId ? { ...user, status: user.status || 'online' } : user
       ));
     };
 
@@ -66,11 +65,13 @@ export function useUsers() {
       ));
     };
 
+    // Set up event listeners
     socket.on('connected-users', handleConnectedUsers);
     socket.on('user-connected', handleUserConnected);
     socket.on('user-disconnected', handleUserDisconnected);
     socket.setStatusChangeHandler(handleStatusChange);
 
+    // Clean up event listeners
     return () => {
       socket.off('connected-users', handleConnectedUsers);
       socket.off('user-connected', handleUserConnected);
@@ -79,9 +80,17 @@ export function useUsers() {
     };
   }, [socket, isConnected]);
 
+  // Add optimistic updates for status changes
+  const updateUserStatus = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
+    setUsers(prev => prev.map(user =>
+      user.id === userId ? { ...user, status: newStatus } : user
+    ));
+  };
+
   return {
     users,
     isLoading,
-    error
+    error,
+    updateUserStatus // Export the optimistic update function
   };
 } 

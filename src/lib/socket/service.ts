@@ -263,7 +263,17 @@ export class SocketService {
 
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
+    
+    // Emit status update to server
     this.socket.emit('status-update', status);
+    
+    // Trigger immediate local update for the current user
+    if (this.onStatusChangeHandler) {
+      const userId = (this.socket?.auth as { token: string })?.token;
+      if (userId) {
+        this.onStatusChangeHandler(userId, status);
+      }
+    }
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
