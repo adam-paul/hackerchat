@@ -5,7 +5,7 @@ import React, { useMemo, useEffect } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
 import { ClickableUsername } from './ClickableUsername';
-import { useUsers } from '@/lib/hooks/useUsers';
+import { useUsers } from '@/lib/users/context';
 import type { User } from '@/types';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
@@ -83,7 +83,7 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
             {/* Online Users Section */}
             {onlineUsers.length > 0 && (
               <div className="space-y-1">
-                {onlineUsers.map((user) => (
+                {onlineUsers.map((user: User) => (
                   <UserItem key={`${user.id}-${user.status}`} user={user} />
                 ))}
               </div>
@@ -92,7 +92,7 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
             {/* Offline Users Section */}
             {offlineUsers.length > 0 && (
               <div className="space-y-1">
-                {offlineUsers.map((user) => (
+                {offlineUsers.map((user: User) => (
                   <UserItem key={`${user.id}-${user.status}`} user={user} />
                 ))}
               </div>

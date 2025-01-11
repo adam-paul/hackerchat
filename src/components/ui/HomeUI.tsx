@@ -13,7 +13,7 @@ import { useSocket } from '@/lib/socket/context';
 import { SearchBar } from './SearchBar';
 import { useSearch } from '@/lib/hooks/useSearch';
 import { UserList } from './UserList';
-import { useUsers } from '@/lib/hooks/useUsers';
+import { useUsers } from '@/lib/users/context';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';

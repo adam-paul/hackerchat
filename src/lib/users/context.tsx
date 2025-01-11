@@ -1,10 +1,17 @@
-// src/lib/hooks/useUsers.ts
-
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useSocket } from '../socket/context';
 import type { User } from '@/types';
 
-export function useUsers() {
+interface UsersContextType {
+  users: User[];
+  isLoading: boolean;
+  error: string | null;
+  updateUserStatus: (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => void;
+}
+
+const UsersContext = createContext<UsersContextType | undefined>(undefined);
+
+export function UsersProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,10 +90,17 @@ export function useUsers() {
     }
   }, [socket, fetchUsers]);
 
-  return {
-    users,
-    isLoading,
-    error,
-    updateUserStatus
-  };
+  return (
+    <UsersContext.Provider value={{ users, isLoading, error, updateUserStatus }}>
+      {children}
+    </UsersContext.Provider>
+  );
+}
+
+export function useUsers() {
+  const context = useContext(UsersContext);
+  if (context === undefined) {
+    throw new Error('useUsers must be used within a UsersProvider');
+  }
+  return context;
 } 

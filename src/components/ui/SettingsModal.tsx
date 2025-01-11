@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
-import { useUsers } from '@/lib/hooks/useUsers';
+import { useUsers } from '@/lib/users/context';
 import { useAuthContext } from '@/lib/auth/context';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
