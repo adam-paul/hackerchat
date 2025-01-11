@@ -77,11 +77,9 @@ export class SocketService {
 
     this.socket.on('connect', () => {
       this.reconnectAttempts = 0;
-      // Server will handle setting initial status
     });
 
     this.socket.on('disconnect', (reason) => {
-      // No need to manually handle disconnect status - webhook will handle it
       console.log('Socket disconnected:', reason);
     });
 
@@ -130,8 +128,8 @@ export class SocketService {
 
     // Handle status change events from the server
     this.socket.on('status-changed', (event) => {
-      console.log('Received status change event:', event); // Debug log
-      const { userId, status, timestamp } = event;
+      console.log('Received status change from server:', event);
+      const { userId, status } = event;
       if (this.onStatusChangeHandler) {
         this.onStatusChangeHandler(userId, status);
       }
@@ -283,20 +281,12 @@ export class SocketService {
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
-    // Get current user ID
+    // Get current user ID for logging
     const userId = this.getCurrentUserId();
-    if (!userId) throw new Error('No user ID available');
-
-    console.log('Emitting status update:', { status, userId }); // Debug log
-
-    // Emit status update with user ID
-    this.socket.emit('status-update', status); // Changed to match server expectation
-
-    // Trigger optimistic update locally
-    if (this.onStatusChangeHandler) {
-      console.log('Triggering optimistic update:', { userId, status }); // Debug log
-      this.onStatusChangeHandler(userId, status);
-    }
+    console.log('Sending status update:', { userId, status });
+    
+    // Emit status update to server
+    this.socket.emit('status-update', status);
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
