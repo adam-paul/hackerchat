@@ -11,7 +11,7 @@ const firaCode = Fira_Code({ subsets: ['latin'] });
 
 type SettingsTab = 'user' | 'chat';
 type UserStatus = 'online' | 'away' | 'busy' | 'offline';
-type UserSettingType = 'status'; // More settings can be added here
+type UserSettingType = 'status';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -22,26 +22,37 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [activeSetting, setActiveSetting] = useState<UserSettingType>('status');
-  const [selectedStatus, setSelectedStatus] = useState<UserStatus | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<UserStatus | undefined>();
   const modalRef = useRef<HTMLDivElement>(null);
   const { updateStatus } = useSocket();
   const { users } = useUsers();
   const { userId } = useAuthContext();
-  const currentUser = useMemo(() => users.find(user => user.id === userId), [users, userId]);
 
+  // Memoize current user to prevent unnecessary re-renders
+  const currentUser = useMemo(() => users.find(user => user.id === userId), [users, userId]);
+  
   // Reset active tab when initial tab changes
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  // Initialize selected status from currentUser
+  // Set initial status when modal opens or currentUser changes
   useEffect(() => {
-    if (currentUser?.status) {
+    if (isOpen && currentUser?.status) {
       setSelectedStatus(currentUser.status as UserStatus);
     }
-  }, [currentUser?.status]);
+  }, [isOpen, currentUser?.status]);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedStatus(undefined);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
         onClose();
@@ -54,10 +65,8 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscKey);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscKey);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -66,9 +75,8 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   }, [isOpen, onClose]);
 
   const handleStatusChange = (status: UserStatus) => {
-    if (!userId) return;
-    console.log('Status change requested:', { userId, status });
-    setSelectedStatus(status); // Immediate UI update
+    if (!userId || !isOpen) return;
+    setSelectedStatus(status);
     updateStatus(status);
   };
 
