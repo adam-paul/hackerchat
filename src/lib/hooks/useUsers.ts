@@ -14,9 +14,11 @@ export function useUsers() {
   const fetchUsers = useCallback(async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching initial users...');
       const res = await fetch('/api/users');
       if (!res.ok) throw new Error('Failed to fetch users');
       const data = await res.json();
+      console.log('Initial users loaded:', data);
       setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -32,9 +34,14 @@ export function useUsers() {
 
     if (socket && isConnected) {
       const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-        setUsers(current => current.map(user =>
-          user.id === userId ? { ...user, status: newStatus } : user
-        ));
+        console.log('Socket status change received:', { userId, newStatus });
+        setUsers(current => {
+          const updated = current.map(user =>
+            user.id === userId ? { ...user, status: newStatus } : user
+          );
+          console.log('Users after socket update:', updated);
+          return updated;
+        });
       };
 
       socket.setStatusChangeHandler(handleStatusChange);
@@ -49,12 +56,18 @@ export function useUsers() {
       return;
     }
 
+    console.log('Updating status locally:', { userId, newStatus });
     // Update UI immediately
-    setUsers(current => current.map(user =>
-      user.id === userId ? { ...user, status: newStatus } : user
-    ));
+    setUsers(current => {
+      const updated = current.map(user =>
+        user.id === userId ? { ...user, status: newStatus } : user
+      );
+      console.log('Users after local update:', updated);
+      return updated;
+    });
 
     // Send update via socket - this will update the database and notify other clients
+    console.log('Sending status update to socket:', newStatus);
     socket.updateStatus(newStatus);
   }, [socket]);
 
