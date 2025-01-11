@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
 import { useSocket } from '@/lib/socket/context';
@@ -22,18 +22,24 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [activeSetting, setActiveSetting] = useState<UserSettingType>('status');
+  const [selectedStatus, setSelectedStatus] = useState<UserStatus | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const { updateStatus } = useSocket();
-  const { users, refetch } = useUsers();
+  const { users } = useUsers();
   const { userId } = useAuthContext();
-  const currentUser = users.find(user => user.id === userId);
+  const currentUser = useMemo(() => users.find(user => user.id === userId), [users, userId]);
 
-  // Fetch latest state when modal opens
+  // Reset active tab when initial tab changes
   useEffect(() => {
-    if (isOpen) {
-      refetch();
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  // Initialize selected status from currentUser
+  useEffect(() => {
+    if (currentUser?.status) {
+      setSelectedStatus(currentUser.status as UserStatus);
     }
-  }, [isOpen, refetch]);
+  }, [currentUser?.status]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -61,20 +67,26 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
 
   const handleStatusChange = (status: UserStatus) => {
     if (!userId) return;
+    console.log('Status change requested:', { userId, status });
+    setSelectedStatus(status); // Immediate UI update
     updateStatus(status);
   };
 
-  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
-    <button
-      onClick={() => handleStatusChange(status)}
-      className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
-        currentUser?.status === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
-      }`}
-    >
-      <StatusIndicator status={status} className="scale-75" />
-      <span className="text-zinc-300 text-sm">{label}</span>
-    </button>
-  );
+  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => {
+    const isSelected = selectedStatus === status;
+    
+    return (
+      <button
+        onClick={() => handleStatusChange(status)}
+        className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
+          isSelected ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+        }`}
+      >
+        <StatusIndicator status={status} className="scale-75" />
+        <span className="text-zinc-300 text-sm">{label}</span>
+      </button>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -154,4 +166,4 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
       </div>
     </div>
   );
-} 
+}
