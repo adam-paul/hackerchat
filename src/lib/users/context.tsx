@@ -37,12 +37,14 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
 
   // Initial fetch and socket setup
   useEffect(() => {
+    // Initial fetch
     fetchUsers();
 
     if (socket && isConnected) {
       // Handle status updates from other clients
       const handleStatusChange = (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
         console.log('Socket status change received:', event);
+        // Always update from server events
         setUsers(current => 
           current.map(user => 
             user.id === event.userId ? { ...user, status: event.status } : user
@@ -53,9 +55,17 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
       // Set up status change handler
       socket.setStatusChangeHandler(handleStatusChange);
 
-      // Cleanup handler on unmount
+      // Fetch users again on reconnect to ensure we have latest state
+      const handleReconnect = () => {
+        console.log('Socket reconnected, fetching latest user states');
+        fetchUsers();
+      };
+      socket.on('connect', handleReconnect);
+
+      // Cleanup handlers on unmount
       return () => {
         socket.setStatusChangeHandler(() => {});
+        socket.off('connect', handleReconnect);
       };
     }
   }, [socket, isConnected, fetchUsers]);
@@ -70,7 +80,7 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('updateUserStatus called with:', { userId, newStatus });
       
-      // Update UI immediately
+      // Update UI optimistically
       setUsers(current => {
         console.log('Current users before update:', current);
         const updated = current.map(user =>
@@ -85,7 +95,7 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
       socket.updateStatus(newStatus);
     } catch (error) {
       console.error('Failed to update status:', error);
-      // Revert the local update on error
+      // Revert to backend state on error
       fetchUsers();
     }
   }, [socket, fetchUsers]);

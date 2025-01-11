@@ -21,7 +21,6 @@ export async function getOrCreateUser() {
     update: {
       name: user.username || 'Anonymous',
       imageUrl: user.imageUrl,
-      status: 'online'
     },
     create: {
       id: userId,
