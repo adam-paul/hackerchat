@@ -24,14 +24,16 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   const [activeSetting, setActiveSetting] = useState<UserSettingType>('status');
   const modalRef = useRef<HTMLDivElement>(null);
   const { updateStatus } = useSocket();
-  const { users } = useUsers();
+  const { users, refetch } = useUsers();
   const { userId } = useAuthContext();
   const currentUser = users.find(user => user.id === userId);
 
-  // Reset active tab when initial tab changes
+  // Fetch latest state when modal opens
   useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+    if (isOpen) {
+      refetch();
+    }
+  }, [isOpen, refetch]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -59,26 +61,20 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
 
   const handleStatusChange = (status: UserStatus) => {
     if (!userId) return;
-    console.log('Status change requested:', { userId, status });
     updateStatus(status);
   };
 
-  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => {
-    const isSelected = currentUser?.status === status;
-    console.log('Rendering status option:', { status, currentStatus: currentUser?.status, isSelected });
-    
-    return (
-      <button
-        onClick={() => handleStatusChange(status)}
-        className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
-          isSelected ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
-        }`}
-      >
-        <StatusIndicator status={status} className="scale-75" />
-        <span className="text-zinc-300 text-sm">{label}</span>
-      </button>
-    );
-  };
+  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
+    <button
+      onClick={() => handleStatusChange(status)}
+      className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
+        currentUser?.status === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+      }`}
+    >
+      <StatusIndicator status={status} className="scale-75" />
+      <span className="text-zinc-300 text-sm">{label}</span>
+    </button>
+  );
 
   if (!isOpen) return null;
 

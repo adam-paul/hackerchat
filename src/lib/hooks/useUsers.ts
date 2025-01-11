@@ -19,7 +19,6 @@ export function useUsers() {
         throw new Error('Failed to fetch users');
       }
       const data = await res.json();
-      console.log('Fetched users from backend:', data);
       setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -29,12 +28,9 @@ export function useUsers() {
     }
   }, []);
 
-  // Initial fetch and periodic refresh
+  // Initial fetch
   useEffect(() => {
-    console.log('Initializing users from backend');
     fetchUsers();
-    const refreshInterval = setInterval(fetchUsers, 60000);
-    return () => clearInterval(refreshInterval);
   }, [fetchUsers]);
 
   // Handle real-time status updates
@@ -42,27 +38,17 @@ export function useUsers() {
     if (!socket || !isConnected) return;
 
     const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      console.log('Handling status change:', { userId, newStatus });
-      setUsers(prev => {
-        const updated = prev.map(user =>
-          user.id === userId ? { ...user, status: newStatus } : user
-        );
-        console.log('Updated users after status change:', updated);
-        return updated;
-      });
+      setUsers(prev => prev.map(user =>
+        user.id === userId ? { ...user, status: newStatus } : user
+      ));
     };
 
     socket.setStatusChangeHandler(handleStatusChange);
 
-    // Fetch initial state when socket connects
-    if (isConnected) {
-      fetchUsers();
-    }
-
     return () => {
       socket.setStatusChangeHandler(() => {});
     };
-  }, [socket, isConnected, fetchUsers]);
+  }, [socket, isConnected]);
 
   return {
     users,
