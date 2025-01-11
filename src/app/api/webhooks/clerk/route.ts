@@ -11,8 +11,13 @@ const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
 const socketSecret = process.env.SOCKET_WEBHOOK_SECRET;
 
 async function broadcastStatusChange(userId: string, status: 'offline') {
+  console.log('Starting broadcastStatusChange for user:', userId);
+  console.log('Socket URL:', socketUrl);
+  console.log('Socket webhook secret present:', !!socketSecret);
+
   return new Promise<void>((resolve, reject) => {
     try {
+      console.log('Creating socket connection...');
       const socket = io(socketUrl, {
         auth: {
           token: socketSecret,
@@ -21,10 +26,13 @@ async function broadcastStatusChange(userId: string, status: 'offline') {
       });
 
       socket.on('connect', () => {
+        console.log('Socket connected successfully');
         socket.emit('status-update', status);
+        console.log('Emitted status-update event:', status);
         
         // Wait briefly to ensure event is sent
         setTimeout(() => {
+          console.log('Disconnecting socket after successful emit');
           socket.disconnect();
           resolve();
         }, 1000);
@@ -38,32 +46,45 @@ async function broadcastStatusChange(userId: string, status: 'offline') {
 
       // Set a timeout for the entire operation
       setTimeout(() => {
+        console.log('Socket operation timed out');
         socket.disconnect();
         reject(new Error('Socket broadcast timeout'));
       }, 5000);
     } catch (error) {
+      console.error('Error in broadcastStatusChange:', error);
       reject(error);
     }
   });
 }
 
 export async function POST(req: Request) {
+  console.log('Webhook received - starting processing');
+  
   // Verify webhook signature
   const headerPayload = headers();
   const svix_id = headerPayload.get("svix-id");
   const svix_timestamp = headerPayload.get("svix-timestamp");
   const svix_signature = headerPayload.get("svix-signature");
 
+  console.log('Webhook headers:', {
+    svix_id,
+    svix_timestamp,
+    svix_signature: svix_signature ? 'present' : 'missing'
+  });
+
   if (!svix_id || !svix_timestamp || !svix_signature) {
+    console.log('Missing required Svix headers');
     return new NextResponse("Missing svix headers", { status: 400 });
   }
 
   // Get the body
   const payload = await req.json();
+  console.log('Webhook payload:', JSON.stringify(payload, null, 2));
   const body = JSON.stringify(payload);
 
   // Create a new Svix instance with your secret
   const wh = new Webhook(webhookSecret || "");
+  console.log('Webhook secret present:', !!webhookSecret);
 
   let evt: WebhookEvent;
 
@@ -73,6 +94,7 @@ export async function POST(req: Request) {
       "svix-timestamp": svix_timestamp,
       "svix-signature": svix_signature,
     }) as WebhookEvent;
+    console.log('Webhook verification successful');
   } catch (err) {
     console.error('Error verifying webhook:', err);
     return new NextResponse('Error verifying webhook', { status: 400 });
