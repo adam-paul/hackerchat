@@ -46,10 +46,10 @@ export class SocketService {
       const tokenParts = token.split('.');
       if (tokenParts.length === 3) {
         const payload = JSON.parse(atob(tokenParts[1]));
-        const userId = payload.sub; // The user ID is in the 'sub' claim
+        const userId = payload.sub;
         
         this.socket = io(this.url, {
-          auth: { token, userId }, // Pass userId in auth
+          auth: { token, userId },
           reconnection: true,
           reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
           reconnectionDelay: this.RECONNECT_DELAY,
@@ -60,8 +60,8 @@ export class SocketService {
         this.setupEventHandlers();
         await this.waitForConnection();
         
-        // Set status to online after successful connection
-        this.socket.emit('status-update', 'online');
+        // Set status to online and wait for confirmation
+        await this.updateStatus('online');
       } else {
         throw new Error('Invalid token format');
       }
@@ -258,15 +258,28 @@ export class SocketService {
     this.onMessageDeleteHandler = handler;
   }
 
-  disconnect(): void {
-    if (this.socket) {
-      // Emit offline status and disconnect in a single operation
-      this.socket.emit('status-update', 'offline', () => {
-        this.socket?.disconnect();
-        this.socket = null;
-        this.token = null;
-      });
-    }
+  disconnect(): Promise<void> {
+    if (!this.socket) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      // Set status to offline and wait for acknowledgment before disconnecting
+      this.updateStatus('offline')
+        .then(() => {
+          console.log('Successfully set status to offline, disconnecting socket');
+          this.socket?.disconnect();
+          this.socket = null;
+          this.token = null;
+          resolve();
+        })
+        .catch((error) => {
+          console.error('Failed to set status to offline:', error);
+          // Disconnect anyway
+          this.socket?.disconnect();
+          this.socket = null;
+          this.token = null;
+          resolve();
+        });
+    });
   }
 
   isConnected(): boolean {
@@ -285,7 +298,7 @@ export class SocketService {
     }
   }
 
-  updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
+  updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): Promise<void> {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
     console.log('Socket service: Emitting status update:', status); // Debug log
@@ -294,17 +307,30 @@ export class SocketService {
     const userId = this.getCurrentUserId();
     if (!userId) {
       console.error('No user ID available for status update');
-      return;
+      return Promise.reject(new Error('No user ID available'));
     }
     
-    // Emit status update to server
-    this.socket.emit('status-update', status);
-    
-    // Trigger immediate local update for the current user
-    if (this.onStatusChangeHandler) {
-      console.log('Socket service: Triggering local status update:', userId, status); // Debug log
-      this.onStatusChangeHandler(userId, status);
-    }
+    return new Promise((resolve, reject) => {
+      // Emit status update and wait for acknowledgment
+      this.socket!.emit('status-update', status, (response: { success: boolean, error?: string }) => {
+        if (response.success) {
+          // Trigger immediate local update for the current user
+          if (this.onStatusChangeHandler) {
+            console.log('Socket service: Status update confirmed by server:', status); // Debug log
+            this.onStatusChangeHandler(userId, status);
+          }
+          resolve();
+        } else {
+          console.error('Status update failed:', response.error);
+          reject(new Error(response.error || 'Status update failed'));
+        }
+      });
+
+      // Set a timeout for the acknowledgment
+      setTimeout(() => {
+        reject(new Error('Status update timeout'));
+      }, 5000);
+    });
   }
 
   setStatusChangeHandler(handler: (userId: string, status: 'online' | 'away' | 'busy' | 'offline') => void): void {
