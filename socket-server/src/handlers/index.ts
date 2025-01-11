@@ -72,8 +72,8 @@ export const handleConnection = (socket: SocketType): void => {
   });
 
   // Status events
-  socket.on('status-update', async (status: 'online' | 'away' | 'busy' | 'offline') => {
-    await handleStatusUpdate(socket, status);
+  socket.on('status-update', async (payload: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
+    await handleStatusUpdate(socket, payload);
   });
 
   // Typing events
