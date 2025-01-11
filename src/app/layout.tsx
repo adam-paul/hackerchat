@@ -23,6 +23,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <head>
         <link
+          rel="preload"
           href="https://i.imgur.com/SEE4F4k.gif"
           as="image"
           type="image/gif"
