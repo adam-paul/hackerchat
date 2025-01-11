@@ -21,12 +21,12 @@ export async function getOrCreateUser() {
     update: {
       name: user.username || 'Anonymous',
       imageUrl: user.imageUrl,
+      updatedAt: new Date()
     },
     create: {
       id: userId,
       name: user.username || 'Anonymous',
       imageUrl: user.imageUrl,
-      status: 'online'
     },
   });
 
