@@ -19,8 +19,25 @@ export function useUsers() {
         throw new Error('Failed to fetch users');
       }
       const data = await res.json();
-      console.log('Fetched users from backend:', data);
-      setUsers(data);
+      console.log('Fetched users from API:', data);
+      
+      // Update users while preserving any pending status changes
+      setUsers(prev => {
+        const updated = data.map((newUser: User) => {
+          const existingUser = prev.find(u => u.id === newUser.id);
+          // If user exists and has a different status, keep the existing status
+          if (existingUser && existingUser.status !== newUser.status) {
+            console.log('Preserving status for user:', {
+              userId: newUser.id,
+              existingStatus: existingUser.status,
+              newStatus: newUser.status
+            });
+            return { ...newUser, status: existingUser.status };
+          }
+          return newUser;
+        });
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to fetch users:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch users');
@@ -29,12 +46,16 @@ export function useUsers() {
     }
   }, []);
 
-  // Initial fetch and periodic refresh
+  // Initial fetch and rehydration
   useEffect(() => {
-    console.log('Initializing users from backend');
     fetchUsers();
-    const refreshInterval = setInterval(fetchUsers, 60000);
-    return () => clearInterval(refreshInterval);
+
+    // Set up periodic rehydration with longer interval
+    const rehydrationInterval = setInterval(fetchUsers, 60000); // Changed to 60 seconds
+
+    return () => {
+      clearInterval(rehydrationInterval);
+    };
   }, [fetchUsers]);
 
   // Handle real-time status updates
@@ -42,27 +63,22 @@ export function useUsers() {
     if (!socket || !isConnected) return;
 
     const handleStatusChange = (userId: string, newStatus: 'online' | 'away' | 'busy' | 'offline') => {
-      console.log('Handling status change:', { userId, newStatus });
+      console.log('Status change received:', { userId, newStatus });
       setUsers(prev => {
         const updated = prev.map(user =>
           user.id === userId ? { ...user, status: newStatus } : user
         );
-        console.log('Updated users after status change:', updated);
         return updated;
       });
     };
 
+    // Set up status change handler
     socket.setStatusChangeHandler(handleStatusChange);
-
-    // Fetch initial state when socket connects
-    if (isConnected) {
-      fetchUsers();
-    }
 
     return () => {
       socket.setStatusChangeHandler(() => {});
     };
-  }, [socket, isConnected, fetchUsers]);
+  }, [socket, isConnected]);
 
   return {
     users,

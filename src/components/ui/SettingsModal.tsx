@@ -27,6 +27,16 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
   const { users } = useUsers();
   const { userId } = useAuthContext();
   const currentUser = users.find(user => user.id === userId);
+  const [currentStatus, setCurrentStatus] = useState<UserStatus>('online');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Set initial status from current user only once when modal opens
+  useEffect(() => {
+    if (currentUser?.status && isOpen) {
+      console.log('Setting initial status from user:', currentUser.status);
+      setCurrentStatus(currentUser.status as UserStatus);
+    }
+  }, [currentUser?.status, isOpen]);
 
   // Reset active tab when initial tab changes
   useEffect(() => {
@@ -57,28 +67,55 @@ export function SettingsModal({ isOpen, onClose, initialTab = 'user' }: Settings
     };
   }, [isOpen, onClose]);
 
-  const handleStatusChange = (status: UserStatus) => {
+  const handleStatusChange = async (status: UserStatus) => {
     if (!userId) return;
-    console.log('Status change requested:', { userId, status });
-    updateStatus(status);
+    
+    console.log('Status change requested:', status);
+    
+    // Prevent duplicate updates
+    if (isUpdating) return;
+    
+    setIsUpdating(true);
+    
+    try {
+      // Update local state immediately (optimistic update)
+      setCurrentStatus(status);
+      
+      // Send update to server
+      updateStatus(status);
+      
+      console.log('Status update sent to server:', status);
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      // Revert on error
+      setCurrentStatus(currentUser?.status as UserStatus || 'offline');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => {
-    const isSelected = currentUser?.status === status;
-    console.log('Rendering status option:', { status, currentStatus: currentUser?.status, isSelected });
-    
-    return (
-      <button
-        onClick={() => handleStatusChange(status)}
-        className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
-          isSelected ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
-        }`}
-      >
-        <StatusIndicator status={status} className="scale-75" />
-        <span className="text-zinc-300 text-sm">{label}</span>
-      </button>
-    );
-  };
+  // Only listen for external status changes when not actively updating
+  useEffect(() => {
+    if (!isUpdating && currentUser?.status && currentUser.status !== currentStatus) {
+      console.log('External status change detected:', {
+        current: currentStatus,
+        new: currentUser.status
+      });
+      setCurrentStatus(currentUser.status as UserStatus);
+    }
+  }, [currentUser?.status, currentStatus, isUpdating]);
+
+  const StatusOption = ({ status, label }: { status: UserStatus; label: string }) => (
+    <button
+      onClick={() => handleStatusChange(status)}
+      className={`flex items-center space-x-2 w-full px-2 py-1 text-sm rounded transition-colors ${
+        currentStatus === status ? 'bg-zinc-700' : 'hover:bg-zinc-700/30'
+      }`}
+    >
+      <StatusIndicator status={status} className="scale-75" />
+      <span className="text-zinc-300 text-sm">{label}</span>
+    </button>
+  );
 
   if (!isOpen) return null;
 
