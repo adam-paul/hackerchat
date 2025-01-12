@@ -13,9 +13,6 @@ type MessageResult = {
   messageId: string;
 };
 
-// Map to track temporary to permanent ID mappings
-const tempToPermanentIds = new Map<string, string>();
-
 const persistMessage = async (data: MessagePayload, userId: string, retryCount = 0): Promise<any> => {
   try {
     // Verify channel exists
@@ -39,14 +36,22 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
     // Generate a new unique ID for the message using cuid
     const messageId = `msg_${createId()}`;
 
-    // If this message is replying to a temporary message, get its permanent ID
+    // If this message is replying to another message, find the permanent ID
     let replyToId = data.replyToId;
-    if (replyToId?.startsWith('temp_')) {
-      const permanentId = tempToPermanentIds.get(replyToId);
-      if (!permanentId) {
+    if (replyToId) {
+      const referencedMessage = await prisma.message.findFirst({
+        where: {
+          OR: [
+            { id: replyToId },
+            { originalId: replyToId }
+          ]
+        }
+      });
+
+      if (!referencedMessage) {
         throw new Error('Referenced message not found');
       }
-      replyToId = permanentId;
+      replyToId = referencedMessage.id;
     }
 
     const result = await prisma.message.create({
@@ -85,11 +90,6 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
       }
     });
 
-    // Store the mapping if this was a temporary message
-    if (data.messageId.startsWith('temp_')) {
-      tempToPermanentIds.set(data.messageId, messageId);
-    }
-
     return result;
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002' && retryCount < MAX_RETRIES) {
@@ -101,18 +101,6 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
   }
 };
 
-// Clean up old mappings periodically
-setInterval(() => {
-  const now = Date.now();
-  Array.from(tempToPermanentIds.entries()).forEach(([tempId]) => {
-    // Extract timestamp from temp_* ID and remove if older than 5 minutes
-    const timestamp = parseInt(tempId.split('_')[1]);
-    if (now - timestamp > 5 * 60 * 1000) {
-      tempToPermanentIds.delete(tempId);
-    }
-  });
-}, 60 * 1000); // Run cleanup every minute
-
 export const handleMessage = async (
   socket: SocketType,
   messageData: MessagePayload & { messageId: string }
@@ -123,14 +111,6 @@ export const handleMessage = async (
 
     // Persist message to database with retries
     const dbMessage = await persistMessage(data, socket.data.userId);
-
-    // If this was a temporary message, update any replies that reference it
-    if (data.messageId.startsWith('temp_')) {
-      await prisma.message.updateMany({
-        where: { replyToId: data.messageId },
-        data: { replyToId: dbMessage.id }
-      });
-    }
 
     // Create the message event
     const messageEvent: MessageEvent = {
@@ -170,7 +150,7 @@ export const handleMessage = async (
     // Broadcast message to channel
     socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
 
-    // Send delivery confirmation to sender
+    // Send delivery confirmation to sender with complete message data
     socket.emit(EVENTS.MESSAGE_DELIVERED, {
       messageId: dbMessage.id,
       originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,
@@ -188,13 +168,16 @@ export const handleMessage = async (
     console.error('[MESSAGE_HANDLER_ERROR]', {
       error,
       userId: socket.data.userId,
-      messageData
+      messageData,
+      stack: error instanceof Error ? error.stack : undefined
     });
 
-    // Send error event to client
+    // Send error event to client with channelId
     socket.emit(EVENTS.MESSAGE_ERROR, {
       messageId: messageData.messageId,
       error: error instanceof Error ? error.message : 'Failed to process message',
+      code: 'INTERNAL_ERROR',
+      channelId: messageData.channelId,
       timestamp: new Date().toISOString()
     });
 
