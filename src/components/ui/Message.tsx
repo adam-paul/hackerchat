@@ -207,16 +207,27 @@ export function MessageComponent({
       
       const newThread = await response.json();
       
-      // Replace optimistic thread with real one
-      onChannelCreated?.({...newThread, id: tempId});
-      
-      // Keep the thread link on the original message
+      // First update the message to point to the real thread ID
       const updatedMessage = {
         ...message,
-        threadId: tempId,
+        threadId: newThread.id,
         threadName: name
       };
       onMessageUpdate?.(message.id, updatedMessage);
+
+      // Then update the optimistic message to be in the real thread
+      const updatedThreadMessage = {
+        ...optimisticThreadMessage,
+        channelId: newThread.id
+      };
+      onMessageUpdate?.(optimisticThreadMessage.id, updatedThreadMessage);
+
+      // Remove the temp thread and add the real one
+      onChannelCreated?.({...optimisticThread, _remove: true});
+      onChannelCreated?.(newThread);
+
+      // Navigate to the real thread ID
+      onSelectChannel?.(newThread.id);
     } catch (error) {
       console.error('Failed to create thread:', error);
       // Remove optimistic updates on error
