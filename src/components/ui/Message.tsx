@@ -101,7 +101,7 @@ export function MessageComponent({
     setIsSubmitting(true);
     const name = threadName.trim();
     
-    // Create optimistic thread immediately with consistent ID
+    // Create optimistic thread immediately
     const tempId = `temp_${name}`;
     const optimisticThread = {
       id: tempId,
@@ -142,7 +142,7 @@ export function MessageComponent({
             fileSize: message.fileSize
           },
           messageId: message.id,
-          originalId: tempId // Pass the optimistic ID to ensure consistency
+          originalId: tempId // Pass the optimistic ID
         }),
       });
 
@@ -153,7 +153,13 @@ export function MessageComponent({
       // Replace optimistic thread with real one using same ID
       onChannelCreated?.({...newThread, id: tempId});
       
-      // No need to update message again since it's using the same ID
+      // Update the message with thread info (using same ID)
+      const updatedMessage = {
+        ...message,
+        threadId: tempId,
+        threadName: name
+      };
+      onMessageUpdate?.(message.id, updatedMessage);
     } catch (error) {
       console.error('Failed to create thread:', error);
       // Remove optimistic updates on error
@@ -331,28 +337,17 @@ export function MessageComponent({
       )}
 
       {isNaming && (
-        <div className="flex items-center pl-2 text-zinc-400 relative mt-2">
-          <span className="mr-2 whitespace-pre">└──</span>
+        <div className={`${firaCode.className} text-xs flex items-center gap-1 pl-4 mt-1`}>
+          <span className="text-zinc-400">thread.name</span>
           <input
             type="text"
             value={threadName}
             onChange={(e) => setThreadName(e.target.value)}
             onKeyDown={handleThreadNameKeyPress}
-            placeholder="thread-name"
-            className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 placeholder:text-zinc-500/50"
+            className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 text-xs"
             autoFocus
             disabled={isSubmitting}
           />
-          <button
-            onClick={() => {
-              setIsNaming(false);
-              setThreadName('');
-            }}
-            className="hover:text-zinc-200 transition-opacity absolute right-2"
-            disabled={isSubmitting}
-          >
-            ×
-          </button>
         </div>
       )}
 

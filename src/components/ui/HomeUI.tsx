@@ -388,7 +388,13 @@ export function HomeUI() {
                 }
                 
                 // For optimistic or real channels, add to list and sort
-                return [...withoutNew, newChannel].sort((a, b) => a.name.localeCompare(b.name));
+                return [...withoutNew, newChannel].sort((a, b) => {
+                  // Sort threads after their parent channels
+                  if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+                    return a.name.localeCompare(b.name);
+                  }
+                  return a.parentId ? 1 : -1;
+                });
               });
             }}
             onChannelDeleted={(deletedChannelId) => {
