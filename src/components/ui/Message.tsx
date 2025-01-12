@@ -197,6 +197,9 @@ export function MessageComponent({
         threadName: name
       };
       onMessageUpdate?.(message.id, updatedMessage);
+
+      // Navigate to the new thread
+      onSelectChannel?.(tempId);
     } catch (error) {
       console.error('Failed to create thread:', error);
       // Remove optimistic updates on error
