@@ -73,11 +73,12 @@ export function ChannelList({
     if (isSubmitting || !newChannelName.trim()) return;
     
     setIsSubmitting(true);
+    const channelName = newChannelName.trim();
+    
     // Create optimistic channel immediately
-    const tempId = `temp_${Date.now()}`;
     const optimisticChannel = {
-      id: tempId,
-      name: newChannelName.trim(),
+      id: `temp_${channelName}`, // Use consistent ID based on name
+      name: channelName,
       parentId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -89,7 +90,7 @@ export function ChannelList({
     setParentId(null);
     
     onChannelCreated(optimisticChannel);
-    onSelectChannel(tempId);
+    onSelectChannel(optimisticChannel.id);
 
     try {
       const response = await fetch('/api/channels', {
@@ -98,17 +99,18 @@ export function ChannelList({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: newChannelName.trim(),
+          name: channelName,
           parentId: parentId,
+          originalId: optimisticChannel.id, // Pass the optimistic ID
         }),
       });
 
       if (!response.ok) throw new Error('Failed to create channel');
       
       const newChannel = await response.json();
-      // Replace optimistic channel with real one
-      onChannelCreated(newChannel);
-      onSelectChannel(newChannel.id);
+      // Replace optimistic channel with real one using same ID
+      onChannelCreated({...newChannel, id: optimisticChannel.id});
+      onSelectChannel(optimisticChannel.id);
     } catch (error) {
       console.error('Error creating channel:', error);
       // Remove optimistic channel on error by filtering it out

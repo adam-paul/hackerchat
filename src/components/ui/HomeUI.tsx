@@ -375,19 +375,21 @@ export function HomeUI() {
             selectedChannel={selectedChannel}
             onSelectChannel={setSelectedChannel}
             onChannelCreated={(newChannel) => {
-              if ('_remove' in newChannel) {
-                // Remove the optimistic channel on error
-                setChannels(prev => prev.filter(channel => channel.id !== newChannel.id));
-                if (selectedChannel === newChannel.id) {
-                  setSelectedChannel(null);
+              setChannels(prev => {
+                // First remove any existing channel with this ID
+                const withoutNew = prev.filter(channel => channel.id !== newChannel.id);
+                
+                if ('_remove' in newChannel) {
+                  // If removing, just return the filtered list
+                  if (selectedChannel === newChannel.id) {
+                    setSelectedChannel(null);
+                  }
+                  return withoutNew;
                 }
-              } else {
-                // Add or replace channel
-                setChannels(prev => {
-                  const filtered = prev.filter(channel => channel.id !== newChannel.id);
-                  return [...filtered, newChannel].sort((a, b) => a.name.localeCompare(b.name));
-                });
-              }
+                
+                // For optimistic or real channels, add to list and sort
+                return [...withoutNew, newChannel].sort((a, b) => a.name.localeCompare(b.name));
+              });
             }}
             onChannelDeleted={(deletedChannelId) => {
               setChannels(prev => prev.filter(channel => channel.id !== deletedChannelId));

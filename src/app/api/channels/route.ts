@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name, description, parentId, initialMessage, messageId } = await req.json();
+    const { name, description, parentId, initialMessage, messageId, originalId } = await req.json();
 
     if (!name) {
       return new NextResponse("Name is required", { status: 400 });
@@ -57,6 +57,7 @@ export async function POST(req: Request) {
       // Create the channel
       const channel = await tx.channel.create({
         data: {
+          id: originalId || undefined, // Use originalId if provided
           name,
           description,
           parentId,
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       if (initialMessage) {
         await tx.message.create({
           data: {
-            id: `msg_${Date.now()}`,
+            id: messageId || `msg_${Date.now()}`,
             content: initialMessage.content,
             channelId: channel.id,
             authorId: initialMessage.authorId,
@@ -95,17 +96,14 @@ export async function POST(req: Request) {
           }
         });
 
-        console.log('Found message to update:', messageToUpdate);
-
         if (messageToUpdate) {
-          const updatedMessage = await tx.message.update({
+          await tx.message.update({
             where: { id: messageToUpdate.id },
             data: {
               threadId: channel.id,
               threadName: name
             }
           });
-          console.log('Updated message with thread info:', updatedMessage);
         }
       }
 
