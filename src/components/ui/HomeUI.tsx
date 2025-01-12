@@ -387,7 +387,7 @@ export function HomeUI() {
                   return withoutNew;
                 }
 
-                // Check if we already have this channel (ignoring socket updates for optimistic channels)
+                // Check if we already have this channel
                 const existingChannel = prev.find(c => 
                   c.id === newChannel.id || 
                   (c.id.startsWith('temp_') && c.name === newChannel.name && c.parentId === newChannel.parentId)
@@ -493,10 +493,46 @@ export function HomeUI() {
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
                         onSelectChannel={setSelectedChannel}
-                        onChannelCreated={(newChannel) => setChannels(prev => 
-                          [...prev, newChannel].sort((a, b) => a.name.localeCompare(b.name))
-                        )}
+                        onChannelCreated={(newChannel) => {
+                          setChannels(prev => {
+                            // First remove any existing channel with this ID
+                            const withoutNew = prev.filter(channel => channel.id !== newChannel.id);
+                            
+                            if ('_remove' in newChannel) {
+                              // If removing, just return the filtered list
+                              if (selectedChannel === newChannel.id) {
+                                setSelectedChannel(null);
+                              }
+                              return withoutNew;
+                            }
+
+                            // Check if we already have this channel
+                            const existingChannel = prev.find(c => 
+                              c.id === newChannel.id || 
+                              (c.id.startsWith('temp_') && c.name === newChannel.name && c.parentId === newChannel.parentId)
+                            );
+                            if (existingChannel) {
+                              // Keep the existing channel if it's temporary, otherwise use the new one
+                              const channelToUse = existingChannel.id.startsWith('temp_') ? existingChannel : newChannel;
+                              return [...withoutNew, channelToUse].sort((a, b) => {
+                                if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+                                  return a.name.localeCompare(b.name);
+                                }
+                                return a.parentId ? 1 : -1;
+                              });
+                            }
+                            
+                            // For new channels, add to list and sort
+                            return [...withoutNew, newChannel].sort((a, b) => {
+                              if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+                                return a.name.localeCompare(b.name);
+                              }
+                              return a.parentId ? 1 : -1;
+                            });
+                          });
+                        }}
                         onMessageUpdate={updateMessage}
+                        channels={channels}
                       />
                     ))}
                   </div>

@@ -18,6 +18,7 @@ interface MessageProps {
   onSelectChannel?: (channelId: string) => void;
   onChannelCreated?: (channel: Channel) => void;
   onMessageUpdate?: (id: string, message: Message) => void;
+  channels?: Channel[];
 }
 
 export function MessageComponent({ 
@@ -27,7 +28,8 @@ export function MessageComponent({
   onHighlightMessage, 
   onSelectChannel,
   onChannelCreated,
-  onMessageUpdate
+  onMessageUpdate,
+  channels = []
 }: MessageProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isNaming, setIsNaming] = useState(false);
@@ -107,7 +109,12 @@ export function MessageComponent({
     }
   };
 
+  // Add helper to check thread depth
+  const isMaxDepth = message.channelId.startsWith('temp_') || 
+    channels?.find(c => c.id === message.channelId)?.parentId !== null;
+
   const handleCreateThread = () => {
+    if (isMaxDepth) return;
     setContextMenu(null);
     setIsNaming(true);
   };
@@ -159,7 +166,7 @@ export function MessageComponent({
             fileSize: message.fileSize
           },
           messageId: message.id,
-          originalId: tempId // Pass the optimistic ID
+          originalId: tempId
         }),
       });
 
@@ -393,7 +400,11 @@ export function MessageComponent({
             <ContextMenuItem onClick={handleReplyClick}>
               _reply
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleCreateThread}>
+            <ContextMenuItem 
+              onClick={handleCreateThread}
+              disabled={isMaxDepth}
+              className={isMaxDepth ? "opacity-50 cursor-not-allowed" : ""}
+            >
               _create.thread
             </ContextMenuItem>
             {isOwnMessage && (
