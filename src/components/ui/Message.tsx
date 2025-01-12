@@ -150,10 +150,14 @@ export function MessageComponent({
       
       const newThread = await response.json();
       
-      // Replace optimistic thread with real one using same ID
-      onChannelCreated?.({...newThread, id: tempId});
+      // Replace optimistic thread with real one, keeping the same ID
+      onChannelCreated?.({
+        ...newThread,
+        id: tempId,
+        _count: newThread._count || { messages: 1 } // Ensure message count is set
+      });
       
-      // Update the message with thread info (using same ID)
+      // Update the message with final thread info
       const updatedMessage = {
         ...message,
         threadId: tempId,

@@ -387,8 +387,15 @@ export function HomeUI() {
                   return withoutNew;
                 }
                 
-                // For optimistic or real channels, add to list and sort
-                return [...withoutNew, newChannel].sort((a, b) => a.name.localeCompare(b.name));
+                // For optimistic or real channels, merge with existing data and sort
+                const existingChannel = prev.find(c => c.id === newChannel.id);
+                const mergedChannel = existingChannel ? {
+                  ...existingChannel,
+                  ...newChannel,
+                  id: existingChannel.id // Ensure we keep the same ID
+                } : newChannel;
+                
+                return [...withoutNew, mergedChannel].sort((a, b) => a.name.localeCompare(b.name));
               });
             }}
             onChannelDeleted={(deletedChannelId) => {
