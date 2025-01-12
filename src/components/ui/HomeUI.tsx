@@ -28,7 +28,6 @@ export function HomeUI() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   
@@ -48,16 +47,17 @@ export function HomeUI() {
   const {
     isConnected,
     error: socketError,
-    socket,
     joinChannel,
     leaveChannel,
     sendMessage: sendSocketMessage
   } = useSocket();
 
-  const { 
+  const {
     searchQuery,
     setSearchQuery,
     searchResults,
+    selectedMessageId,
+    setSelectedMessageId,
     searchMessages,
     clearSearch,
   } = useSearch();
@@ -321,26 +321,6 @@ export function HomeUI() {
   const handleSelectChannel = (channelId: string | null) => {
     setSelectedChannel(channelId);
     setCurrentChannel(channelId);
-    
-    // Clear existing messages when switching channels
-    clearMessages();
-    
-    // If we have a channel selected, start loading its messages
-    if (channelId) {
-      startLoadingMessages();
-      fetch(`/api/messages?channelId=${channelId}`)
-        .then(response => {
-          if (!response.ok) throw new Error('Failed to fetch messages');
-          return response.json();
-        })
-        .then(data => {
-          setMessages(data);
-        })
-        .catch(error => {
-          console.error('Failed to fetch messages:', error);
-          setMessageError('Failed to fetch messages');
-        });
-    }
   };
 
   return (

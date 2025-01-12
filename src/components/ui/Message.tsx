@@ -157,6 +157,9 @@ export function MessageComponent({
     };
     onMessageUpdate?.(message.id, optimisticMessageUpdate);
     
+    // Navigate to the new thread immediately
+    onSelectChannel?.(tempId);
+    
     try {
       const response = await fetch('/api/channels', {
         method: 'POST',
@@ -197,14 +200,13 @@ export function MessageComponent({
         threadName: name
       };
       onMessageUpdate?.(message.id, updatedMessage);
-
-      // Navigate to the new thread
-      onSelectChannel?.(tempId);
     } catch (error) {
       console.error('Failed to create thread:', error);
       // Remove optimistic updates on error
       onChannelCreated?.({...optimisticThread, _remove: true});
       onMessageUpdate?.(message.id, message); // Restore original message
+      // Navigate back to original channel on error
+      onSelectChannel?.(message.channelId);
     } finally {
       setIsSubmitting(false);
     }
