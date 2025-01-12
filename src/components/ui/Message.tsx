@@ -34,10 +34,12 @@ export function MessageComponent({
   const [threadName, setThreadName] = useState('');
   const [isReacting, setIsReacting] = useState(false);
   const [reactionInput, setReactionInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { userId } = useAuthContext();
   const { socket } = useSocket();
   const messageRef = useRef<HTMLDivElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isReacting) return;
@@ -94,17 +96,42 @@ export function MessageComponent({
   };
 
   const handleThreadNameSubmit = async () => {
-    if (!threadName.trim()) return;
+    if (isSubmitting || !threadName.trim()) return;
+    
+    setIsSubmitting(true);
+    const name = threadName.trim();
+    
+    // Create optimistic thread immediately
+    const tempId = `temp_${name}`;
+    const optimisticThread = {
+      id: tempId,
+      name,
+      parentId: message.channelId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    // Clear UI immediately with optimistic update
+    setThreadName('');
+    setIsNaming(false);
+    
+    // Update UI optimistically
+    onChannelCreated?.(optimisticThread);
+    const optimisticMessageUpdate = {
+      ...message,
+      threadId: tempId,
+      threadName: name
+    };
+    onMessageUpdate?.(message.id, optimisticMessageUpdate);
     
     try {
-      // Create the thread with the user-provided name
       const response = await fetch('/api/channels', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: threadName,
+          name,
           parentId: message.channelId,
           initialMessage: {
             content: message.content,
@@ -114,7 +141,8 @@ export function MessageComponent({
             fileType: message.fileType,
             fileSize: message.fileSize
           },
-          messageId: message.id // Pass the original message ID to update its thread info
+          messageId: message.id,
+          originalId: tempId // Pass the optimistic ID
         }),
       });
 
@@ -122,21 +150,32 @@ export function MessageComponent({
       
       const newThread = await response.json();
       
-      // Add the new channel to the UI
-      onChannelCreated?.(newThread);
-
-      // Update the message with thread info
+      // Replace optimistic thread with real one using same ID
+      onChannelCreated?.({...newThread, id: tempId});
+      
+      // Update the message with thread info (using same ID)
       const updatedMessage = {
         ...message,
-        threadId: newThread.id,
-        threadName: threadName
+        threadId: tempId,
+        threadName: name
       };
       onMessageUpdate?.(message.id, updatedMessage);
-
-      setIsNaming(false);
-      setThreadName('');
     } catch (error) {
       console.error('Failed to create thread:', error);
+      // Remove optimistic updates on error
+      onChannelCreated?.({...optimisticThread, _remove: true});
+      onMessageUpdate?.(message.id, message); // Restore original message
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleThreadNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleThreadNameSubmit();
+    } else if (e.key === 'Escape') {
+      setIsNaming(false);
+      setThreadName('');
     }
   };
 
@@ -298,23 +337,28 @@ export function MessageComponent({
       )}
 
       {isNaming && (
-        <div className={`${firaCode.className} text-xs flex items-center gap-1 pl-4 mt-1`}>
-          <span className="text-zinc-400">thread.name</span>
-          <input 
-            type="text" 
+        <div className="flex items-center pl-2 text-zinc-400 relative mt-2">
+          <span className="mr-2 whitespace-pre">└──</span>
+          <input
+            type="text"
             value={threadName}
             onChange={(e) => setThreadName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleThreadNameSubmit();
-              } else if (e.key === 'Escape') {
-                setIsNaming(false);
-                setThreadName('');
-              }
-            }}
-            className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 text-xs"
+            onKeyDown={handleThreadNameKeyPress}
+            placeholder="thread-name"
+            className="flex-1 bg-transparent border-none focus:outline-none text-zinc-200 placeholder:text-zinc-500/50"
             autoFocus
+            disabled={isSubmitting}
           />
+          <button
+            onClick={() => {
+              setIsNaming(false);
+              setThreadName('');
+            }}
+            className="hover:text-zinc-200 transition-opacity absolute right-2"
+            disabled={isSubmitting}
+          >
+            ×
+          </button>
         </div>
       )}
 
