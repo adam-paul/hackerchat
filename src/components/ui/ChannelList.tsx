@@ -82,6 +82,12 @@ export function ChannelList({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
+    // Clear UI immediately with optimistic update
+    setNewChannelName('');
+    setIsCreating(false);
+    setParentId(null);
+    
     onChannelCreated(optimisticChannel);
     onSelectChannel(tempId);
 
@@ -108,9 +114,6 @@ export function ChannelList({
       // Remove optimistic channel on error by filtering it out
       onChannelCreated({...optimisticChannel, _remove: true});
     } finally {
-      setNewChannelName('');
-      setIsCreating(false);
-      setParentId(null);
       setIsSubmitting(false);
     }
   };
