@@ -108,10 +108,10 @@ export function ChannelList({
       if (!response.ok) throw new Error('Failed to create channel');
       
       const newChannel = await response.json();
-      // Replace optimistic channel with real one using same ID
-      onChannelCreated({...newChannel, id: optimisticChannel.id});
+      // Replace optimistic channel with real one
+      onChannelCreated(newChannel);
       // Only select after we have the real channel
-      onSelectChannel(optimisticChannel.id);
+      onSelectChannel(newChannel.id);
     } catch (error) {
       console.error('Error creating channel:', error);
       // Remove optimistic channel on error by filtering it out

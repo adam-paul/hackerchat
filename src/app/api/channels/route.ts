@@ -57,7 +57,9 @@ export async function POST(req: Request) {
       // Create the channel
       const channel = await tx.channel.create({
         data: {
-          id: originalId || undefined, // Use originalId if provided
+          id: originalId?.startsWith('temp_') ? 
+            `channel_${Date.now()}_${Math.random().toString(36).slice(2)}` : 
+            originalId || undefined,
           name,
           description,
           parentId,
