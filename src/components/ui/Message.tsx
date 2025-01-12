@@ -101,7 +101,7 @@ export function MessageComponent({
     setIsSubmitting(true);
     const name = threadName.trim();
     
-    // Create optimistic thread immediately
+    // Create optimistic thread immediately with consistent ID
     const tempId = `temp_${name}`;
     const optimisticThread = {
       id: tempId,
@@ -142,7 +142,7 @@ export function MessageComponent({
             fileSize: message.fileSize
           },
           messageId: message.id,
-          originalId: tempId // Pass the optimistic ID
+          originalId: tempId // Pass the optimistic ID to ensure consistency
         }),
       });
 
@@ -150,20 +150,10 @@ export function MessageComponent({
       
       const newThread = await response.json();
       
-      // Replace optimistic thread with real one, keeping the same ID
-      onChannelCreated?.({
-        ...newThread,
-        id: tempId,
-        _count: newThread._count || { messages: 1 } // Ensure message count is set
-      });
+      // Replace optimistic thread with real one using same ID
+      onChannelCreated?.({...newThread, id: tempId});
       
-      // Update the message with final thread info
-      const updatedMessage = {
-        ...message,
-        threadId: tempId,
-        threadName: name
-      };
-      onMessageUpdate?.(message.id, updatedMessage);
+      // No need to update message again since it's using the same ID
     } catch (error) {
       console.error('Failed to create thread:', error);
       // Remove optimistic updates on error
