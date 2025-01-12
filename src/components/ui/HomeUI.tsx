@@ -386,10 +386,25 @@ export function HomeUI() {
                   }
                   return withoutNew;
                 }
+
+                // Check if we already have this channel (ignoring socket updates for optimistic channels)
+                const existingChannel = prev.find(c => 
+                  c.id === newChannel.id || 
+                  (c.id.startsWith('temp_') && c.name === newChannel.name && c.parentId === newChannel.parentId)
+                );
+                if (existingChannel) {
+                  // Keep the existing channel if it's temporary, otherwise use the new one
+                  const channelToUse = existingChannel.id.startsWith('temp_') ? existingChannel : newChannel;
+                  return [...withoutNew, channelToUse].sort((a, b) => {
+                    if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+                      return a.name.localeCompare(b.name);
+                    }
+                    return a.parentId ? 1 : -1;
+                  });
+                }
                 
-                // For optimistic or real channels, add to list and sort
+                // For new channels, add to list and sort
                 return [...withoutNew, newChannel].sort((a, b) => {
-                  // Sort threads after their parent channels
                   if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
                     return a.name.localeCompare(b.name);
                   }
