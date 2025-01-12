@@ -3,7 +3,7 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { Fira_Code } from 'next/font/google';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { ChannelList } from './ChannelList';
 import { Settings } from './Settings';
 import type { Channel, Message } from '@/types';
@@ -16,6 +16,7 @@ import { UserListContainer } from './UserListContainer';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';
+import { ChatInput } from './ChatInput';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -150,14 +151,13 @@ export function HomeUI() {
     };
   }, [selectedChannel, isConnected, clearMessages, startLoadingMessages, setMessages, setMessageError, joinChannel, leaveChannel]);
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedChannel || !newMessage.trim() || !isConnected) return;
+  const handleSendMessage = useCallback((content: string) => {
+    if (!selectedChannel || !isConnected) return;
 
     const messageId = `temp_${Date.now()}`;
     const optimisticMessage: Message = {
       id: messageId,
-      content: newMessage,
+      content,
       channelId: selectedChannel,
       createdAt: new Date().toISOString(),
       author: {
@@ -179,19 +179,12 @@ export function HomeUI() {
     };
 
     addMessage(optimisticMessage);
-    setNewMessage('');
     setReplyTo(null);
-    sendSocketMessage(messageId, selectedChannel, newMessage, undefined, replyTo?.id);
-  };
+    sendSocketMessage(messageId, selectedChannel, content, undefined, replyTo?.id);
+  }, [selectedChannel, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
 
-  const handleReply = (message: Message) => {
-    setReplyTo(message);
-    messageInputRef.current?.focus();
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedChannel || !isConnected) return;
+  const handleFileSelect = useCallback(async (file: File) => {
+    if (!selectedChannel || !isConnected) return;
 
     try {
       setIsUploading(true);
@@ -249,11 +242,13 @@ export function HomeUI() {
       setMessageError(error instanceof Error ? error.message : 'Failed to upload file');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
-  };
+  }, [selectedChannel, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage, setMessageError]);
+
+  const handleReply = useCallback((message: Message) => {
+    setReplyTo(message);
+    messageInputRef.current?.focus();
+  }, []);
 
   const getChannelPath = (channelId: string): string => {
     const channel = channels.find(c => c.id === channelId);
@@ -549,71 +544,16 @@ export function HomeUI() {
               </div>
             </div>
 
-            {/* Message input */}
-            <div className="border-t border-zinc-800">
-              <form onSubmit={sendMessage} className="p-4">
-                <div className="relative flex flex-col gap-2">
-                  {replyTo && (
-                    <div className={`${firaCode.className} flex items-center gap-1 px-2 py-0.5 text-[14px] rounded bg-zinc-800/50`}>
-                      <span className="text-zinc-400">replying.to</span>
-                      <span className="text-[#00b300]">{replyTo.author.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setReplyTo(null)}
-                        className="ml-auto text-zinc-400 hover:text-zinc-200"
-                        aria-label="Cancel reply"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
-                  <div className="relative flex items-center">
-                    <span className={`${firaCode.className} absolute left-3 text-zinc-500`}>{'>'}_</span>
-                    <input
-                      ref={messageInputRef}
-                      type="text"
-                      value={newMessage}
-                      onChange={e => setNewMessage(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Escape' && replyTo) {
-                          setReplyTo(null);
-                        }
-                      }}
-                      placeholder={!isConnected ? 'Disconnected...' : 'Type a message...'}
-                      disabled={!isConnected}
-                      className={`${firaCode.className} text-sm w-full pl-10 pr-12 py-2 rounded bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#00b300] ${
-                        !isConnected ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    />
-                    <div className="absolute right-3">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        accept="image/*,.pdf,.doc,.docx,.txt"
-                        disabled={!isConnected || isUploading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={!isConnected || isUploading}
-                        className={`${firaCode.className} text-base text-zinc-400 hover:text-zinc-200 transition-colors ${
-                          (!isConnected || isUploading) ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                        aria-label="Attach file"
-                      >
-                        {isUploading ? (
-                          <span className="animate-pulse">↑</span>
-                        ) : (
-                          '+'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
+            {/* Replace the old message input with the new ChatInput component */}
+            <ChatInput
+              isConnected={isConnected}
+              selectedChannel={selectedChannel}
+              replyTo={replyTo}
+              onSendMessage={handleSendMessage}
+              onCancelReply={() => setReplyTo(null)}
+              onFileSelect={handleFileSelect}
+              isUploading={isUploading}
+            />
           </>
         ) : (
           <div className={`${firaCode.className} text-sm flex-1 flex items-center justify-center text-zinc-500`}>
