@@ -118,7 +118,14 @@ export async function POST(req: Request) {
 
     return NextResponse.json(formattedChannel);
   } catch (error) {
-    console.error("[CHANNELS_POST]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("[CHANNELS_POST] Error details:", {
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+      message: error instanceof Error ? error.message : String(error)
+    });
+    return new NextResponse(
+      error instanceof Error ? error.message : "Internal Error", 
+      { status: 500 }
+    );
   }
 }

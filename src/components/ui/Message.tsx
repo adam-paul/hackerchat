@@ -172,14 +172,18 @@ export function MessageComponent({
             fileUrl: message.fileUrl,
             fileName: message.fileName,
             fileType: message.fileType,
-            fileSize: message.fileSize
+            fileSize: message.fileSize,
+            originalId: message.id
           },
           messageId: message.id,
           originalId: tempId
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to create thread');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to create thread');
+      }
       
       const newThread = await response.json();
       
