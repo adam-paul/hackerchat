@@ -109,9 +109,18 @@ export function MessageComponent({
     }
   };
 
-  // Add helper to check thread depth
-  const isMaxDepth = message.channelId.startsWith('temp_') || 
-    channels?.find(c => c.id === message.channelId)?.parentId !== null;
+  // Add helper to check if we're at depth 2 (channel's parent has a parent)
+  const isMaxDepth = channels.some(c => {
+    if (c.id === message.channelId) {
+      // If this channel has a parent
+      if (c.parentId) {
+        // Find the parent and check if it has a parent
+        const parent = channels.find(p => p.id === c.parentId);
+        return parent?.parentId !== null;
+      }
+    }
+    return false;
+  });
 
   const handleCreateThread = () => {
     if (isMaxDepth) return;
