@@ -69,22 +69,6 @@ export async function POST(req: Request) {
         }
       });
 
-      // If initialMessage is provided, create it
-      if (initialMessage) {
-        await tx.message.create({
-          data: {
-            id: messageId || `msg_${Date.now()}`,
-            content: initialMessage.content,
-            channelId: channel.id,
-            authorId: initialMessage.authorId,
-            fileUrl: initialMessage.fileUrl,
-            fileName: initialMessage.fileName,
-            fileType: initialMessage.fileType,
-            fileSize: initialMessage.fileSize,
-          }
-        });
-      }
-
       // If this is a thread creation, update the original message
       if (messageId) {
         const messageToUpdate = await tx.message.findFirst({
@@ -105,6 +89,22 @@ export async function POST(req: Request) {
             }
           });
         }
+      }
+
+      // If initialMessage is provided, create it
+      if (initialMessage) {
+        await tx.message.create({
+          data: {
+            id: messageId || `msg_${Date.now()}`,
+            content: initialMessage.content,
+            channelId: channel.id,
+            authorId: initialMessage.authorId,
+            fileUrl: initialMessage.fileUrl,
+            fileName: initialMessage.fileName,
+            fileType: initialMessage.fileType,
+            fileSize: initialMessage.fileSize,
+          }
+        });
       }
 
       return channel;
