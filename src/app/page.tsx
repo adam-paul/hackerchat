@@ -5,7 +5,6 @@
 import { useAuth } from '@clerk/nextjs';
 import { AuthUI } from '@/components/ui/AuthUI';
 import { HomeUI } from '@/components/ui/HomeUI';
-import { UsersProvider } from '@/lib/users/context';
 
 export default function Page() {
   const { isLoaded, userId } = useAuth();
@@ -15,9 +14,7 @@ export default function Page() {
   }
 
   return userId ? (
-    <UsersProvider>
-      <HomeUI />
-    </UsersProvider>
+    <HomeUI />
   ) : (
     <AuthUI />
   );

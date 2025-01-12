@@ -12,8 +12,7 @@ import { useMessages } from '@/lib/hooks/useMessage';
 import { useSocket } from '@/lib/socket/context';
 import { SearchBar } from './SearchBar';
 import { useSearch } from '@/lib/hooks/useSearch';
-import { UserList } from './UserList';
-import { useUsers } from '@/lib/users/context';
+import { UserListContainer } from './UserListContainer';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';
@@ -62,9 +61,8 @@ export function HomeUI() {
     clearSearch,
   } = useSearch();
 
-  const { users, isLoading: isLoadingUsers } = useUsers();
   const [isUserListCollapsed, setIsUserListCollapsed] = useLocalStorage('userListCollapsed', false);
-  const [isChatSectionCollapsed, setIsChatSectionCollapsed] = useLocalStorage('chatSectionCollapsed', true);
+  const [isChatSectionCollapsed, setIsChatSectionCollapsed] = useLocalStorage('chatSectionCollapsed', false);
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
@@ -626,46 +624,42 @@ export function HomeUI() {
 
       {/* Right Sidebar - Users and Chat */}
       <aside className="bg-zinc-800 p-4 flex flex-col">
-        {isLoadingUsers ? (
-          <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading users...</div>
-        ) : (
-          <div className="flex flex-col h-full">
-            <UserList
-              isCollapsed={isUserListCollapsed}
-              onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
-              className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
-            />
-            <ChatSection
-              isCollapsed={isChatSectionCollapsed}
-              isSidebarCollapsed={isUserListCollapsed}
-              onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
-              className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
-            />
-            {isUserListCollapsed && (
-              <div className="flex flex-col items-center gap-4 mt-auto pt-4">
-                <button
-                  onClick={() => setIsUserListCollapsed(false)}
-                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                  aria-label="Show users"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setIsUserListCollapsed(false)}
-                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                  aria-label="Show chat"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex flex-col h-full">
+          <UserListContainer
+            isCollapsed={isUserListCollapsed}
+            onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
+            className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
+          />
+          <ChatSection
+            isCollapsed={isChatSectionCollapsed}
+            isSidebarCollapsed={isUserListCollapsed}
+            onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
+            className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
+          />
+          {isUserListCollapsed && (
+            <div className="flex flex-col items-center gap-4 mt-auto pt-4">
+              <button
+                onClick={() => setIsUserListCollapsed(false)}
+                className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label="Show users"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setIsUserListCollapsed(false)}
+                className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label="Show chat"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
     </div>
   );
