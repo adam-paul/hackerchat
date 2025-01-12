@@ -39,6 +39,7 @@ export function MessageComponent({
   const { socket } = useSocket();
   const messageRef = useRef<HTMLDivElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
+  const threadInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -56,6 +57,22 @@ export function MessageComponent({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isReacting]);
+
+  useEffect(() => {
+    if (!isNaming) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (threadInputRef.current && !threadInputRef.current.contains(event.target as Node)) {
+        setIsNaming(false);
+        setThreadName('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isNaming]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -338,6 +355,7 @@ export function MessageComponent({
         <div className={`${firaCode.className} text-xs flex items-center gap-1 pl-4 mt-1`}>
           <span className="text-zinc-400">thread.name</span>
           <input
+            ref={threadInputRef}
             type="text"
             value={threadName}
             onChange={(e) => setThreadName(e.target.value)}
