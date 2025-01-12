@@ -161,7 +161,17 @@ export function HomeUI() {
         name: userName || 'Anonymous',
         imageUrl: userImageUrl || '',
       },
-      reactions: []
+      reactions: [],
+      ...(replyTo && {
+        replyTo: {
+          id: replyTo.id,
+          content: replyTo.content,
+          author: {
+            id: replyTo.author.id,
+            name: replyTo.author.name
+          }
+        }
+      })
     };
 
     addMessage(optimisticMessage);
@@ -210,7 +220,17 @@ export function HomeUI() {
           name: userName || 'Anonymous',
           imageUrl: userImageUrl || '',
         },
-        reactions: []
+        reactions: [],
+        ...(replyTo && {
+          replyTo: {
+            id: replyTo.id,
+            content: replyTo.content,
+            author: {
+              id: replyTo.author.id,
+              name: replyTo.author.name
+            }
+          }
+        })
       };
 
       addMessage(optimisticMessage);
@@ -219,7 +239,7 @@ export function HomeUI() {
         fileName,
         fileType,
         fileSize
-      });
+      }, replyTo?.id);
     } catch (error) {
       console.error('Failed to upload file:', error);
       setMessageError(error instanceof Error ? error.message : 'Failed to upload file');
