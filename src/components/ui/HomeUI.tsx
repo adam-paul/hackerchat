@@ -374,9 +374,21 @@ export function HomeUI() {
             channels={channels}
             selectedChannel={selectedChannel}
             onSelectChannel={setSelectedChannel}
-            onChannelCreated={(newChannel) => setChannels(prev => 
-              [...prev, newChannel].sort((a, b) => a.name.localeCompare(b.name))
-            )}
+            onChannelCreated={(newChannel) => {
+              if ('_remove' in newChannel) {
+                // Remove the optimistic channel on error
+                setChannels(prev => prev.filter(channel => channel.id !== newChannel.id));
+                if (selectedChannel === newChannel.id) {
+                  setSelectedChannel(null);
+                }
+              } else {
+                // Add or replace channel
+                setChannels(prev => {
+                  const filtered = prev.filter(channel => channel.id !== newChannel.id);
+                  return [...filtered, newChannel].sort((a, b) => a.name.localeCompare(b.name));
+                });
+              }
+            }}
             onChannelDeleted={(deletedChannelId) => {
               setChannels(prev => prev.filter(channel => channel.id !== deletedChannelId));
               if (selectedChannel === deletedChannelId) {

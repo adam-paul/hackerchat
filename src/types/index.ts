@@ -10,6 +10,7 @@ export interface Channel {
   _count?: {
     messages: number;
   };
+  _remove?: boolean;
 }
 
 export interface Reaction {

@@ -62,6 +62,7 @@ export function ChannelList({
   className = '' 
 }: ChannelListProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [parentId, setParentId] = useState<string | null>(null);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
@@ -69,7 +70,20 @@ export function ChannelList({
   const channelTree = buildChannelTree(channels);
 
   const handleCreateChannel = async () => {
-    if (!newChannelName.trim()) return;
+    if (isSubmitting || !newChannelName.trim()) return;
+    
+    setIsSubmitting(true);
+    // Create optimistic channel immediately
+    const tempId = `temp_${Date.now()}`;
+    const optimisticChannel = {
+      id: tempId,
+      name: newChannelName.trim(),
+      parentId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    onChannelCreated(optimisticChannel);
+    onSelectChannel(tempId);
 
     try {
       const response = await fetch('/api/channels', {
@@ -86,13 +100,18 @@ export function ChannelList({
       if (!response.ok) throw new Error('Failed to create channel');
       
       const newChannel = await response.json();
+      // Replace optimistic channel with real one
       onChannelCreated(newChannel);
       onSelectChannel(newChannel.id);
+    } catch (error) {
+      console.error('Error creating channel:', error);
+      // Remove optimistic channel on error by filtering it out
+      onChannelCreated({...optimisticChannel, _remove: true});
+    } finally {
       setNewChannelName('');
       setIsCreating(false);
       setParentId(null);
-    } catch (error) {
-      console.error('Error creating channel:', error);
+      setIsSubmitting(false);
     }
   };
 
