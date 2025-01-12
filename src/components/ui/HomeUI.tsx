@@ -510,6 +510,7 @@ export function HomeUI() {
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
                         onSelectChannel={handleSelectChannel}
+                        onAddMessage={addMessage}
                         onChannelCreated={(newChannel) => {
                           setChannels(prev => {
                             // First remove any existing channel with this ID or matching originalId

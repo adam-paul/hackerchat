@@ -18,6 +18,7 @@ interface MessageProps {
   onSelectChannel?: (channelId: string) => void;
   onChannelCreated?: (channel: Channel) => void;
   onMessageUpdate?: (id: string, message: Message) => void;
+  onAddMessage?: (message: Message) => void;
   channels?: Channel[];
 }
 
@@ -29,6 +30,7 @@ export function MessageComponent({
   onSelectChannel,
   onChannelCreated,
   onMessageUpdate,
+  onAddMessage,
   channels = []
 }: MessageProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -156,6 +158,21 @@ export function MessageComponent({
       threadName: name
     };
     onMessageUpdate?.(message.id, optimisticMessageUpdate);
+
+    // Create optimistic thread starter message
+    const optimisticThreadMessage: Message = {
+      id: `temp_thread_${Date.now()}`,
+      content: message.content,
+      channelId: tempId,
+      createdAt: new Date().toISOString(),
+      author: message.author,
+      reactions: [],
+      fileUrl: message.fileUrl,
+      fileName: message.fileName,
+      fileType: message.fileType,
+      fileSize: message.fileSize
+    };
+    onAddMessage?.(optimisticThreadMessage);
     
     // Navigate to the new thread immediately
     onSelectChannel?.(tempId);
