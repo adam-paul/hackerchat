@@ -1,6 +1,5 @@
 'use client';
 
-import { UsersProvider } from '@/lib/users/context';
 import { UserList } from './UserList';
 
 interface UserListContainerProps {
@@ -11,12 +10,10 @@ interface UserListContainerProps {
 
 export function UserListContainer({ className, isCollapsed, onToggleCollapse }: UserListContainerProps) {
   return (
-    <UsersProvider>
-      <UserList 
-        className={className}
-        isCollapsed={isCollapsed}
-        onToggleCollapse={onToggleCollapse}
-      />
-    </UsersProvider>
+    <UserList 
+      className={className}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={onToggleCollapse}
+    />
   );
 } 
