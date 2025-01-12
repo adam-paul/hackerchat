@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       if (initialMessage) {
         await tx.message.create({
           data: {
-            id: messageId || `msg_${Date.now()}`,
+            id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
             content: initialMessage.content,
             channelId: channel.id,
             authorId: initialMessage.authorId,
@@ -103,6 +103,7 @@ export async function POST(req: Request) {
             fileName: initialMessage.fileName,
             fileType: initialMessage.fileType,
             fileSize: initialMessage.fileSize,
+            originalId: initialMessage.originalId
           }
         });
       }
