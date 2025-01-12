@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { useSocket } from '../socket/context';
 import type { User } from '@/types';
 
@@ -42,15 +42,17 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
 
     if (socket && isConnected) {
       // Handle status updates from other clients
-      const handleStatusChange = (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
+      const handleStatusChange = useCallback((event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
         console.log('Socket status change received:', event);
         // Always update from server events
-        setUsers(current => 
-          current.map(user => 
+        setUsers(current => {
+          const updated = current.map(user => 
             user.id === event.userId ? { ...user, status: event.status } : user
-          )
-        );
-      };
+          );
+          // Only update if there's an actual change
+          return JSON.stringify(updated) !== JSON.stringify(current) ? updated : current;
+        });
+      }, []);
 
       // Set up status change handler
       socket.setStatusChangeHandler(handleStatusChange);
@@ -79,11 +81,13 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // Update UI optimistically
-      setUsers(current => 
-        current.map(user =>
+      setUsers(current => {
+        const updated = current.map(user =>
           user.id === userId ? { ...user, status: newStatus } : user
-        )
-      );
+        );
+        // Only update if there's an actual change
+        return JSON.stringify(updated) !== JSON.stringify(current) ? updated : current;
+      });
 
       // Send update via socket
       socket.updateStatus(newStatus);
@@ -94,8 +98,15 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
     }
   }, [socket, fetchUsers]);
 
+  const value = useMemo(() => ({
+    users,
+    isLoading,
+    error,
+    updateUserStatus
+  }), [users, isLoading, error, updateUserStatus]);
+
   return (
-    <UsersContext.Provider value={{ users, isLoading, error, updateUserStatus }}>
+    <UsersContext.Provider value={value}>
       {children}
     </UsersContext.Provider>
   );

@@ -17,7 +17,7 @@ interface UserListProps {
 }
 
 // Move UserItem outside main component
-const UserItem = ({ user }: { user: User }) => {
+const UserItem = React.memo(({ user }: { user: User }) => {
   return (
     <div className="flex items-center justify-between px-2 py-1">
       <ClickableUsername
@@ -30,9 +30,9 @@ const UserItem = ({ user }: { user: User }) => {
       />
     </div>
   );
-};
+});
 
-export function UserList({ className = '', isCollapsed, onToggleCollapse }: UserListProps) {
+export const UserList = React.memo(function UserList({ className = '', isCollapsed, onToggleCollapse }: UserListProps) {
   const { users } = useUsers();
   console.log('UserList rendering with users:', users);
 
@@ -101,4 +101,4 @@ export function UserList({ className = '', isCollapsed, onToggleCollapse }: User
       )}
     </div>
   );
-} 
+}); 
