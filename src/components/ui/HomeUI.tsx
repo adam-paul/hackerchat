@@ -40,7 +40,8 @@ export function HomeUI() {
     addMessage,
     updateMessage,
     clearMessages,
-    setError: setMessageError
+    setError: setMessageError,
+    setCurrentChannel
   } = useMessages();
 
   const {
@@ -323,6 +324,12 @@ export function HomeUI() {
     }
   }, [messages, replyTo]);
 
+  // Update channel selection
+  const handleSelectChannel = (channelId: string | null) => {
+    setSelectedChannel(channelId);
+    setCurrentChannel(channelId);
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -378,7 +385,7 @@ export function HomeUI() {
           <ChannelList
             channels={channels}
             selectedChannel={selectedChannel}
-            onSelectChannel={setSelectedChannel}
+            onSelectChannel={handleSelectChannel}
             onChannelCreated={(newChannel) => {
               setChannels(prev => {
                 // First remove any existing channel with this ID
@@ -444,7 +451,7 @@ export function HomeUI() {
               };
 
               if (selectedChannel && isInDeletedChannel(selectedChannel)) {
-                setSelectedChannel(null);
+                handleSelectChannel(null);
               }
 
               // Update messages to clear thread links for the deleted channel
@@ -522,7 +529,7 @@ export function HomeUI() {
                         isHighlighted={message.id === selectedMessageId}
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
-                        onSelectChannel={setSelectedChannel}
+                        onSelectChannel={handleSelectChannel}
                         onChannelCreated={(newChannel) => {
                           setChannels(prev => {
                             // First remove any existing channel with this ID

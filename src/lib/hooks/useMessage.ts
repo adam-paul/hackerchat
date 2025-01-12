@@ -1,13 +1,34 @@
 // src/lib/hooks/useMessage.ts
 
 import { useCallback, useReducer, useEffect } from 'react';
-import type { Message, MessageState, MessageAction, Reaction } from '@/types';
+import type { Message, Reaction } from '@/types';
 import { useSocket } from '../socket/context';
+
+type MessageState = {
+  messages: Message[];
+  status: 'idle' | 'loading' | 'success' | 'error';
+  error?: string;
+  currentChannelId: string | null;
+};
+
+type MessageAction =
+  | { type: 'FETCH_START' }
+  | { type: 'FETCH_SUCCESS'; payload: Message[] }
+  | { type: 'FETCH_ERROR'; payload: string }
+  | { type: 'ADD_MESSAGE'; payload: Message }
+  | { type: 'UPDATE_MESSAGE'; payload: { id: string; message: Message } }
+  | { type: 'DELETE_MESSAGE'; payload: string }
+  | { type: 'MESSAGE_ERROR'; payload: { error: string } }
+  | { type: 'CLEAR_MESSAGES' }
+  | { type: 'ADD_REACTION'; payload: { messageId: string; reaction: Reaction } }
+  | { type: 'REMOVE_REACTION'; payload: { messageId: string; reactionId: string } }
+  | { type: 'SET_CHANNEL'; payload: string | null };
 
 const initialState: MessageState = {
   messages: [],
   status: 'idle',
-  error: undefined
+  error: undefined,
+  currentChannelId: null
 };
 
 function messageReducer(state: MessageState, action: MessageAction): MessageState {
@@ -31,7 +52,16 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         status: 'error',
         error: action.payload
       };
+    case 'SET_CHANNEL':
+      return {
+        ...state,
+        currentChannelId: action.payload,
+        messages: state.messages.filter(msg => msg.channelId === action.payload)
+      };
     case 'ADD_MESSAGE':
+      if (state.currentChannelId && action.payload.channelId !== state.currentChannelId) {
+        return state;
+      }
       return {
         ...state,
         status: 'success',
@@ -80,7 +110,8 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         ...state,
         status: 'idle',
         messages: [],
-        error: undefined
+        error: undefined,
+        currentChannelId: null
       };
     case 'ADD_REACTION':
       return {
@@ -185,6 +216,10 @@ export function useMessages() {
     dispatch({ type: 'FETCH_ERROR', payload: error });
   }, []);
 
+  const setCurrentChannel = useCallback((channelId: string | null) => {
+    dispatch({ type: 'SET_CHANNEL', payload: channelId });
+  }, []);
+
   return {
     messages: state.messages,
     status: state.status,
@@ -194,6 +229,7 @@ export function useMessages() {
     addMessage,
     updateMessage,
     clearMessages,
-    setError
+    setError,
+    setCurrentChannel
   };
 }
