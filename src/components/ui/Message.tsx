@@ -181,10 +181,12 @@ export function MessageComponent({
 
       if (!response.ok) throw new Error('Failed to create thread');
       
-      // Don't call onChannelCreated here - let the socket system handle it
       const newThread = await response.json();
       
-      // Just update the message link
+      // Replace optimistic thread with real one, keeping the same ID
+      onChannelCreated?.({...newThread, id: tempId});
+      
+      // Update the message link with the real thread data
       const updatedMessage = {
         ...message,
         threadId: tempId,
