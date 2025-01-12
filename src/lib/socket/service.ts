@@ -103,9 +103,13 @@ export class SocketService {
       const callbacks = this.messageCallbacks.get(event.originalId || event.messageId);
       if (callbacks) {
         callbacks.onDelivered?.(event.messageId);
-        // If there's a message handler, update the message with the new ID
+        // Always update the message when we receive a delivery confirmation
         if (this.onMessageHandler && event.message) {
-          this.onMessageHandler(event.message);
+          // Update the message with the permanent ID and any reply info
+          this.onMessageHandler({
+            ...event.message,
+            originalId: event.originalId // Keep track of the original ID for reference
+          });
         }
         this.messageCallbacks.delete(event.originalId || event.messageId);
       }
@@ -128,7 +132,7 @@ export class SocketService {
     this.socket.on('reaction-added', (event) => {
       if (this.onReactionAddedHandler) {
         // Skip if this is our own reaction (we already handled it optimistically)
-        const userId = (this.socket?.auth as { token: string })?.token;
+        const userId = (this.socket?.auth as { userId?: string })?.userId;
         if (event.reaction?.user?.id === userId) {
           return;
         }
@@ -139,7 +143,7 @@ export class SocketService {
     this.socket.on('reaction-removed', (event) => {
       if (this.onReactionRemovedHandler) {
         // Skip if this is our own reaction (we already handled it optimistically)
-        const userId = (this.socket?.auth as { token: string })?.token;
+        const userId = (this.socket?.auth as { userId?: string })?.userId;
         if (event.reaction?.user?.id === userId) {
           return;
         }

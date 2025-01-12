@@ -41,18 +41,27 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       return {
         ...state,
         status: 'success',
-        messages: state.messages.map(msg =>
-          msg.id === action.payload.id ? action.payload.message : 
-          // Also update any messages that reply to this message
-          msg.replyTo?.id === action.payload.id || msg.replyToId === action.payload.id ? {
-            ...msg,
-            replyToId: msg.replyToId === action.payload.id ? action.payload.message.id : msg.replyToId,
-            replyTo: msg.replyTo?.id === action.payload.id ? {
-              ...msg.replyTo,
-              id: action.payload.message.id
-            } : msg.replyTo
-          } : msg
-        )
+        messages: state.messages.map(msg => {
+          // If this is the message being updated
+          if (msg.id === action.payload.id || msg.id === action.payload.message.originalId) {
+            return action.payload.message;
+          }
+          
+          // If this message replies to the updated message
+          if (msg.replyTo?.id === action.payload.id || msg.replyToId === action.payload.id) {
+            return {
+              ...msg,
+              replyToId: action.payload.message.id,
+              replyTo: {
+                id: action.payload.message.id,
+                content: action.payload.message.content,
+                author: action.payload.message.author
+              }
+            };
+          }
+
+          return msg;
+        })
       };
     case 'DELETE_MESSAGE':
       return {
