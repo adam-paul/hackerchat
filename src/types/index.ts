@@ -1,17 +1,18 @@
 // src/types/index.ts
 
-export interface Channel {
+export type Channel = {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
+  parentId?: string | null;
   createdAt: string;
   updatedAt: string;
-  parentId?: string | null;
+  originalId?: string;
   _count?: {
     messages: number;
   };
   _remove?: boolean;
-}
+};
 
 export interface Reaction {
   id: string;

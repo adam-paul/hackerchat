@@ -116,7 +116,8 @@ export async function POST(req: Request) {
     const formattedChannel = {
       ...result,
       createdAt: result.createdAt.toISOString(),
-      updatedAt: result.updatedAt.toISOString()
+      updatedAt: result.updatedAt.toISOString(),
+      originalId: originalId?.startsWith('temp_') ? originalId : undefined
     };
 
     return NextResponse.json(formattedChannel);

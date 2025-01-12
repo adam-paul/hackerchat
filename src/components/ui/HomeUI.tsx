@@ -388,8 +388,11 @@ export function HomeUI() {
             onSelectChannel={handleSelectChannel}
             onChannelCreated={(newChannel) => {
               setChannels(prev => {
-                // First remove any existing channel with this ID
-                const withoutNew = prev.filter(channel => channel.id !== newChannel.id);
+                // First remove any existing channel with this ID or matching originalId
+                const withoutNew = prev.filter(channel => 
+                  channel.id !== newChannel.id && 
+                  channel.id !== newChannel.originalId
+                );
                 
                 if ('_remove' in newChannel) {
                   // If removing, just return the filtered list
@@ -399,23 +402,7 @@ export function HomeUI() {
                   return withoutNew;
                 }
 
-                // Check if we already have this channel
-                const existingChannel = prev.find(c => 
-                  c.id === newChannel.id || 
-                  (c.id.startsWith('temp_') && c.name === newChannel.name && c.parentId === newChannel.parentId)
-                );
-                if (existingChannel) {
-                  // Keep the existing channel if it's temporary, otherwise use the new one
-                  const channelToUse = existingChannel.id.startsWith('temp_') ? existingChannel : newChannel;
-                  return [...withoutNew, channelToUse].sort((a, b) => {
-                    if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                      return a.name.localeCompare(b.name);
-                    }
-                    return a.parentId ? 1 : -1;
-                  });
-                }
-                
-                // For new channels, add to list and sort
+                // Add the new channel and sort
                 return [...withoutNew, newChannel].sort((a, b) => {
                   if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
                     return a.name.localeCompare(b.name);
@@ -532,8 +519,11 @@ export function HomeUI() {
                         onSelectChannel={handleSelectChannel}
                         onChannelCreated={(newChannel) => {
                           setChannels(prev => {
-                            // First remove any existing channel with this ID
-                            const withoutNew = prev.filter(channel => channel.id !== newChannel.id);
+                            // First remove any existing channel with this ID or matching originalId
+                            const withoutNew = prev.filter(channel => 
+                              channel.id !== newChannel.id && 
+                              channel.id !== newChannel.originalId
+                            );
                             
                             if ('_remove' in newChannel) {
                               // If removing, just return the filtered list
@@ -543,23 +533,7 @@ export function HomeUI() {
                               return withoutNew;
                             }
 
-                            // Check if we already have this channel
-                            const existingChannel = prev.find(c => 
-                              c.id === newChannel.id || 
-                              (c.id.startsWith('temp_') && c.name === newChannel.name && c.parentId === newChannel.parentId)
-                            );
-                            if (existingChannel) {
-                              // Keep the existing channel if it's temporary, otherwise use the new one
-                              const channelToUse = existingChannel.id.startsWith('temp_') ? existingChannel : newChannel;
-                              return [...withoutNew, channelToUse].sort((a, b) => {
-                                if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                                  return a.name.localeCompare(b.name);
-                                }
-                                return a.parentId ? 1 : -1;
-                              });
-                            }
-                            
-                            // For new channels, add to list and sort
+                            // Add the new channel and sort
                             return [...withoutNew, newChannel].sort((a, b) => {
                               if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
                                 return a.name.localeCompare(b.name);
