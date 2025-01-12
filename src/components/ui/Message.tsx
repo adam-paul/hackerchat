@@ -175,7 +175,7 @@ export function MessageComponent({
             fileSize: message.fileSize,
             originalId: message.id
           },
-          messageId: `msg_${Date.now()}`,
+          messageId: message.id,
           originalId: tempId
         }),
       });
@@ -187,10 +187,10 @@ export function MessageComponent({
       
       const newThread = await response.json();
       
-      // Replace optimistic thread with real one, keeping the same ID
+      // Replace optimistic thread with real one
       onChannelCreated?.({...newThread, id: tempId});
       
-      // Update the message link with the real thread data
+      // Keep the thread link on the original message
       const updatedMessage = {
         ...message,
         threadId: tempId,
