@@ -51,7 +51,60 @@ export async function POST(req: Request) {
     return new NextResponse('Error verifying webhook', { status: 400 });
   }
 
-  // Handle both session.ended and session.removed events
+  // Handle session events
+  if (evt.type === 'session.created') {
+    const { user_id } = evt.data;
+    
+    if (!user_id) {
+      console.error('No user_id in webhook data'); // Debug log
+      return new NextResponse('Invalid webhook data', { status: 400 });
+    }
+
+    try {
+      console.log('Updating user status for:', user_id); // Debug log
+      
+      // Update user status to online in database
+      const updatedUser = await prisma.user.update({
+        where: { id: user_id },
+        data: { 
+          status: 'online',
+          updatedAt: new Date()
+        }
+      });
+
+      console.log('User status updated:', updatedUser); // Debug log
+
+      // Broadcast the status change
+      if (process.env.SOCKET_SERVER_URL) {
+        try {
+          const response = await fetch(`${process.env.SOCKET_SERVER_URL}/broadcast-status`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SOCKET_WEBHOOK_SECRET}`
+            },
+            body: JSON.stringify({
+              userId: user_id,
+              status: 'online'
+            })
+          });
+
+          if (!response.ok) {
+            console.error('Failed to broadcast status:', await response.text());
+          }
+        } catch (error) {
+          console.error('Error broadcasting status:', error);
+        }
+      }
+
+      return NextResponse.json({ success: true });
+    } catch (error) {
+      console.error('Error updating user status:', error); // Debug log
+      return new NextResponse('Error updating user status', { status: 500 });
+    }
+  }
+
+  // Handle session end events
   if (evt.type === 'session.ended' || evt.type === 'session.removed') {
     const { user_id } = evt.data;
     
@@ -74,7 +127,7 @@ export async function POST(req: Request) {
 
       console.log('User status updated:', updatedUser); // Debug log
 
-      // Instead of trying to broadcast directly, we'll use the socket server's REST API
+      // Broadcast the status change
       if (process.env.SOCKET_SERVER_URL) {
         try {
           const response = await fetch(`${process.env.SOCKET_SERVER_URL}/broadcast-status`, {
