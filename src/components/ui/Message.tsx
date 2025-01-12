@@ -175,7 +175,7 @@ export function MessageComponent({
             fileSize: message.fileSize,
             originalId: message.id
           },
-          messageId: message.id,
+          messageId: `msg_${Math.random().toString(36).slice(2)}`,
           originalId: tempId
         }),
       });
