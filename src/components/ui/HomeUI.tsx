@@ -116,6 +116,11 @@ export function HomeUI() {
       return;
     }
 
+    // Don't fetch messages or join socket for temporary channels
+    if (selectedChannel.startsWith('temp_')) {
+      return;
+    }
+
     // Fetch initial messages
     const fetchMessages = async () => {
       try {
@@ -140,7 +145,7 @@ export function HomeUI() {
     }
 
     return () => {
-      if (isConnected && selectedChannel) {
+      if (isConnected && selectedChannel && !selectedChannel.startsWith('temp_')) {
         leaveChannel(selectedChannel);
       }
     };
@@ -413,10 +418,35 @@ export function HomeUI() {
               });
             }}
             onChannelDeleted={(deletedChannelId) => {
-              setChannels(prev => prev.filter(channel => channel.id !== deletedChannelId));
-              if (selectedChannel === deletedChannelId) {
+              // Remove the deleted channel and all its children
+              setChannels(prev => {
+                const isChildOf = (channelId: string, parentId: string): boolean => {
+                  const channel = prev.find(c => c.id === channelId);
+                  if (!channel) return false;
+                  if (channel.parentId === parentId) return true;
+                  return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
+                };
+
+                // Filter out the deleted channel and all its descendants
+                const remainingChannels = prev.filter(channel => 
+                  channel.id !== deletedChannelId && !isChildOf(channel.id, deletedChannelId)
+                );
+
+                return remainingChannels;
+              });
+
+              // If we're in the deleted channel or any of its children, return to channel select
+              const isInDeletedChannel = (channelId: string): boolean => {
+                const channel = channels.find(c => c.id === channelId);
+                if (!channel) return false;
+                if (channel.id === deletedChannelId) return true;
+                return channel.parentId ? isInDeletedChannel(channel.parentId) : false;
+              };
+
+              if (selectedChannel && isInDeletedChannel(selectedChannel)) {
                 setSelectedChannel(null);
               }
+
               // Update messages to clear thread links for the deleted channel
               messages.forEach(message => {
                 if (message.threadId === deletedChannelId) {

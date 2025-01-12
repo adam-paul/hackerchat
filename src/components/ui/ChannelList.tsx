@@ -89,8 +89,8 @@ export function ChannelList({
     setIsCreating(false);
     setParentId(null);
     
+    // Only add to list, don't select yet
     onChannelCreated(optimisticChannel);
-    onSelectChannel(optimisticChannel.id);
 
     try {
       const response = await fetch('/api/channels', {
@@ -110,6 +110,7 @@ export function ChannelList({
       const newChannel = await response.json();
       // Replace optimistic channel with real one using same ID
       onChannelCreated({...newChannel, id: optimisticChannel.id});
+      // Only select after we have the real channel
       onSelectChannel(optimisticChannel.id);
     } catch (error) {
       console.error('Error creating channel:', error);

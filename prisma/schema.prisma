@@ -29,7 +29,7 @@ model Channel {
   name        String
   description String?
   parentId    String?
-  parent      Channel?  @relation("ChannelHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  parent      Channel?  @relation("ChannelHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children    Channel[] @relation("ChannelHierarchy")
   messages    Message[]
   createdAt   DateTime  @default(now())
