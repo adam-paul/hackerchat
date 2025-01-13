@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Fira_Code } from 'next/font/google';
 import type { Channel } from '@/types';
+import { useAuthContext } from '@/lib/auth/context';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -61,6 +62,7 @@ export function ChannelList({
   onChannelDeleted,
   className = '' 
 }: ChannelListProps) {
+  const { userId } = useAuthContext();
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
@@ -82,6 +84,7 @@ export function ChannelList({
       parentId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      creatorId: userId || '',
     };
     
     // Clear UI immediately with optimistic update
@@ -166,6 +169,7 @@ export function ChannelList({
     const prefix = depth === 0 ? '' : '  '.repeat(depth);
     const branchSymbol = isLast ? '└──' : '├──';
     const isCreatingThread = isCreating && parentId === channel.id;
+    const canDelete = channel.creatorId === userId;
 
     return (
       <div key={channel.id}>
@@ -200,16 +204,18 @@ export function ChannelList({
                   +
                 </button>
               )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteChannel(channel.id);
-                }}
-                className="opacity-0 group-hover:opacity-100 ml-2 hover:text-zinc-200 transition-opacity absolute right-2"
-                aria-label="Delete channel"
-              >
-                ×
-              </button>
+              {canDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteChannel(channel.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 ml-2 hover:text-zinc-200 transition-opacity absolute right-2"
+                  aria-label="Delete channel"
+                >
+                  ×
+                </button>
+              )}
             </>
           )}
         </div>

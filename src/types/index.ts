@@ -8,6 +8,7 @@ export type Channel = {
   createdAt: string;
   updatedAt: string;
   originalId?: string;
+  creatorId: string;
   _count?: {
     messages: number;
   };

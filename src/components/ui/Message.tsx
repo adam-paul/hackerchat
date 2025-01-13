@@ -144,6 +144,7 @@ export function MessageComponent({
       parentId: message.channelId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      creatorId: message.author.id,
     };
     
     // Clear UI immediately with optimistic update

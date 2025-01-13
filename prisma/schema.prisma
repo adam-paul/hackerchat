@@ -18,6 +18,7 @@ model User {
   status    String    @default("offline")
   messages  Message[]
   reactions Reaction[]
+  createdChannels Channel[] @relation("CreatedChannels")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -32,6 +33,8 @@ model Channel {
   parent      Channel?  @relation("ChannelHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children    Channel[] @relation("ChannelHierarchy")
   messages    Message[]
+  creator     User      @relation("CreatedChannels", fields: [creatorId], references: [id], onDelete: Cascade)
+  creatorId   String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
