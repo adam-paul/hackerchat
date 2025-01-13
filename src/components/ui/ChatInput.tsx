@@ -14,6 +14,7 @@ interface ChatInputProps {
   onCancelReply: () => void;
   onFileSelect: (file: File) => void;
   isUploading: boolean;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }
 
 export const ChatInput = React.memo(function ChatInput({
@@ -23,11 +24,13 @@ export const ChatInput = React.memo(function ChatInput({
   onSendMessage,
   onCancelReply,
   onFileSelect,
-  isUploading
+  isUploading,
+  inputRef
 }: ChatInputProps) {
   const [newMessage, setNewMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const internalMessageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = inputRef || internalMessageInputRef;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

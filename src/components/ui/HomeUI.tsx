@@ -554,6 +554,7 @@ export function HomeUI() {
               onCancelReply={() => setReplyTo(null)}
               onFileSelect={handleFileSelect}
               isUploading={isUploading}
+              inputRef={messageInputRef}
             />
           </>
         ) : (
