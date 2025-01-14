@@ -185,38 +185,6 @@ export const handleMessage = async (
   }
 };
 
-export const handleMessageReceived = async (
-  socket: SocketType,
-  messageId: string
-): Promise<HandlerResult<MessageResult>> => {
-  try {
-    // Update message status in database
-    await prisma.message.update({
-      where: { id: messageId },
-      data: { status: 'DELIVERED' }
-    });
-
-    // Emit message received confirmation
-    socket.emit(EVENTS.MESSAGE_RECEIVED, {
-      messageId,
-      userId: socket.data.userId,
-      timestamp: new Date().toISOString()
-    });
-
-    return {
-      success: true,
-      data: { messageId }
-    };
-  } catch (error) {
-    console.error('[MESSAGE_RECEIVED_ERROR]', {
-      error,
-      userId: socket.data.userId,
-      messageId
-    });
-    return handleSocketError(socket, error);
-  }
-};
-
 export const handleMessageDelete = async (
   socket: SocketType,
   messageId: string

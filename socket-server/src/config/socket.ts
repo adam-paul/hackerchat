@@ -43,7 +43,6 @@ export const EVENTS = {
   // Message events
   MESSAGE: 'message' as const,
   MESSAGE_DELIVERED: 'message-delivered' as const,
-  MESSAGE_RECEIVED: 'message-received' as const,
   MESSAGE_ERROR: 'message-error' as const,
   MESSAGE_DELETED: 'message-deleted' as const,
   

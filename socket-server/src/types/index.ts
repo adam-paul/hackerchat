@@ -59,12 +59,6 @@ export interface MessageDeliveryEvent {
   message: Message;
 }
 
-export interface MessageReceivedEvent {
-  messageId: string;
-  userId: string;
-  timestamp: string;
-}
-
 export interface ErrorEvent {
   error: string;
   code: string;
@@ -87,7 +81,6 @@ export interface ReactionEvent {
 export interface ServerToClientEvents {
   message: (event: MessageEvent) => void;
   'message-delivered': (event: MessageDeliveryEvent) => void;
-  'message-received': (event: MessageReceivedEvent) => void;
   'channel-joined': (event: ChannelEvent) => void;
   'channel-left': (event: ChannelEvent) => void;
   'typing-start': (event: ChannelEvent) => void;
@@ -104,7 +97,6 @@ export interface ClientToServerEvents {
   'join-channel': (channelId: string) => void;
   'leave-channel': (channelId: string) => void;
   message: (event: MessageEvent) => void;
-  'message-received': (messageId: string) => void;
   'typing-start': (channelId: string) => void;
   'typing-stop': (channelId: string) => void;
   'status-update': (status: 'online' | 'away' | 'busy' | 'offline') => void;

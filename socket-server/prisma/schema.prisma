@@ -46,7 +46,6 @@ model Message {
   fileName  String?
   fileType  String?
   fileSize  Int?
-  status    String    @default("PENDING") // PENDING, DELIVERED, ERROR
   channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
   channelId String
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
