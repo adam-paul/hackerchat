@@ -48,11 +48,49 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
   isLoading: false,
 
   // Read operations
-  selectChannel: (id: string | null) => set({ selectedChannelId: id }),
+  selectChannel: (id: string | null) => {
+    const store = get();
+    
+    // Don't reselect the same channel
+    if (store.selectedChannelId === id) return;
+
+    // Verify channel exists if id is provided
+    if (id && !store.channels.find(c => c.id === id)) {
+      store._setError(`Channel ${id} not found`);
+      return;
+    }
+
+    set({ selectedChannelId: id });
+  },
+  
+  getSelectedChannel: () => {
+    const store = get();
+    return store.selectedChannelId ? store.channels.find(c => c.id === store.selectedChannelId) : null;
+  },
   
   getChannel: (id: string) => get().channels.find(c => c.id === id),
   
   getChannelTree: () => buildChannelTree(get().channels),
+
+  // Channel path helper
+  getChannelPath: (channelId: string): string => {
+    const store = get();
+    const channel = store.getChannel(channelId);
+    if (!channel) return '';
+
+    const parts: string[] = [channel.name];
+    let current = channel;
+
+    // Traverse up the parent chain
+    while (current.parentId) {
+      const parent = store.getChannel(current.parentId);
+      if (!parent) break;
+      parts.unshift(parent.name);
+      current = parent;
+    }
+
+    return '_' + parts.join('.');
+  },
 
   // Write operations (stubs for now)
   createRootChannel: async (name: string) => {
