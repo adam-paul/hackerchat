@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { SocketService } from './service';
+import { setupSocketIntegration } from '../store/socket-integration';
 import type { Message } from '@/types';
 
 interface SocketContextType {
@@ -67,6 +68,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         await serviceRef.current.connect(token);
         setIsConnected(true);
         setError(undefined);
+
+        // Set up store integration
+        const cleanup = setupSocketIntegration(serviceRef.current);
+        return cleanup;
       } catch (error) {
         console.error('Socket connection error:', error);
         setError(error instanceof Error ? error.message : 'Failed to connect to socket server');
@@ -74,12 +79,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    connect();
+    const cleanup = connect();
 
     return () => {
       if (serviceRef.current) {
         serviceRef.current.disconnect();
       }
+      // Clean up store integration
+      cleanup?.then(cleanupFn => cleanupFn?.());
     };
   }, [isLoaded]);
 
