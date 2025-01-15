@@ -337,5 +337,53 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
 
   _setError: (error: string | null) => set({ error }),
   
-  _setLoading: (isLoading: boolean) => set({ isLoading })
+  _setLoading: (isLoading: boolean) => set({ isLoading }),
+
+  // Socket sync operations
+  handleChannelCreated: (channel: Channel) => {
+    const store = get();
+    const optimisticUpdate = store.optimisticUpdates.get(channel.originalId || '');
+    
+    if (optimisticUpdate) {
+      // Replace optimistic update with real channel
+      store._replaceOptimisticWithReal(optimisticUpdate.data.id, channel);
+    } else {
+      // Add new channel from socket
+      set(state => ({
+        channels: [...state.channels, channel].sort((a, b) => a.name.localeCompare(b.name))
+      }));
+    }
+  },
+
+  handleChannelUpdated: (channel: Channel) => {
+    set(state => ({
+      channels: state.channels.map(c => 
+        c.id === channel.id ? channel : c
+      )
+    }));
+  },
+
+  handleChannelDeleted: (channelId: string) => {
+    const store = get();
+    
+    // Remove channel and its descendants
+    const isDescendant = (id: string, ancestorId: string): boolean => {
+      const channel = store.getChannel(id);
+      if (!channel) return false;
+      if (channel.parentId === ancestorId) return true;
+      return channel.parentId ? isDescendant(channel.parentId, ancestorId) : false;
+    };
+
+    set(state => ({
+      channels: state.channels.filter(c => 
+        c.id !== channelId && !isDescendant(c.id, channelId)
+      )
+    }));
+
+    // If deleted channel was selected, clear selection
+    if (store.selectedChannelId === channelId || 
+        (store.selectedChannelId && isDescendant(store.selectedChannelId, channelId))) {
+      store.selectChannel(null);
+    }
+  },
 })); 

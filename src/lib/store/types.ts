@@ -35,6 +35,11 @@ export interface ChannelStore {
   createThread: (name: string, parentId: string, message: Message) => Promise<Channel>;
   deleteChannel: () => Promise<void>;
 
+  // Socket sync operations
+  handleChannelCreated: (channel: Channel) => void;
+  handleChannelUpdated: (channel: Channel) => void;
+  handleChannelDeleted: (channelId: string) => void;
+
   // Internal actions
   _setChannels: (channels: Channel[]) => void;
   _addOptimisticChannel: (channel: Channel, metadata?: OptimisticUpdate['metadata']) => void;

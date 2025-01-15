@@ -51,4 +51,4 @@ next-env.d.ts
 **/.env.production
 socket-server/.env.development
 
-Current Refactor Checklist 
+checklist.md

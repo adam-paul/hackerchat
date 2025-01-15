@@ -36,6 +36,9 @@ export function HomeUI() {
     selectChannel,
     channels,
     getChannelPath,
+    handleChannelCreated: onChannelCreated,
+    handleChannelUpdated: onChannelUpdated,
+    handleChannelDeleted: onChannelDeleted,
     _setError: setStoreError,
     _setChannels: setStoreChannels
   } = useChannelStore();
@@ -58,7 +61,8 @@ export function HomeUI() {
     error: socketError,
     joinChannel,
     leaveChannel,
-    sendMessage: sendSocketMessage
+    sendMessage: sendSocketMessage,
+    socket
   } = useSocket();
 
   const {
@@ -385,6 +389,22 @@ export function HomeUI() {
       }
     });
   }, [channels, selectedChannelId, handleSelectChannel, messages, updateMessage, setStoreChannels]);
+
+  // Handle socket events
+  useEffect(() => {
+    if (!isConnected || !socket) return;
+
+    // Listen for channel events
+    socket.on('channel:created', onChannelCreated);
+    socket.on('channel:updated', onChannelUpdated);
+    socket.on('channel:deleted', onChannelDeleted);
+
+    return () => {
+      socket.off('channel:created', onChannelCreated);
+      socket.off('channel:updated', onChannelUpdated);
+      socket.off('channel:deleted', onChannelDeleted);
+    };
+  }, [isConnected, socket, onChannelCreated, onChannelUpdated, onChannelDeleted]);
 
   return (
     <div className="min-h-screen flex">
