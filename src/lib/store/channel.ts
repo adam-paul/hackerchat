@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
 import type { Channel, Message } from '@/types';
 
-// Helper function to build channel tree
+// Store utilities
 const buildChannelTree = (channels: Channel[]): Channel[] => {
   const channelMap = new Map<string, Channel & { threads: Channel[] }>();
   const rootNodes: Channel[] = [];
@@ -64,12 +64,37 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
   
   getSelectedChannel: () => {
     const store = get();
-    return store.selectedChannelId ? store.getChannel(store.selectedChannelId) : null;
+    if (!store.selectedChannelId) return null;
+    const channel = store.getChannel(store.selectedChannelId);
+    return channel || null;
   },
   
   getChannel: (id: string) => get().channels.find(c => c.id === id),
   
+  // Tree operations
   getChannelTree: () => buildChannelTree(get().channels),
+  
+  getRootChannels: () => get().channels.filter(c => !c.parentId),
+  
+  getThreads: (parentId: string) => get().channels.filter(c => c.parentId === parentId),
+  
+  getChannelPath: (channelId: string): string[] => {
+    const store = get();
+    const channel = store.getChannel(channelId);
+    if (!channel) return [];
+
+    const path = [channel.name];
+    let current = channel;
+
+    while (current.parentId) {
+      const parent = store.getChannel(current.parentId);
+      if (!parent) break;
+      path.unshift(parent.name);
+      current = parent;
+    }
+
+    return path;
+  },
 
   // Write operations (stubs for now)
   createRootChannel: async (name: string) => {
@@ -278,6 +303,8 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
   },
 
   // Internal actions
+  _setChannels: (channels: Channel[]) => set({ channels }),
+  
   _addOptimisticChannel: (channel: Channel, metadata?: OptimisticUpdate['metadata']) => 
     set(state => ({
       channels: [...state.channels, channel],

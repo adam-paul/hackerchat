@@ -23,7 +23,6 @@ const firaCode = Fira_Code({ subsets: ['latin'] });
 
 export function HomeUI() {
   const { userName, userId, userImageUrl } = useAuthContext();
-  const [channels, setChannels] = useState<Channel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -32,8 +31,15 @@ export function HomeUI() {
   const messageInputRef = useRef<HTMLInputElement>(null);
   
   // Add store hooks
-  const { selectedChannelId, selectChannel } = useChannelStore();
-  
+  const { 
+    selectedChannelId, 
+    selectChannel,
+    channels,
+    getChannelPath,
+    _setError: setStoreError,
+    _setChannels: setStoreChannels
+  } = useChannelStore();
+
   const { 
     messages, 
     status: messageStatus, 
@@ -93,24 +99,17 @@ export function HomeUI() {
           throw new Error('Failed to fetch channels');
         }
         const data = await res.json();
-        const sortChannels = (channels: Channel[]) => {
-          return channels.sort((a: Channel, b: Channel) => {
-            if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-              return a.name.localeCompare(b.name);
-            }
-            return a.parentId ? 1 : -1;
-          });
-        };
-        setChannels(sortChannels(data));
+        setStoreChannels(data);
       } catch (error) {
         console.error('Failed to fetch channels:', error);
+        setStoreError(error instanceof Error ? error.message : 'Failed to fetch channels');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchChannels();
-  }, []);
+  }, [setStoreError, setStoreChannels]);
 
   // Join/Leave channel when selection changes
   useEffect(() => {
@@ -257,22 +256,9 @@ export function HomeUI() {
     setReplyTo(null);
   }, []);
 
-  const getChannelPath = (channelId: string): string => {
-    const channel = channels.find(c => c.id === channelId);
-    if (!channel) return '';
-
-    const parts: string[] = [channel.name];
-    let current = channel;
-
-    // Traverse up the parent chain
-    while (current.parentId) {
-      const parent = channels.find(c => c.id === current.parentId);
-      if (!parent) break;
-      parts.unshift(parent.name);
-      current = parent;
-    }
-
-    return '_' + parts.join('.');
+  const formatChannelPath = (channelId: string): string => {
+    const path = getChannelPath(channelId);
+    return '_' + path.join('.');
   };
 
   // Clear reply indicator on channel change
@@ -335,6 +321,71 @@ export function HomeUI() {
     setTimeout(() => setHighlightedMessage(null), 2000);
   }, []);
 
+  const handleChannelCreated = useCallback((newChannel: Channel) => {
+    setStoreChannels(channels.reduce((acc: Channel[], channel: Channel) => {
+      // Skip if channel has matching id or originalId
+      if (channel.id === newChannel.id || 
+          channel.id === (newChannel as any).originalId) {
+        return acc;
+      }
+      return [...acc, channel];
+    }, []));
+
+    // If not removing, add the new channel
+    if (!('_remove' in newChannel)) {
+      setStoreChannels([
+        ...channels.filter(channel => 
+          channel.id !== newChannel.id && 
+          channel.id !== (newChannel as any).originalId
+        ),
+        newChannel
+      ].sort((a, b) => {
+        if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+          return a.name.localeCompare(b.name);
+        }
+        return a.parentId ? 1 : -1;
+      }));
+    } else if (selectedChannelId === newChannel.id) {
+      selectChannel(null);
+    }
+  }, [channels, selectedChannelId, selectChannel, setStoreChannels]);
+
+  const handleChannelDeleted = useCallback((deletedChannelId: string) => {
+    const isChildOf = (channelId: string, parentId: string): boolean => {
+      const channel = channels.find(c => c.id === channelId);
+      if (!channel) return false;
+      if (channel.parentId === parentId) return true;
+      return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
+    };
+
+    // Filter out the deleted channel and all its descendants
+    const remainingChannels = channels.filter(channel => 
+      channel.id !== deletedChannelId && !isChildOf(channel.id, deletedChannelId)
+    );
+
+    setStoreChannels(remainingChannels);
+
+    // If we're in the deleted channel or any of its children, return to channel select
+    if (selectedChannelId && (
+      selectedChannelId === deletedChannelId || 
+      isChildOf(selectedChannelId, deletedChannelId)
+    )) {
+      handleSelectChannel(null);
+    }
+
+    // Update messages to clear thread links for the deleted channel
+    messages.forEach(message => {
+      if (message.threadId === deletedChannelId) {
+        const updatedMessage = {
+          ...message,
+          threadId: undefined,
+          threadName: undefined
+        };
+        updateMessage(message.id, updatedMessage);
+      }
+    });
+  }, [channels, selectedChannelId, handleSelectChannel, messages, updateMessage, setStoreChannels]);
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -391,73 +442,8 @@ export function HomeUI() {
             channels={channels}
             selectedChannel={selectedChannelId}
             onSelectChannel={handleSelectChannel}
-            onChannelCreated={(newChannel) => {
-              setChannels(prev => {
-                // First remove any existing channel with this ID or matching originalId
-                const withoutNew = prev.filter(channel => 
-                  channel.id !== newChannel.id && 
-                  channel.id !== newChannel.originalId
-                );
-                
-                if ('_remove' in newChannel) {
-                  // If removing, just return the filtered list
-                  if (selectedChannelId === newChannel.id) {
-                    selectChannel(null);
-                  }
-                  return withoutNew;
-                }
-
-                // Add the new channel and sort
-                return [...withoutNew, newChannel].sort((a, b) => {
-                  if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                    return a.name.localeCompare(b.name);
-                  }
-                  return a.parentId ? 1 : -1;
-                });
-              });
-            }}
-            onChannelDeleted={(deletedChannelId) => {
-              // Remove the deleted channel and all its children
-              setChannels(prev => {
-                const isChildOf = (channelId: string, parentId: string): boolean => {
-                  const channel = prev.find(c => c.id === channelId);
-                  if (!channel) return false;
-                  if (channel.parentId === parentId) return true;
-                  return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
-                };
-
-                // Filter out the deleted channel and all its descendants
-                const remainingChannels = prev.filter(channel => 
-                  channel.id !== deletedChannelId && !isChildOf(channel.id, deletedChannelId)
-                );
-
-                return remainingChannels;
-              });
-
-              // If we're in the deleted channel or any of its children, return to channel select
-              const isInDeletedChannel = (channelId: string): boolean => {
-                const channel = channels.find(c => c.id === channelId);
-                if (!channel) return false;
-                if (channel.id === deletedChannelId) return true;
-                return channel.parentId ? isInDeletedChannel(channel.parentId) : false;
-              };
-
-              if (selectedChannelId && isInDeletedChannel(selectedChannelId)) {
-                handleSelectChannel(null);
-              }
-
-              // Update messages to clear thread links for the deleted channel
-              messages.forEach(message => {
-                if (message.threadId === deletedChannelId) {
-                  const updatedMessage = {
-                    ...message,
-                    threadId: undefined,
-                    threadName: undefined
-                  };
-                  updateMessage(message.id, updatedMessage);
-                }
-              });
-            }}
+            onChannelCreated={handleChannelCreated}
+            onChannelDeleted={handleChannelDeleted}
             className="flex-1"
           />
         )}
@@ -476,7 +462,7 @@ export function HomeUI() {
             <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
-                  {getChannelPath(selectedChannelId)}
+                  {formatChannelPath(selectedChannelId)}
                 </h2>
                 {!isConnected && (
                   <span className="text-red-500 text-xs">
@@ -523,31 +509,7 @@ export function HomeUI() {
                         onHighlightMessage={setSelectedMessageId}
                         onSelectChannel={handleSelectChannel}
                         onAddMessage={addMessage}
-                        onChannelCreated={(newChannel) => {
-                          setChannels(prev => {
-                            // First remove any existing channel with this ID or matching originalId
-                            const withoutNew = prev.filter(channel => 
-                              channel.id !== newChannel.id && 
-                              channel.id !== newChannel.originalId
-                            );
-                            
-                            if ('_remove' in newChannel) {
-                              // If removing, just return the filtered list
-                              if (selectedChannelId === newChannel.id) {
-                                selectChannel(null);
-                              }
-                              return withoutNew;
-                            }
-
-                            // Add the new channel and sort
-                            return [...withoutNew, newChannel].sort((a, b) => {
-                              if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                                return a.name.localeCompare(b.name);
-                              }
-                              return a.parentId ? 1 : -1;
-                            });
-                          });
-                        }}
+                        onChannelCreated={handleChannelCreated}
                         onMessageUpdate={updateMessage}
                         channels={channels}
                       />
