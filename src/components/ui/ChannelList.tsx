@@ -5,15 +5,12 @@ import { useState } from 'react';
 import { Fira_Code } from 'next/font/google';
 import type { Channel } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
+import { useChannelStore } from '@/lib/store';
+import { selectChannels, selectSelectedChannelId } from '@/lib/store/selectors';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 interface ChannelListProps {
-  channels: Channel[];
-  selectedChannel: string | null;
-  onSelectChannel: (channelId: string) => void;
-  onChannelCreated: (channel: Channel) => void;
-  onChannelDeleted?: (channelId: string) => void;
   className?: string;
 }
 
@@ -54,20 +51,18 @@ function buildChannelTree(channels: Channel[]): ChannelNode[] {
   return rootNodes;
 }
 
-export function ChannelList({ 
-  channels, 
-  selectedChannel, 
-  onSelectChannel,
-  onChannelCreated,
-  onChannelDeleted,
-  className = '' 
-}: ChannelListProps) {
+export function ChannelList({ className = '' }: ChannelListProps) {
   const { userId } = useAuthContext();
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [parentId, setParentId] = useState<string | null>(null);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
+
+  // Get store state and actions
+  const channels = useChannelStore(selectChannels);
+  const selectedChannel = useChannelStore(selectSelectedChannelId);
+  const { selectChannel, createRootChannel, createSubchannel, deleteChannel } = useChannelStore();
 
   const channelTree = buildChannelTree(channels);
 
@@ -77,48 +72,19 @@ export function ChannelList({
     setIsSubmitting(true);
     const channelName = newChannelName.trim();
     
-    // Create optimistic channel immediately
-    const optimisticChannel = {
-      id: `temp_${channelName}`, // Use consistent ID based on name
-      name: channelName,
-      parentId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: userId || '',
-    };
-    
-    // Clear UI immediately with optimistic update
-    setNewChannelName('');
-    setIsCreating(false);
-    setParentId(null);
-    
-    // Only add to list, don't select yet
-    onChannelCreated(optimisticChannel);
-
     try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: channelName,
-          parentId: parentId,
-          originalId: optimisticChannel.id, // Pass the optimistic ID
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to create channel');
+      if (parentId) {
+        await createSubchannel(channelName, parentId);
+      } else {
+        await createRootChannel(channelName);
+      }
       
-      const newChannel = await response.json();
-      // Replace optimistic channel with real one
-      onChannelCreated(newChannel);
-      // Only select after we have the real channel
-      onSelectChannel(newChannel.id);
+      // Clear UI state
+      setNewChannelName('');
+      setIsCreating(false);
+      setParentId(null);
     } catch (error) {
       console.error('Error creating channel:', error);
-      // Remove optimistic channel on error by filtering it out
-      onChannelCreated({...optimisticChannel, _remove: true});
     } finally {
       setIsSubmitting(false);
     }
@@ -136,30 +102,9 @@ export function ChannelList({
 
   const handleDeleteChannel = async (channelId: string) => {
     try {
-      // Optimistically update UI first
-      onChannelDeleted?.(channelId);
-      if (selectedChannel === channelId) {
-        const nextChannel = channels.find(c => c.id !== channelId);
-        if (nextChannel) {
-          onSelectChannel(nextChannel.id);
-        } else {
-          onSelectChannel('');
-        }
-      }
-
-      // Then perform the actual deletion
-      const response = await fetch(`/api/channels/${channelId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
+      await deleteChannel(channelId);
     } catch (error) {
       console.error('Error deleting channel:', error);
-      // TODO: Implement rollback of UI state if needed
-      // For now, we'll let the optimistic update stand as the operation will eventually succeed
     }
   };
 
@@ -182,7 +127,7 @@ export function ChannelList({
             {prefix}{branchSymbol}
           </span>
           <button
-            onClick={() => onSelectChannel(channel.id)}
+            onClick={() => selectChannel(channel.id)}
             className={`hover:text-zinc-200 transition-colors ${
               selectedChannel === channel.id ? 'text-zinc-200' : ''
             }`}

@@ -1,29 +1,28 @@
 // src/components/ui/HomeUI.tsx
 'use client';
 
-import { UserButton } from "@clerk/nextjs";
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Fira_Code } from 'next/font/google';
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { ChannelList } from './ChannelList';
-import { Settings } from './Settings';
 import type { Channel, Message } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useMessages } from '@/lib/hooks/useMessage';
 import { useSocket } from '@/lib/socket/context';
-import { SearchBar } from './SearchBar';
 import { useSearch } from '@/lib/hooks/useSearch';
-import { UserListContainer } from './UserListContainer';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
+import { ChannelList } from './ChannelList';
+import { Settings } from './Settings';
+import { SearchBar } from './SearchBar';
 import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';
 import { ChatInput } from './ChatInput';
+import { UserListContainer } from './UserListContainer';
+import { useChannelStore } from '@/lib/store';
+import { selectChannels, selectSelectedChannelId } from '@/lib/store/selectors';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 export function HomeUI() {
   const { userName, userId, userImageUrl } = useAuthContext();
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -65,6 +64,14 @@ export function HomeUI() {
   const [isUserListCollapsed, setIsUserListCollapsed] = useLocalStorage('userListCollapsed', false);
   const [isChatSectionCollapsed, setIsChatSectionCollapsed] = useLocalStorage('chatSectionCollapsed', false);
 
+  // Get channel store state and actions
+  const channels = useChannelStore(selectChannels);
+  const selectedChannel = useChannelStore(selectSelectedChannelId);
+  const { selectChannel, _setError: setChannelError, _setLoading } = useChannelStore();
+  const setChannels = useCallback((channels: Channel[]) => {
+    useChannelStore.setState({ channels });
+  }, []);
+
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     searchMessages(messages, query);
@@ -84,7 +91,7 @@ export function HomeUI() {
   useEffect(() => {
     const fetchChannels = async () => {
       try {
-        setIsLoading(true);
+        _setLoading(true);
         const res = await fetch('/api/channels');
         if (!res.ok) {
           throw new Error('Failed to fetch channels');
@@ -101,13 +108,14 @@ export function HomeUI() {
         setChannels(sortChannels(data));
       } catch (error) {
         console.error('Failed to fetch channels:', error);
+        setChannelError(error instanceof Error ? error.message : 'Failed to fetch channels');
       } finally {
-        setIsLoading(false);
+        _setLoading(false);
       }
     };
 
     fetchChannels();
-  }, []);
+  }, [_setLoading, setChannelError, setChannels]);
 
   // Join/Leave channel when selection changes
   useEffect(() => {
@@ -318,56 +326,21 @@ export function HomeUI() {
   }, [messages, replyTo]);
 
   // Update channel selection
-  const handleSelectChannel = (channelId: string | null) => {
-    setSelectedChannel(channelId);
-    setCurrentChannel(channelId);
-  };
+  const handleSelectChannel = useCallback((channelId: string | null) => {
+    selectChannel(channelId);
+  }, [selectChannel]);
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
+    <div className="flex h-screen">
+      {/* Left sidebar */}
       <aside className="w-64 bg-zinc-800 p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-6">
-          <span className={`${firaCode.className} text-zinc-200 text-lg`}>
-            hacker_chat
-          </span>
+        {/* User info */}
+        <div className="mb-4">
           <div className="flex items-center gap-2">
-            {socketError && (
-              <span className="text-red-500 text-xs" title={socketError}>⚠️</span>
-            )}
-            <span className={`text-xs ${isConnected ? 'text-green-500' : 'text-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'}>
-              ●
-            </span>
-            <UserButton 
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  userButtonAvatarBox: 'w-8 h-8',
-                  userButtonPopoverCard: 'border border-zinc-700 shadow-xl !bg-zinc-800 !rounded',
-                  userButtonPopoverActions: 'border-t border-zinc-700',
-                  userPreviewMainIdentifier: '!text-zinc-200 font-mono',
-                  userPreviewSecondaryIdentifier: '!text-zinc-400 font-mono',
-                  userButtonPopoverActionButton: '!text-zinc-400 hover:!text-zinc-200 font-mono',
-                  userButtonPopoverActionButtonText: 'font-mono !text-zinc-200',
-                  userButtonPopoverActionButtonIcon: '!text-zinc-400',
-                  footerActionLink: '!text-zinc-400 hover:!text-zinc-200',
-                  footerActionText: '!text-zinc-200',
-                  card: '!rounded',
-                  avatarBox: '!rounded',
-                  userPreviewAvatarBox: '!rounded',
-                  userButtonAvatarImage: '!rounded',
-                  organizationSwitcherTriggerIcon: '!text-zinc-200',
-                  organizationPreviewTextContainer: '!text-zinc-200',
-                  organizationSwitcherTrigger: '!text-zinc-200',
-                  organizationSwitcherTriggerButton: '!text-zinc-200',
-                  userButtonTrigger: '!text-zinc-200 !rounded focus:!ring-2 focus:!ring-[#00b300] focus:!ring-offset-2 focus:!ring-offset-zinc-800',
-                  userButtonPopoverActionButtonArrow: '!text-zinc-200',
-                  userButtonPopoverFooter: '!text-zinc-200 border-t border-zinc-700',
-                  userPreview: 'flex items-center pb-4',
-                  userPreviewTextContainer: 'flex flex-col justify-center'
-                }
-              }}
-            />
+            <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-200 text-sm">
+              {userName?.[0]?.toUpperCase() || 'A'}
+            </div>
+            <span className="text-zinc-200 text-sm">{userName || 'Anonymous'}</span>
           </div>
         </div>
         
@@ -375,79 +348,7 @@ export function HomeUI() {
         {isLoading ? (
           <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading channels...</div>
         ) : (
-          <ChannelList
-            channels={channels}
-            selectedChannel={selectedChannel}
-            onSelectChannel={handleSelectChannel}
-            onChannelCreated={(newChannel) => {
-              setChannels(prev => {
-                // First remove any existing channel with this ID or matching originalId
-                const withoutNew = prev.filter(channel => 
-                  channel.id !== newChannel.id && 
-                  channel.id !== newChannel.originalId
-                );
-                
-                if ('_remove' in newChannel) {
-                  // If removing, just return the filtered list
-                  if (selectedChannel === newChannel.id) {
-                    setSelectedChannel(null);
-                  }
-                  return withoutNew;
-                }
-
-                // Add the new channel and sort
-                return [...withoutNew, newChannel].sort((a, b) => {
-                  if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                    return a.name.localeCompare(b.name);
-                  }
-                  return a.parentId ? 1 : -1;
-                });
-              });
-            }}
-            onChannelDeleted={(deletedChannelId) => {
-              // Remove the deleted channel and all its children
-              setChannels(prev => {
-                const isChildOf = (channelId: string, parentId: string): boolean => {
-                  const channel = prev.find(c => c.id === channelId);
-                  if (!channel) return false;
-                  if (channel.parentId === parentId) return true;
-                  return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
-                };
-
-                // Filter out the deleted channel and all its descendants
-                const remainingChannels = prev.filter(channel => 
-                  channel.id !== deletedChannelId && !isChildOf(channel.id, deletedChannelId)
-                );
-
-                return remainingChannels;
-              });
-
-              // If we're in the deleted channel or any of its children, return to channel select
-              const isInDeletedChannel = (channelId: string): boolean => {
-                const channel = channels.find(c => c.id === channelId);
-                if (!channel) return false;
-                if (channel.id === deletedChannelId) return true;
-                return channel.parentId ? isInDeletedChannel(channel.parentId) : false;
-              };
-
-              if (selectedChannel && isInDeletedChannel(selectedChannel)) {
-                handleSelectChannel(null);
-              }
-
-              // Update messages to clear thread links for the deleted channel
-              messages.forEach(message => {
-                if (message.threadId === deletedChannelId) {
-                  const updatedMessage = {
-                    ...message,
-                    threadId: undefined,
-                    threadName: undefined
-                  };
-                  updateMessage(message.id, updatedMessage);
-                }
-              });
-            }}
-            className="flex-1"
-          />
+          <ChannelList className="flex-1" />
         )}
 
         {/* Settings */}
@@ -485,58 +386,52 @@ export function HomeUI() {
             <div className="flex-1 overflow-hidden">
               <div className="h-full p-4 overflow-y-auto flex flex-col-reverse">
                 {messageStatus === 'loading' ? (
-                  <div className="flex items-center justify-center p-4">
-                    <span className={`${firaCode.className} text-sm text-zinc-400`}>
-                      Loading messages...
-                    </span>
+                  <div className={`${firaCode.className} text-sm text-zinc-400`}>
+                    Loading messages...
                   </div>
-                ) : messageStatus === 'error' ? (
-                  <div className="flex items-center justify-center p-4">
-                    <span className={`${firaCode.className} text-sm text-red-400`}>
-                      {messageError}
-                    </span>
+                ) : messageError ? (
+                  <div className={`${firaCode.className} text-sm text-red-400`}>
+                    {messageError}
                   </div>
                 ) : messages.length === 0 ? (
                   <div className={`${firaCode.className} text-sm text-zinc-400`}>
                     No messages yet
                   </div>
                 ) : (
-                  <div key={selectedChannel}>
+                  <div className="space-y-4">
                     {messages.map(message => (
                       <MessageComponent
                         key={message.id}
                         message={message}
                         isHighlighted={message.id === selectedMessageId}
-                        onReply={handleReply}
+                        onReply={setReplyTo}
                         onHighlightMessage={setSelectedMessageId}
-                        onSelectChannel={handleSelectChannel}
-                        onAddMessage={addMessage}
-                        onChannelCreated={(newChannel) => {
-                          setChannels(prev => {
-                            // First remove any existing channel with this ID or matching originalId
-                            const withoutNew = prev.filter(channel => 
-                              channel.id !== newChannel.id && 
-                              channel.id !== newChannel.originalId
-                            );
-                            
-                            if ('_remove' in newChannel) {
-                              // If removing, just return the filtered list
-                              if (selectedChannel === newChannel.id) {
-                                setSelectedChannel(null);
-                              }
-                              return withoutNew;
+                        onSelectChannel={selectChannel}
+                        onChannelCreated={channel => {
+                          const withoutNew = channels.filter((c: Channel) => 
+                            c.id !== channel.id && 
+                            c.id !== (channel as any).originalId
+                          );
+                          
+                          if ('_remove' in channel) {
+                            // If removing, just return the filtered list
+                            if (selectedChannel === channel.id) {
+                              selectChannel(null);
                             }
+                            setChannels(withoutNew);
+                            return;
+                          }
 
-                            // Add the new channel and sort
-                            return [...withoutNew, newChannel].sort((a, b) => {
-                              if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                                return a.name.localeCompare(b.name);
-                              }
-                              return a.parentId ? 1 : -1;
-                            });
-                          });
+                          // Add the new channel and sort
+                          setChannels([...withoutNew, channel].sort((a: Channel, b: Channel) => {
+                            if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+                              return a.name.localeCompare(b.name);
+                            }
+                            return a.parentId ? 1 : -1;
+                          }));
                         }}
                         onMessageUpdate={updateMessage}
+                        onAddMessage={addMessage}
                         channels={channels}
                       />
                     ))}
@@ -578,29 +473,6 @@ export function HomeUI() {
             onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
             className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
           />
-          {isUserListCollapsed && (
-            <div className="flex flex-col items-center gap-4 mt-auto pt-4">
-              <button
-                onClick={() => setIsUserListCollapsed(false)}
-                className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                aria-label="Show users"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setIsUserListCollapsed(false)}
-                className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                aria-label="Show chat"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-            </div>
-          )}
         </div>
       </aside>
     </div>
