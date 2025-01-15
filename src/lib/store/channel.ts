@@ -48,7 +48,24 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
   isLoading: false,
 
   // Read operations
-  selectChannel: (id: string | null) => set({ selectedChannelId: id }),
+  selectChannel: (id: string | null) => {
+    const store = get();
+    const prevChannel = store.selectedChannelId;
+    
+    // Don't reselect the same channel
+    if (prevChannel === id) return;
+
+    // Update selected channel
+    set({ selectedChannelId: id });
+
+    // Clear error state on channel change
+    store._setError(null);
+  },
+  
+  getSelectedChannel: () => {
+    const store = get();
+    return store.selectedChannelId ? store.getChannel(store.selectedChannelId) : null;
+  },
   
   getChannel: (id: string) => get().channels.find(c => c.id === id),
   

@@ -17,19 +17,22 @@ import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';
 import { ChatInput } from './ChatInput';
+import { useChannelStore } from '@/lib/store/channel';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 export function HomeUI() {
   const { userName, userId, userImageUrl } = useAuthContext();
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [highlightedMessage, setHighlightedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  
+  // Add store hooks
+  const { selectedChannelId, selectChannel } = useChannelStore();
   
   const { 
     messages, 
@@ -111,13 +114,13 @@ export function HomeUI() {
 
   // Join/Leave channel when selection changes
   useEffect(() => {
-    if (!selectedChannel) {
+    if (!selectedChannelId) {
       clearMessages();
       return;
     }
 
     // Don't fetch messages or join socket for temporary channels
-    if (selectedChannel.startsWith('temp_')) {
+    if (selectedChannelId.startsWith('temp_')) {
       return;
     }
 
@@ -125,7 +128,7 @@ export function HomeUI() {
     const fetchMessages = async () => {
       try {
         startLoadingMessages();
-        const res = await fetch(`/api/channels/${selectedChannel}/messages`);
+        const res = await fetch(`/api/channels/${selectedChannelId}/messages`);
         if (!res.ok) {
           throw new Error('Failed to fetch messages');
         }
@@ -141,24 +144,24 @@ export function HomeUI() {
 
     // Join socket channel
     if (isConnected) {
-      joinChannel(selectedChannel);
+      joinChannel(selectedChannelId);
     }
 
     return () => {
-      if (isConnected && selectedChannel && !selectedChannel.startsWith('temp_')) {
-        leaveChannel(selectedChannel);
+      if (isConnected && selectedChannelId && !selectedChannelId.startsWith('temp_')) {
+        leaveChannel(selectedChannelId);
       }
     };
-  }, [selectedChannel, isConnected, clearMessages, startLoadingMessages, setMessages, setMessageError, joinChannel, leaveChannel]);
+  }, [selectedChannelId, isConnected, clearMessages, startLoadingMessages, setMessages, setMessageError, joinChannel, leaveChannel]);
 
   const handleSendMessage = useCallback((content: string) => {
-    if (!selectedChannel || !isConnected) return;
+    if (!selectedChannelId || !isConnected) return;
 
     const messageId = `temp_${Date.now()}`;
     const optimisticMessage: Message = {
       id: messageId,
       content,
-      channelId: selectedChannel,
+      channelId: selectedChannelId,
       createdAt: new Date().toISOString(),
       author: {
         id: userId || 'optimistic',
@@ -180,11 +183,11 @@ export function HomeUI() {
 
     addMessage(optimisticMessage);
     setReplyTo(null);
-    sendSocketMessage(messageId, selectedChannel, content, undefined, replyTo?.id);
-  }, [selectedChannel, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
+    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id);
+  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
 
   const handleFileSelect = useCallback(async (file: File) => {
-    if (!selectedChannel || !isConnected) return;
+    if (!selectedChannelId || !isConnected) return;
 
     try {
       setIsUploading(true);
@@ -210,7 +213,7 @@ export function HomeUI() {
         fileName,
         fileType,
         fileSize,
-        channelId: selectedChannel,
+        channelId: selectedChannelId,
         createdAt: new Date().toISOString(),
         author: {
           id: userId || 'optimistic',
@@ -231,7 +234,7 @@ export function HomeUI() {
       };
 
       addMessage(optimisticMessage);
-      sendSocketMessage(messageId, selectedChannel, fileName, {
+      sendSocketMessage(messageId, selectedChannelId, fileName, {
         fileUrl: url,
         fileName,
         fileType,
@@ -243,11 +246,15 @@ export function HomeUI() {
     } finally {
       setIsUploading(false);
     }
-  }, [selectedChannel, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage, setMessageError]);
+  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage, setMessageError]);
 
   const handleReply = useCallback((message: Message) => {
     setReplyTo(message);
     messageInputRef.current?.focus();
+  }, []);
+
+  const handleCancelReply = useCallback((message: Message) => {
+    setReplyTo(null);
   }, []);
 
   const getChannelPath = (channelId: string): string => {
@@ -271,7 +278,7 @@ export function HomeUI() {
   // Clear reply indicator on channel change
   useEffect(() => {
     setReplyTo(null);
-  }, [selectedChannel]);
+  }, [selectedChannelId]);
 
   // Handle ESC key and click-away for message highlighting
   useEffect(() => {
@@ -319,9 +326,14 @@ export function HomeUI() {
 
   // Update channel selection
   const handleSelectChannel = (channelId: string | null) => {
-    setSelectedChannel(channelId);
+    selectChannel(channelId);
     setCurrentChannel(channelId);
   };
+
+  const handleMessageHighlight = useCallback((m: Message) => {
+    setHighlightedMessage(m.id);
+    setTimeout(() => setHighlightedMessage(null), 2000);
+  }, []);
 
   return (
     <div className="min-h-screen flex">
@@ -377,7 +389,7 @@ export function HomeUI() {
         ) : (
           <ChannelList
             channels={channels}
-            selectedChannel={selectedChannel}
+            selectedChannel={selectedChannelId}
             onSelectChannel={handleSelectChannel}
             onChannelCreated={(newChannel) => {
               setChannels(prev => {
@@ -389,8 +401,8 @@ export function HomeUI() {
                 
                 if ('_remove' in newChannel) {
                   // If removing, just return the filtered list
-                  if (selectedChannel === newChannel.id) {
-                    setSelectedChannel(null);
+                  if (selectedChannelId === newChannel.id) {
+                    selectChannel(null);
                   }
                   return withoutNew;
                 }
@@ -430,7 +442,7 @@ export function HomeUI() {
                 return channel.parentId ? isInDeletedChannel(channel.parentId) : false;
               };
 
-              if (selectedChannel && isInDeletedChannel(selectedChannel)) {
+              if (selectedChannelId && isInDeletedChannel(selectedChannelId)) {
                 handleSelectChannel(null);
               }
 
@@ -458,13 +470,13 @@ export function HomeUI() {
 
       {/* Main content area */}
       <main className="flex-1 bg-zinc-900 flex flex-col h-screen">
-        {selectedChannel ? (
+        {selectedChannelId ? (
           <>
             {/* Channel header */}
             <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
-                  {getChannelPath(selectedChannel)}
+                  {getChannelPath(selectedChannelId)}
                 </h2>
                 {!isConnected && (
                   <span className="text-red-500 text-xs">
@@ -501,7 +513,7 @@ export function HomeUI() {
                     No messages yet
                   </div>
                 ) : (
-                  <div key={selectedChannel}>
+                  <div key={selectedChannelId}>
                     {messages.map(message => (
                       <MessageComponent
                         key={message.id}
@@ -521,8 +533,8 @@ export function HomeUI() {
                             
                             if ('_remove' in newChannel) {
                               // If removing, just return the filtered list
-                              if (selectedChannel === newChannel.id) {
-                                setSelectedChannel(null);
+                              if (selectedChannelId === newChannel.id) {
+                                selectChannel(null);
                               }
                               return withoutNew;
                             }
@@ -548,7 +560,7 @@ export function HomeUI() {
             {/* Replace the old message input with the new ChatInput component */}
             <ChatInput
               isConnected={isConnected}
-              selectedChannel={selectedChannel}
+              selectedChannel={selectedChannelId}
               replyTo={replyTo}
               onSendMessage={handleSendMessage}
               onCancelReply={() => setReplyTo(null)}
