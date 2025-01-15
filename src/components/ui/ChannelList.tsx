@@ -1,10 +1,11 @@
 // src/components/ui/ChannelList.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Fira_Code } from 'next/font/google';
 import type { Channel } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
+import { useChannelStore } from '@/lib/store/channel';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -69,6 +70,16 @@ export function ChannelList({
   const [parentId, setParentId] = useState<string | null>(null);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
 
+  // Add Zustand store hooks
+  const { selectChannel, _addOptimisticChannel, _replaceOptimisticWithReal, _removeOptimisticChannel } = useChannelStore();
+
+  // Sync store with prop changes
+  useEffect(() => {
+    if (selectedChannel) {
+      selectChannel(selectedChannel);
+    }
+  }, [selectedChannel, selectChannel]);
+
   const channelTree = buildChannelTree(channels);
 
   const handleCreateChannel = async () => {
@@ -92,8 +103,9 @@ export function ChannelList({
     setIsCreating(false);
     setParentId(null);
     
-    // Only add to list, don't select yet
+    // Add to both existing state and Zustand store
     onChannelCreated(optimisticChannel);
+    _addOptimisticChannel(optimisticChannel, parentId ? { parentId } : undefined);
 
     try {
       const response = await fetch('/api/channels', {
@@ -111,14 +123,16 @@ export function ChannelList({
       if (!response.ok) throw new Error('Failed to create channel');
       
       const newChannel = await response.json();
-      // Replace optimistic channel with real one
+      // Replace optimistic channel with real one in both places
       onChannelCreated(newChannel);
+      _replaceOptimisticWithReal(optimisticChannel.id, newChannel);
       // Only select after we have the real channel
       onSelectChannel(newChannel.id);
     } catch (error) {
       console.error('Error creating channel:', error);
-      // Remove optimistic channel on error by filtering it out
+      // Remove optimistic channel on error from both places
       onChannelCreated({...optimisticChannel, _remove: true});
+      _removeOptimisticChannel(optimisticChannel.id);
     } finally {
       setIsSubmitting(false);
     }
