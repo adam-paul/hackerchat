@@ -43,7 +43,12 @@ export function MessageComponent({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userId } = useAuthContext();
   const { socket } = useSocket();
-  const { _addOptimisticChannel, _replaceOptimisticWithReal, _removeOptimisticChannel } = useChannelStore();
+  const { 
+    _addOptimisticChannel, 
+    _replaceOptimisticWithReal, 
+    _removeOptimisticChannel,
+    createThread 
+  } = useChannelStore();
   const messageRef = useRef<HTMLDivElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
   const threadInputRef = useRef<HTMLInputElement>(null);
@@ -139,124 +144,18 @@ export function MessageComponent({
     setIsSubmitting(true);
     const name = threadName.trim();
     
-    // Create optimistic thread immediately
-    const tempId = `temp_${name}`;
-    const optimisticThread = {
-      id: tempId,
-      name,
-      parentId: message.channelId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: message.author.id,
-    };
-    
-    // Clear UI immediately with optimistic update
+    // Clear UI immediately
     setThreadName('');
     setIsNaming(false);
-    
-    // Update UI optimistically in both places
-    onChannelCreated?.(optimisticThread);
-    _addOptimisticChannel(optimisticThread, {
-      messageId: message.id,
-      initialMessage: {
-        id: `temp_thread_${Date.now()}`,
-        content: message.content,
-        channelId: tempId,
-        createdAt: new Date().toISOString(),
-        author: message.author,
-        reactions: [],
-        fileUrl: message.fileUrl,
-        fileName: message.fileName,
-        fileType: message.fileType,
-        fileSize: message.fileSize
-      }
-    });
-
-    const optimisticMessageUpdate = {
-      ...message,
-      threadId: tempId,
-      threadName: name
-    };
-    onMessageUpdate?.(message.id, optimisticMessageUpdate);
-
-    // Create optimistic thread starter message
-    const optimisticThreadMessage: Message = {
-      id: `temp_thread_${Date.now()}`,
-      content: message.content,
-      channelId: tempId,
-      createdAt: new Date().toISOString(),
-      author: message.author,
-      reactions: [],
-      fileUrl: message.fileUrl,
-      fileName: message.fileName,
-      fileType: message.fileType,
-      fileSize: message.fileSize
-    };
-    onAddMessage?.(optimisticThreadMessage);
-    
-    // Navigate to the new thread immediately
-    onSelectChannel?.(tempId);
 
     try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          parentId: message.channelId,
-          initialMessage: {
-            content: message.content,
-            authorId: message.author.id,
-            fileUrl: message.fileUrl,
-            fileName: message.fileName,
-            fileType: message.fileType,
-            fileSize: message.fileSize,
-            originalId: message.id
-          },
-          messageId: message.id,
-          originalId: tempId
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to create thread');
-      }
-      
-      const newThread = await response.json();
-      
-      // First update the message to point to the real thread ID
-      const updatedMessage = {
-        ...message,
-        threadId: newThread.id,
-        threadName: name
-      };
-      onMessageUpdate?.(message.id, updatedMessage);
-
-      // Then update the optimistic message to be in the real thread
-      const updatedThreadMessage = {
-        ...optimisticThreadMessage,
-        channelId: newThread.id
-      };
-      onMessageUpdate?.(optimisticThreadMessage.id, updatedThreadMessage);
-
-      // Remove the temp thread and add the real one in both places
-      onChannelCreated?.({...optimisticThread, _remove: true});
-      onChannelCreated?.(newThread);
-      _replaceOptimisticWithReal(optimisticThread.id, newThread);
-
-      // Navigate to the real thread ID
-      onSelectChannel?.(newThread.id);
+      // Create thread using store method
+      await createThread(name, message.channelId, message);
     } catch (error) {
       console.error('Failed to create thread:', error);
-      // Remove optimistic updates on error from both places
-      onChannelCreated?.({...optimisticThread, _remove: true});
-      onMessageUpdate?.(message.id, message); // Restore original message
-      _removeOptimisticChannel(optimisticThread.id);
-      // Navigate back to original channel on error
-      onSelectChannel?.(message.channelId);
+      // Restore UI state for retry
+      setThreadName(name);
+      setIsNaming(true);
     } finally {
       setIsSubmitting(false);
     }

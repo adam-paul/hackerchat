@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
-import type { Channel } from '@/types';
+import type { Channel, Message } from '@/types';
 
 // Helper function to build channel tree
 const buildChannelTree = (channels: Channel[]): Channel[] => {
@@ -168,8 +168,92 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     }
   },
   
-  createThread: async () => {
-    throw new Error('Not implemented');
+  createThread: async (name: string, parentId: string, message: Message) => {
+    const store = get();
+    const tempId = `temp_${name}`;
+    
+    // Verify parent exists
+    const parent = store.getChannel(parentId);
+    if (!parent) {
+      throw new Error('Parent channel not found');
+    }
+
+    // Create optimistic thread channel
+    const optimisticThread: Channel = {
+      id: tempId,
+      name,
+      parentId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      creatorId: message.author.id,
+    };
+
+    // Create optimistic thread message
+    const optimisticThreadMessage: Message = {
+      id: `temp_thread_${Date.now()}`,
+      content: message.content,
+      channelId: tempId,
+      createdAt: new Date().toISOString(),
+      author: message.author,
+      reactions: [],
+      fileUrl: message.fileUrl,
+      fileName: message.fileName,
+      fileType: message.fileType,
+      fileSize: message.fileSize
+    };
+
+    // Add optimistic update with thread metadata
+    store._addOptimisticChannel(optimisticThread, {
+      messageId: message.id,
+      initialMessage: optimisticThreadMessage,
+      parentId
+    });
+    
+    try {
+      // Create thread on server
+      const response = await fetch('/api/channels', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          parentId,
+          initialMessage: {
+            content: message.content,
+            authorId: message.author.id,
+            fileUrl: message.fileUrl,
+            fileName: message.fileName,
+            fileType: message.fileType,
+            fileSize: message.fileSize,
+            originalId: message.id
+          },
+          messageId: message.id,
+          originalId: tempId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to create thread');
+      }
+
+      // Get real thread from response
+      const realThread = await response.json();
+
+      // Replace optimistic with real
+      store._replaceOptimisticWithReal(tempId, realThread);
+      
+      // Select the new thread
+      store.selectChannel(realThread.id);
+
+      return realThread;
+    } catch (error) {
+      // Remove optimistic update on error
+      store._removeOptimisticChannel(tempId);
+      store._setError(error instanceof Error ? error.message : 'Failed to create thread');
+      throw error;
+    }
   },
   
   deleteChannel: async () => {
