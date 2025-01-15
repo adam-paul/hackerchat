@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Fira_Code } from 'next/font/google';
+import { UserButton } from "@clerk/nextjs";
 import type { Channel, Message } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useMessages } from '@/lib/hooks/useMessage';
@@ -337,9 +338,7 @@ export function HomeUI() {
         {/* User info */}
         <div className="mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-200 text-sm">
-              {userName?.[0]?.toUpperCase() || 'A'}
-            </div>
+            <UserButton afterSignOutUrl="/" />
             <span className="text-zinc-200 text-sm">{userName || 'Anonymous'}</span>
           </div>
         </div>
