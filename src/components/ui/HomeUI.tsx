@@ -17,26 +17,19 @@ import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';
 import { ChatInput } from './ChatInput';
-import { useChannelStore } from '@/lib/store/channel';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 export function HomeUI() {
   const { userName, userId, userImageUrl } = useAuthContext();
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
-  
-  // Add store hooks
-  const { 
-    selectedChannelId,
-    selectChannel,
-    getChannelPath,
-    _setError
-  } = useChannelStore();
   
   const { 
     messages, 
@@ -118,13 +111,13 @@ export function HomeUI() {
 
   // Join/Leave channel when selection changes
   useEffect(() => {
-    if (!selectedChannelId) {
+    if (!selectedChannel) {
       clearMessages();
       return;
     }
 
     // Don't fetch messages or join socket for temporary channels
-    if (selectedChannelId.startsWith('temp_')) {
+    if (selectedChannel.startsWith('temp_')) {
       return;
     }
 
@@ -132,7 +125,7 @@ export function HomeUI() {
     const fetchMessages = async () => {
       try {
         startLoadingMessages();
-        const res = await fetch(`/api/channels/${selectedChannelId}/messages`);
+        const res = await fetch(`/api/channels/${selectedChannel}/messages`);
         if (!res.ok) {
           throw new Error('Failed to fetch messages');
         }
@@ -148,24 +141,24 @@ export function HomeUI() {
 
     // Join socket channel
     if (isConnected) {
-      joinChannel(selectedChannelId);
+      joinChannel(selectedChannel);
     }
 
     return () => {
-      if (isConnected && selectedChannelId && !selectedChannelId.startsWith('temp_')) {
-        leaveChannel(selectedChannelId);
+      if (isConnected && selectedChannel && !selectedChannel.startsWith('temp_')) {
+        leaveChannel(selectedChannel);
       }
     };
-  }, [selectedChannelId, isConnected, clearMessages, startLoadingMessages, setMessages, setMessageError, joinChannel, leaveChannel]);
+  }, [selectedChannel, isConnected, clearMessages, startLoadingMessages, setMessages, setMessageError, joinChannel, leaveChannel]);
 
   const handleSendMessage = useCallback((content: string) => {
-    if (!selectedChannelId || !isConnected) return;
+    if (!selectedChannel || !isConnected) return;
 
     const messageId = `temp_${Date.now()}`;
     const optimisticMessage: Message = {
       id: messageId,
       content,
-      channelId: selectedChannelId,
+      channelId: selectedChannel,
       createdAt: new Date().toISOString(),
       author: {
         id: userId || 'optimistic',
@@ -187,11 +180,11 @@ export function HomeUI() {
 
     addMessage(optimisticMessage);
     setReplyTo(null);
-    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id);
-  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
+    sendSocketMessage(messageId, selectedChannel, content, undefined, replyTo?.id);
+  }, [selectedChannel, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
 
   const handleFileSelect = useCallback(async (file: File) => {
-    if (!selectedChannelId || !isConnected) return;
+    if (!selectedChannel || !isConnected) return;
 
     try {
       setIsUploading(true);
@@ -217,7 +210,7 @@ export function HomeUI() {
         fileName,
         fileType,
         fileSize,
-        channelId: selectedChannelId,
+        channelId: selectedChannel,
         createdAt: new Date().toISOString(),
         author: {
           id: userId || 'optimistic',
@@ -238,7 +231,7 @@ export function HomeUI() {
       };
 
       addMessage(optimisticMessage);
-      sendSocketMessage(messageId, selectedChannelId, fileName, {
+      sendSocketMessage(messageId, selectedChannel, fileName, {
         fileUrl: url,
         fileName,
         fileType,
@@ -250,12 +243,35 @@ export function HomeUI() {
     } finally {
       setIsUploading(false);
     }
-  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage, setMessageError]);
+  }, [selectedChannel, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage, setMessageError]);
 
   const handleReply = useCallback((message: Message) => {
     setReplyTo(message);
     messageInputRef.current?.focus();
   }, []);
+
+  const getChannelPath = (channelId: string): string => {
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) return '';
+
+    const parts: string[] = [channel.name];
+    let current = channel;
+
+    // Traverse up the parent chain
+    while (current.parentId) {
+      const parent = channels.find(c => c.id === current.parentId);
+      if (!parent) break;
+      parts.unshift(parent.name);
+      current = parent;
+    }
+
+    return '_' + parts.join('.');
+  };
+
+  // Clear reply indicator on channel change
+  useEffect(() => {
+    setReplyTo(null);
+  }, [selectedChannel]);
 
   // Handle ESC key and click-away for message highlighting
   useEffect(() => {
@@ -301,6 +317,12 @@ export function HomeUI() {
     }
   }, [messages, replyTo]);
 
+  // Update channel selection
+  const handleSelectChannel = (channelId: string | null) => {
+    setSelectedChannel(channelId);
+    setCurrentChannel(channelId);
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -316,73 +338,100 @@ export function HomeUI() {
             <span className={`text-xs ${isConnected ? 'text-green-500' : 'text-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'}>
               ●
             </span>
-            <Settings />
-            <UserButton afterSignOutUrl="/" />
+            <UserButton 
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: 'w-8 h-8',
+                  userButtonPopoverCard: 'border border-zinc-700 shadow-xl !bg-zinc-800 !rounded',
+                  userButtonPopoverActions: 'border-t border-zinc-700',
+                  userPreviewMainIdentifier: '!text-zinc-200 font-mono',
+                  userPreviewSecondaryIdentifier: '!text-zinc-400 font-mono',
+                  userButtonPopoverActionButton: '!text-zinc-400 hover:!text-zinc-200 font-mono',
+                  userButtonPopoverActionButtonText: 'font-mono !text-zinc-200',
+                  userButtonPopoverActionButtonIcon: '!text-zinc-400',
+                  footerActionLink: '!text-zinc-400 hover:!text-zinc-200',
+                  footerActionText: '!text-zinc-200',
+                  card: '!rounded',
+                  avatarBox: '!rounded',
+                  userPreviewAvatarBox: '!rounded',
+                  userButtonAvatarImage: '!rounded',
+                  organizationSwitcherTriggerIcon: '!text-zinc-200',
+                  organizationPreviewTextContainer: '!text-zinc-200',
+                  organizationSwitcherTrigger: '!text-zinc-200',
+                  organizationSwitcherTriggerButton: '!text-zinc-200',
+                  userButtonTrigger: '!text-zinc-200 !rounded focus:!ring-2 focus:!ring-[#00b300] focus:!ring-offset-2 focus:!ring-offset-zinc-800',
+                  userButtonPopoverActionButtonArrow: '!text-zinc-200',
+                  userButtonPopoverFooter: '!text-zinc-200 border-t border-zinc-700',
+                  userPreview: 'flex items-center pb-4',
+                  userPreviewTextContainer: 'flex flex-col justify-center'
+                }
+              }}
+            />
           </div>
         </div>
-
-        <SearchBar
-          searchQuery={searchQuery}
-          onSearchChange={handleSearchChange}
-          searchResults={searchResults}
-          onResultClick={handleSearchResultClick}
-          onClear={clearSearch}
-        />
-
-        <div className="border-b border-zinc-700 my-4" />
-
-        <ChannelList
-          channels={channels}
-          selectedChannel={selectedChannelId}
-          onSelectChannel={selectChannel}
-          onChannelCreated={(channel) => {
-            setChannels(prev => {
-              // First remove any existing channel with this ID or matching originalId
-              const withoutNew = prev.filter(c => 
-                c.id !== channel.id && 
-                c.id !== channel.originalId
-              );
-              
-              if ('_remove' in channel) {
-                // If removing, just return the filtered list
-                if (selectedChannelId === channel.id) {
-                  selectChannel(null);
+        
+        {/* Channel list */}
+        {isLoading ? (
+          <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading channels...</div>
+        ) : (
+          <ChannelList
+            channels={channels}
+            selectedChannel={selectedChannel}
+            onSelectChannel={handleSelectChannel}
+            onChannelCreated={(newChannel) => {
+              setChannels(prev => {
+                // First remove any existing channel with this ID or matching originalId
+                const withoutNew = prev.filter(channel => 
+                  channel.id !== newChannel.id && 
+                  channel.id !== newChannel.originalId
+                );
+                
+                if ('_remove' in newChannel) {
+                  // If removing, just return the filtered list
+                  if (selectedChannel === newChannel.id) {
+                    setSelectedChannel(null);
+                  }
+                  return withoutNew;
                 }
-                return withoutNew;
-              }
 
-              // Add the new channel and sort
-              return [...withoutNew, channel].sort((a, b) => {
-                if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
-                  return a.name.localeCompare(b.name);
-                }
-                return a.parentId ? 1 : -1;
+                // Add the new channel and sort
+                return [...withoutNew, newChannel].sort((a, b) => {
+                  if ((!a.parentId && !b.parentId) || (a.parentId && b.parentId)) {
+                    return a.name.localeCompare(b.name);
+                  }
+                  return a.parentId ? 1 : -1;
+                });
               });
-            });
-          }}
-          onChannelDeleted={(deletedChannelId) => {
-            setChannels(prev => {
-              const isChildOf = (channelId: string, parentId: string): boolean => {
-                const channel = prev.find(c => c.id === channelId);
-                if (!channel) return false;
-                if (channel.parentId === parentId) return true;
-                if (channel.parentId) return isChildOf(channel.parentId, parentId);
-                return false;
-              };
-
+            }}
+            onChannelDeleted={(deletedChannelId) => {
               // Remove the deleted channel and all its children
-              const remaining = prev.filter(channel => 
-                channel.id !== deletedChannelId && 
-                !isChildOf(channel.id, deletedChannelId)
-              );
+              setChannels(prev => {
+                const isChildOf = (channelId: string, parentId: string): boolean => {
+                  const channel = prev.find(c => c.id === channelId);
+                  if (!channel) return false;
+                  if (channel.parentId === parentId) return true;
+                  return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
+                };
 
+                // Filter out the deleted channel and all its descendants
+                const remainingChannels = prev.filter(channel => 
+                  channel.id !== deletedChannelId && !isChildOf(channel.id, deletedChannelId)
+                );
+
+                return remainingChannels;
+              });
+
+              // If we're in the deleted channel or any of its children, return to channel select
               const isInDeletedChannel = (channelId: string): boolean => {
-                return channelId === deletedChannelId || 
-                       prev.some(c => c.id === deletedChannelId && isChildOf(channelId, c.id));
+                const channel = channels.find(c => c.id === channelId);
+                if (!channel) return false;
+                if (channel.id === deletedChannelId) return true;
+                return channel.parentId ? isInDeletedChannel(channel.parentId) : false;
               };
 
-              if (selectedChannelId && isInDeletedChannel(selectedChannelId)) {
-                selectChannel(null);
+              if (selectedChannel && isInDeletedChannel(selectedChannel)) {
+                handleSelectChannel(null);
               }
 
               // Update messages to clear thread links for the deleted channel
@@ -396,26 +445,45 @@ export function HomeUI() {
                   updateMessage(message.id, updatedMessage);
                 }
               });
+            }}
+            className="flex-1"
+          />
+        )}
 
-              return remaining;
-            });
-          }}
-          className="flex-1 overflow-y-auto"
-        />
+        {/* Settings */}
+        <div className="mt-auto pt-4 border-t border-zinc-700">
+          <Settings />
+        </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 bg-zinc-900 flex flex-col">
-        {selectedChannelId ? (
+      {/* Main content area */}
+      <main className="flex-1 bg-zinc-900 flex flex-col h-screen">
+        {selectedChannel ? (
           <>
-            <div className="p-4 border-b border-zinc-800">
-              <h1 className={`${firaCode.className} text-zinc-200 text-lg`}>
-                {getChannelPath(selectedChannelId)}
-              </h1>
+            {/* Channel header */}
+            <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
+                  {getChannelPath(selectedChannel)}
+                </h2>
+                {!isConnected && (
+                  <span className="text-red-500 text-xs">
+                    Disconnected
+                  </span>
+                )}
+              </div>
+              <SearchBar
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                searchResults={searchResults}
+                onResultClick={handleSearchResultClick}
+                onClear={clearSearch}
+              />
             </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="max-w-4xl mx-auto">
+            
+            {/* Messages area */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full p-4 overflow-y-auto flex flex-col-reverse">
                 {messageStatus === 'loading' ? (
                   <div className="flex items-center justify-center p-4">
                     <span className={`${firaCode.className} text-sm text-zinc-400`}>
@@ -433,7 +501,7 @@ export function HomeUI() {
                     No messages yet
                   </div>
                 ) : (
-                  <div key={selectedChannelId}>
+                  <div key={selectedChannel}>
                     {messages.map(message => (
                       <MessageComponent
                         key={message.id}
@@ -441,7 +509,7 @@ export function HomeUI() {
                         isHighlighted={message.id === selectedMessageId}
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
-                        onSelectChannel={selectChannel}
+                        onSelectChannel={handleSelectChannel}
                         onAddMessage={addMessage}
                         onChannelCreated={(newChannel) => {
                           setChannels(prev => {
@@ -453,8 +521,8 @@ export function HomeUI() {
                             
                             if ('_remove' in newChannel) {
                               // If removing, just return the filtered list
-                              if (selectedChannelId === newChannel.id) {
-                                selectChannel(null);
+                              if (selectedChannel === newChannel.id) {
+                                setSelectedChannel(null);
                               }
                               return withoutNew;
                             }
@@ -477,9 +545,10 @@ export function HomeUI() {
               </div>
             </div>
 
+            {/* Replace the old message input with the new ChatInput component */}
             <ChatInput
               isConnected={isConnected}
-              selectedChannel={selectedChannelId}
+              selectedChannel={selectedChannel}
               replyTo={replyTo}
               onSendMessage={handleSendMessage}
               onCancelReply={() => setReplyTo(null)}
@@ -509,6 +578,29 @@ export function HomeUI() {
             onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
             className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
           />
+          {isUserListCollapsed && (
+            <div className="flex flex-col items-center gap-4 mt-auto pt-4">
+              <button
+                onClick={() => setIsUserListCollapsed(false)}
+                className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label="Show users"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setIsUserListCollapsed(false)}
+                className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label="Show chat"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </div>

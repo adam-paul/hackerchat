@@ -23,7 +23,6 @@ export interface ChannelActions {
   selectChannel: (id: string | null) => void;
   getChannel: (id: string) => Channel | undefined;
   getChannelTree: () => Channel[];
-  getChannelPath: (channelId: string) => string;
   
   // Write operations
   createRootChannel: (name: string) => Promise<void>;
