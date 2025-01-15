@@ -56,12 +56,13 @@ function buildChannelTree(channels: Channel[]): ChannelNode[] {
 }
 
 export function ChannelList({ 
+  channels, 
   selectedChannel, 
   onSelectChannel,
   onChannelCreated,
   onChannelDeleted,
   className = '' 
-}: Omit<ChannelListProps, 'channels'>) {
+}: ChannelListProps) {
   const { userId } = useAuthContext();
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,7 +75,9 @@ export function ChannelList({
     selectChannel, 
     createRootChannel,
     createSubchannel,
-    channels
+    _addOptimisticChannel, 
+    _replaceOptimisticWithReal, 
+    _removeOptimisticChannel 
   } = useChannelStore();
 
   // Sync store with prop changes
