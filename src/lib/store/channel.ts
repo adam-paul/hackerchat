@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
-import type { Channel, Message } from '@/types';
+import type { Channel } from '@/types';
 
 // Helper function to build channel tree
 const buildChannelTree = (channels: Channel[]): Channel[] => {
@@ -54,174 +54,21 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
   
   getChannelTree: () => buildChannelTree(get().channels),
 
-  // Write operations
-  createRootChannel: async (name: string) => {
-    const { _addOptimisticChannel, _removeOptimisticChannel, _replaceOptimisticWithReal, _setError } = get();
-    const tempId = `temp_${name}`;
-    
-    const optimisticChannel: Channel = {
-      id: tempId,
-      name,
-      parentId: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: '', // Will be set by server
-    };
-
-    _addOptimisticChannel(optimisticChannel);
-
-    try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          originalId: tempId
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const realChannel = await response.json();
-      _replaceOptimisticWithReal(tempId, realChannel);
-    } catch (error) {
-      _removeOptimisticChannel(tempId);
-      _setError(error instanceof Error ? error.message : 'Failed to create channel');
-      throw error;
-    }
+  // Write operations (stubs for now)
+  createRootChannel: async () => {
+    throw new Error('Not implemented');
   },
   
-  createSubchannel: async (name: string, parentId: string) => {
-    const { _addOptimisticChannel, _removeOptimisticChannel, _replaceOptimisticWithReal, _setError } = get();
-    const tempId = `temp_${name}`;
-    
-    const optimisticChannel: Channel = {
-      id: tempId,
-      name,
-      parentId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: '', // Will be set by server
-    };
-
-    _addOptimisticChannel(optimisticChannel, { parentId });
-
-    try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          parentId,
-          originalId: tempId
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const realChannel = await response.json();
-      _replaceOptimisticWithReal(tempId, realChannel);
-    } catch (error) {
-      _removeOptimisticChannel(tempId);
-      _setError(error instanceof Error ? error.message : 'Failed to create subchannel');
-      throw error;
-    }
+  createSubchannel: async () => {
+    throw new Error('Not implemented');
   },
   
-  createThread: async (name: string, parentId: string, message: Message) => {
-    const { _addOptimisticChannel, _removeOptimisticChannel, _replaceOptimisticWithReal, _setError } = get();
-    const tempId = `temp_${name}`;
-    
-    const optimisticChannel: Channel = {
-      id: tempId,
-      name,
-      parentId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: message.author.id,
-    };
-
-    _addOptimisticChannel(optimisticChannel, {
-      messageId: message.id,
-      initialMessage: message,
-      parentId
-    });
-
-    try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          parentId,
-          initialMessage: {
-            content: message.content,
-            authorId: message.author.id,
-            fileUrl: message.fileUrl,
-            fileName: message.fileName,
-            fileType: message.fileType,
-            fileSize: message.fileSize,
-            originalId: message.id
-          },
-          messageId: message.id,
-          originalId: tempId
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const realChannel = await response.json();
-      _replaceOptimisticWithReal(tempId, realChannel);
-    } catch (error) {
-      _removeOptimisticChannel(tempId);
-      _setError(error instanceof Error ? error.message : 'Failed to create thread');
-      throw error;
-    }
+  createThread: async () => {
+    throw new Error('Not implemented');
   },
   
-  deleteChannel: async (id: string) => {
-    const { _setError, channels } = get();
-    
-    // Helper to check if a channel is a child of another
-    const isChildOf = (channelId: string, parentId: string): boolean => {
-      const channel = channels.find(c => c.id === channelId);
-      if (!channel) return false;
-      if (channel.parentId === parentId) return true;
-      return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
-    };
-
-    // Get all descendant channels
-    const descendantIds = channels
-      .filter(c => isChildOf(c.id, id))
-      .map(c => c.id);
-
-    // Remove the channel and its descendants optimistically
-    set(state => ({
-      channels: state.channels.filter(c => 
-        c.id !== id && !descendantIds.includes(c.id)
-      )
-    }));
-
-    try {
-      const response = await fetch(`/api/channels/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-    } catch (error) {
-      // On error, restore the deleted channels
-      // Note: In a real app, you might want to fetch fresh data here
-      _setError(error instanceof Error ? error.message : 'Failed to delete channel');
-      throw error;
-    }
+  deleteChannel: async () => {
+    throw new Error('Not implemented');
   },
 
   // Internal actions
