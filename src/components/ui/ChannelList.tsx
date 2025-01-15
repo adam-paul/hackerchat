@@ -74,6 +74,7 @@ export function ChannelList({
   const { 
     selectChannel, 
     createRootChannel,
+    createSubchannel,
     _addOptimisticChannel, 
     _replaceOptimisticWithReal, 
     _removeOptimisticChannel 
@@ -104,53 +105,16 @@ export function ChannelList({
         // Create root channel using store method
         await createRootChannel(channelName);
       } else {
-        // Create optimistic channel immediately
-        const optimisticChannel = {
-          id: `temp_${channelName}`,
-          name: channelName,
-          parentId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          creatorId: userId || '',
-        };
-        
-        // Add to both existing state and Zustand store
-        onChannelCreated(optimisticChannel);
-        _addOptimisticChannel(optimisticChannel, parentId ? { parentId } : undefined);
-
-        // Create on server
-        const response = await fetch('/api/channels', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: channelName,
-            parentId: parentId,
-            originalId: optimisticChannel.id,
-          }),
-        });
-
-        if (!response.ok) throw new Error('Failed to create channel');
-        
-        const newChannel = await response.json();
-        // Replace optimistic channel with real one in both places
-        onChannelCreated(newChannel);
-        _replaceOptimisticWithReal(optimisticChannel.id, newChannel);
-        // Only select after we have the real channel
-        onSelectChannel(newChannel.id);
+        // Create subchannel using store method
+        await createSubchannel(channelName, parentId);
       }
     } catch (error) {
       console.error('Error creating channel:', error);
-      if (!parentId) {
-        // Root channel errors are handled by the store
-        setNewChannelName(channelName); // Restore the name for retry
-        setIsCreating(true);
-      } else {
-        // Remove optimistic subchannel on error from both places
-        const tempId = `temp_${channelName}`;
-        onChannelCreated({id: tempId, _remove: true} as any);
-        _removeOptimisticChannel(tempId);
+      // Restore UI state for retry
+      setNewChannelName(channelName);
+      setIsCreating(true);
+      if (parentId) {
+        setParentId(parentId);
       }
     } finally {
       setIsSubmitting(false);

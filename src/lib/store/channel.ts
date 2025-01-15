@@ -108,8 +108,64 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     }
   },
   
-  createSubchannel: async () => {
-    throw new Error('Not implemented');
+  createSubchannel: async (name: string, parentId: string) => {
+    const store = get();
+    const tempId = `temp_${name}`;
+    
+    // Verify parent exists
+    const parent = store.getChannel(parentId);
+    if (!parent) {
+      throw new Error('Parent channel not found');
+    }
+
+    // Create optimistic channel
+    const optimisticChannel: Channel = {
+      id: tempId,
+      name,
+      parentId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      creatorId: 'optimistic', // Will be replaced by server
+    };
+
+    // Add optimistic update
+    store._addOptimisticChannel(optimisticChannel, { parentId });
+    
+    try {
+      // Create channel on server
+      const response = await fetch('/api/channels', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          parentId,
+          originalId: tempId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to create subchannel');
+      }
+
+      // Get real channel from response
+      const realChannel = await response.json();
+
+      // Replace optimistic with real
+      store._replaceOptimisticWithReal(tempId, realChannel);
+      
+      // Select the new channel
+      store.selectChannel(realChannel.id);
+
+      return realChannel;
+    } catch (error) {
+      // Remove optimistic update on error
+      store._removeOptimisticChannel(tempId);
+      store._setError(error instanceof Error ? error.message : 'Failed to create subchannel');
+      throw error;
+    }
   },
   
   createThread: async () => {
