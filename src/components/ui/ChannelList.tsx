@@ -71,7 +71,13 @@ export function ChannelList({
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
 
   // Add Zustand store hooks
-  const { selectChannel, _addOptimisticChannel, _replaceOptimisticWithReal, _removeOptimisticChannel } = useChannelStore();
+  const { 
+    selectChannel, 
+    createRootChannel,
+    _addOptimisticChannel, 
+    _replaceOptimisticWithReal, 
+    _removeOptimisticChannel 
+  } = useChannelStore();
 
   // Sync store with prop changes
   useEffect(() => {
@@ -88,51 +94,64 @@ export function ChannelList({
     setIsSubmitting(true);
     const channelName = newChannelName.trim();
     
-    // Create optimistic channel immediately
-    const optimisticChannel = {
-      id: `temp_${channelName}`, // Use consistent ID based on name
-      name: channelName,
-      parentId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: userId || '',
-    };
-    
-    // Clear UI immediately with optimistic update
+    // Clear UI immediately
     setNewChannelName('');
     setIsCreating(false);
     setParentId(null);
-    
-    // Add to both existing state and Zustand store
-    onChannelCreated(optimisticChannel);
-    _addOptimisticChannel(optimisticChannel, parentId ? { parentId } : undefined);
 
     try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      if (!parentId) {
+        // Create root channel using store method
+        await createRootChannel(channelName);
+      } else {
+        // Create optimistic channel immediately
+        const optimisticChannel = {
+          id: `temp_${channelName}`,
           name: channelName,
-          parentId: parentId,
-          originalId: optimisticChannel.id, // Pass the optimistic ID
-        }),
-      });
+          parentId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          creatorId: userId || '',
+        };
+        
+        // Add to both existing state and Zustand store
+        onChannelCreated(optimisticChannel);
+        _addOptimisticChannel(optimisticChannel, parentId ? { parentId } : undefined);
 
-      if (!response.ok) throw new Error('Failed to create channel');
-      
-      const newChannel = await response.json();
-      // Replace optimistic channel with real one in both places
-      onChannelCreated(newChannel);
-      _replaceOptimisticWithReal(optimisticChannel.id, newChannel);
-      // Only select after we have the real channel
-      onSelectChannel(newChannel.id);
+        // Create on server
+        const response = await fetch('/api/channels', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: channelName,
+            parentId: parentId,
+            originalId: optimisticChannel.id,
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to create channel');
+        
+        const newChannel = await response.json();
+        // Replace optimistic channel with real one in both places
+        onChannelCreated(newChannel);
+        _replaceOptimisticWithReal(optimisticChannel.id, newChannel);
+        // Only select after we have the real channel
+        onSelectChannel(newChannel.id);
+      }
     } catch (error) {
       console.error('Error creating channel:', error);
-      // Remove optimistic channel on error from both places
-      onChannelCreated({...optimisticChannel, _remove: true});
-      _removeOptimisticChannel(optimisticChannel.id);
+      if (!parentId) {
+        // Root channel errors are handled by the store
+        setNewChannelName(channelName); // Restore the name for retry
+        setIsCreating(true);
+      } else {
+        // Remove optimistic subchannel on error from both places
+        const tempId = `temp_${channelName}`;
+        onChannelCreated({id: tempId, _remove: true} as any);
+        _removeOptimisticChannel(tempId);
+      }
     } finally {
       setIsSubmitting(false);
     }
