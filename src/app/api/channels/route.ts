@@ -121,20 +121,19 @@ export async function POST(req: Request) {
       originalId: originalId?.startsWith('temp_') ? originalId : undefined
     };
 
-    // Broadcast the new channel to all connected clients
-    if (process.env.SOCKET_SERVER_URL) {
-      try {
-        await fetch(`${process.env.SOCKET_SERVER_URL}/api/broadcast-channel`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.SOCKET_WEBHOOK_SECRET}`
-          },
-          body: JSON.stringify(formattedChannel)
-        });
-      } catch (error) {
-        console.error("[CHANNELS_POST] Failed to broadcast new channel:", error);
-      }
+    // Broadcast channel creation via socket server
+    try {
+      await fetch(`${process.env.SOCKET_SERVER_URL}/broadcast/channel-created`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SOCKET_WEBHOOK_SECRET}`
+        },
+        body: JSON.stringify(formattedChannel)
+      });
+    } catch (error) {
+      console.error("[CHANNELS_POST] Failed to broadcast channel creation:", error);
+      // Don't fail the request if broadcast fails
     }
 
     return NextResponse.json(formattedChannel);

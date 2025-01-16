@@ -1,7 +1,7 @@
 // src/lib/socket/service.ts
 
 import { io, Socket } from 'socket.io-client';
-import type { Message, Reaction, Channel } from '@/types';
+import type { Message, Reaction } from '@/types';
 
 interface MessageCallbacks {
   onDelivered?: (messageId: string) => void;
@@ -21,9 +21,6 @@ export class SocketService {
   private onStatusChangeHandler?: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void;
   private onReactionAddedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
   private onReactionRemovedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
-  private onChannelCreatedHandler?: (channel: Channel) => void;
-  private onChannelDeletedHandler?: (channelId: string) => void;
-  private onChannelUpdatedHandler?: (channel: Channel) => void;
 
   constructor(private readonly url: string = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000') {}
 
@@ -90,45 +87,89 @@ export class SocketService {
       console.error('Socket error:', error);
     });
 
-    this.socket.on('message', (message: Message) => {
-      this.onMessageHandler?.(message);
-      this.messageCallbacks.get(message.id)?.onMessage?.(message);
+    this.socket.on('message', (event: any) => {
+      if (this.onMessageHandler) {
+        // Handle both direct messages and message events
+        const message = event.message || event;
+        
+        // Validate message structure
+        if (!message || typeof message !== 'object') {
+          console.error('Invalid message received:', event);
+          return;
+        }
+
+        // Ensure required fields exist
+        if (!message.id || !message.channelId || !message.author) {
+          console.error('Message missing required fields:', message);
+          return;
+        }
+
+        // Ensure author has required fields
+        if (!message.author.id) {
+          console.error('Message author missing required fields:', message);
+          return;
+        }
+
+        this.onMessageHandler(message);
+      }
     });
 
-    this.socket.on('message-delivered', (messageId: string) => {
-      this.messageCallbacks.get(messageId)?.onDelivered?.(messageId);
+    this.socket.on('status-changed', (event: { userId: string, status: 'online' | 'away' | 'busy' | 'offline' }) => {
+      if (this.onStatusChangeHandler) {
+        this.onStatusChangeHandler(event);
+      }
     });
 
-    this.socket.on('message-error', (event: { messageId: string; error: string }) => {
-      this.messageCallbacks.get(event.messageId)?.onError?.(event.messageId, event.error);
+    this.socket.on('message-delivered', (event) => {
+      const callbacks = this.messageCallbacks.get(event.originalId || event.messageId);
+      if (callbacks) {
+        callbacks.onDelivered?.(event.messageId);
+        // Always update the message when we receive a delivery confirmation
+        if (this.onMessageHandler && event.message) {
+          // Update the message with the permanent ID and any reply info
+          this.onMessageHandler({
+            ...event.message,
+            originalId: event.originalId // Keep track of the original ID for reference
+          });
+        }
+        this.messageCallbacks.delete(event.originalId || event.messageId);
+      }
     });
 
-    this.socket.on('message-deleted', (event: { messageId: string; originalId?: string }) => {
-      this.onMessageDeleteHandler?.(event);
+    this.socket.on('message-error', ({ messageId, error }) => {
+      const callbacks = this.messageCallbacks.get(messageId);
+      callbacks?.onError?.(messageId, error);
+      this.messageCallbacks.delete(messageId);
     });
 
-    this.socket.on('status-changed', (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => {
-      this.onStatusChangeHandler?.(event);
+    // Handle message deletion events from the server
+    this.socket.on('message-deleted', (event) => {
+      if (this.onMessageDeleteHandler) {
+        this.onMessageDeleteHandler(event);
+      }
     });
 
-    this.socket.on('reaction-added', (event: { messageId: string; reaction: Reaction }) => {
-      this.onReactionAddedHandler?.(event);
+    // Handle reaction events
+    this.socket.on('reaction-added', (event) => {
+      if (this.onReactionAddedHandler) {
+        // Skip if this is our own reaction (we already handled it optimistically)
+        const userId = (this.socket?.auth as { userId?: string })?.userId;
+        if (event.reaction?.user?.id === userId) {
+          return;
+        }
+        this.onReactionAddedHandler(event);
+      }
     });
 
-    this.socket.on('reaction-removed', (event: { messageId: string; reaction: Reaction }) => {
-      this.onReactionRemovedHandler?.(event);
-    });
-
-    this.socket.on('channel-created', (channel: Channel) => {
-      this.onChannelCreatedHandler?.(channel);
-    });
-
-    this.socket.on('channel-deleted', (channelId: string) => {
-      this.onChannelDeletedHandler?.(channelId);
-    });
-
-    this.socket.on('channel-updated', (channel: Channel) => {
-      this.onChannelUpdatedHandler?.(channel);
+    this.socket.on('reaction-removed', (event) => {
+      if (this.onReactionRemovedHandler) {
+        // Skip if this is our own reaction (we already handled it optimistically)
+        const userId = (this.socket?.auth as { userId?: string })?.userId;
+        if (event.reaction?.user?.id === userId) {
+          return;
+        }
+        this.onReactionRemovedHandler(event);
+      }
     });
   }
 
@@ -344,17 +385,5 @@ export class SocketService {
     }
     
     return null;
-  }
-
-  setChannelCreatedHandler(handler: (channel: Channel) => void): void {
-    this.onChannelCreatedHandler = handler;
-  }
-
-  setChannelDeletedHandler(handler: (channelId: string) => void): void {
-    this.onChannelDeletedHandler = handler;
-  }
-
-  setChannelUpdatedHandler(handler: (channel: Channel) => void): void {
-    this.onChannelUpdatedHandler = handler;
   }
 } 

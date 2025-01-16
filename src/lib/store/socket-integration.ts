@@ -106,15 +106,19 @@ export function setupSocketIntegration(socket: SocketService) {
       });
   };
 
-  // Set up socket event handlers
-  socket.setChannelCreatedHandler(handleChannelCreated);
-  socket.setChannelDeletedHandler(handleChannelDeleted);
-  socket.setChannelUpdatedHandler(handleChannelUpdated);
+  // Set up event listeners
+  socket.on('channel:created', handleChannelCreated);
+  socket.on('channel:deleted', handleChannelDeleted);
+  socket.on('channel:updated', handleChannelUpdated);
+  socket.on('error', handleError);
+  socket.on('socket.reconnect', handleReconnect);
 
   // Return cleanup function
   return () => {
-    socket.off('channel-created', handleChannelCreated);
-    socket.off('channel-deleted', handleChannelDeleted);
-    socket.off('channel-updated', handleChannelUpdated);
+    socket.off('channel:created', handleChannelCreated);
+    socket.off('channel:deleted', handleChannelDeleted);
+    socket.off('channel:updated', handleChannelUpdated);
+    socket.off('error', handleError);
+    socket.off('socket.reconnect', handleReconnect);
   };
 }

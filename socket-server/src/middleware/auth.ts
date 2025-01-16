@@ -1,38 +1,90 @@
 // socket-server/src/middleware/auth.ts
 
-import type { Request, Response, NextFunction } from 'express';
-import type { Socket } from 'socket.io';
+import { Socket } from 'socket.io';
+import { clerkClient } from '@clerk/clerk-sdk-node';
+import type { SocketType } from '../types/handlers';
+import { verifyToken } from '@clerk/backend';
+import { ENV } from '../config/environment';
 import { prisma } from '../lib/db';
 
-// Socket authentication middleware
-export const authMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
-  const token = socket.handshake.auth.token;
-  
-  if (!token) {
-    return next(new Error('Authentication error'));
-  }
-
+export const authMiddleware = async (
+  socket: SocketType,
+  next: (err?: Error) => void
+) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: token }
-    });
+    const token = socket.handshake.auth.token;
+    const authType = socket.handshake.auth.type;
 
-    if (!user) {
-      return next(new Error('User not found'));
+    if (!token) {
+      console.error('Authentication token missing');
+      return next(new Error('Authentication token missing'));
     }
 
-    socket.data.userId = user.id;
-    next();
-  } catch (error) {
-    next(new Error('Authentication error'));
-  }
-};
+    // Handle webhook authentication
+    if (authType === 'webhook') {
+      if (token !== process.env.SOCKET_WEBHOOK_SECRET) {
+        return next(new Error('Invalid webhook token'));
+      }
+      
+      socket.data.userId = 'webhook';
+      socket.data.userName = 'System';
+      return next();
+    }
 
-// Webhook authentication middleware
-export const verifyWebhookSecret = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${process.env.SOCKET_WEBHOOK_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    // Regular user authentication
+    // Remove 'Bearer ' prefix if present
+    const cleanToken = token.replace('Bearer ', '');
+
+    try {
+      // Verify the session token without network call
+      const session = await verifyToken(cleanToken, {
+        secretKey: ENV.CLERK_SECRET_KEY,
+        issuer: ENV.CLERK_ISSUER,
+        audience: ENV.CLERK_AUDIENCE,
+        clockSkewInMs: 60000 // Allow 1 minute of clock skew
+      });
+
+      if (!session?.sub) {
+        console.error('Invalid session - no userId found');
+        return next(new Error('Invalid session'));
+      }
+
+      // Get user details
+      const user = await clerkClient.users.getUser(session.sub);
+      
+      // Create or update user in database
+      await prisma.user.upsert({
+        where: { id: session.sub },
+        create: {
+          id: session.sub,
+          name: user.username || 'Anonymous',
+          imageUrl: user.imageUrl,
+          status: 'online'
+        },
+        update: {
+          name: user.username || 'Anonymous',
+          imageUrl: user.imageUrl,
+          // Don't update status on reconnect - keep existing status
+        }
+      });
+
+      // Attach user data to socket
+      socket.data.userId = session.sub;
+      socket.data.userName = user.username || 'Anonymous';
+      socket.data.imageUrl = user.imageUrl;
+
+      console.log('User authenticated:', {
+        userId: session.sub,
+        userName: socket.data.userName
+      });
+
+      next();
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      return next(new Error('Invalid token'));
+    }
+  } catch (error) {
+    console.error('Authentication failed:', error);
+    return next(new Error('Authentication failed'));
   }
-  next();
 }; 
