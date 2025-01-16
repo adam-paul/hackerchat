@@ -155,6 +155,13 @@ export class SocketService {
       this.messageCallbacks.delete(messageId);
     });
 
+    // Handle message update events
+    this.socket.on('message-updated', (message) => {
+      if (this.onMessageHandler) {
+        this.onMessageHandler(message);
+      }
+    });
+
     // Handle message deletion events from the server
     this.socket.on('message-deleted', (event) => {
       if (this.onMessageDeleteHandler) {
@@ -429,7 +436,14 @@ export class SocketService {
   }
 
   // Channel operations with error handling and retries
-  async createChannel(name: string, parentId?: string, description?: string, callbacks?: ChannelCallbacks): Promise<void> {
+  async createChannel(
+    name: string,
+    parentId?: string,
+    messageContent?: string,
+    callbacks?: ChannelCallbacks & {
+      messageId?: string;
+    }
+  ): Promise<void> {
     if (!this.socket?.connected) throw new Error('Socket not connected');
 
     const tempId = `temp_${name}`;
@@ -442,11 +456,17 @@ export class SocketService {
     let attempts = 0;
     const attemptOperation = async () => {
       try {
-        this.socket!.emit('create-channel', { 
+        this.socket!.emit('create_channel', { 
           name, 
           parentId, 
-          description,
-          originalId: tempId
+          description: undefined,
+          originalId: tempId,
+          ...(messageContent && callbacks?.messageId && {
+            messageId: callbacks.messageId,
+            initialMessage: {
+              content: messageContent
+            }
+          })
         });
       } catch (error) {
         if (attempts < this.MAX_RETRY_ATTEMPTS) {

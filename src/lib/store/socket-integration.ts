@@ -4,6 +4,7 @@
 import type { Channel } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
 import { useChannelStore } from './channel';
+import type { Socket } from 'socket.io-client';
 
 // Ensure this only runs on the client
 const isClient = typeof window !== 'undefined';
@@ -137,3 +138,47 @@ export function setupSocketIntegration(socket: SocketService) {
     socket.off('socket.reconnect', handleReconnect);
   };
 }
+
+export const createSocketIntegration = (socket: Socket) => ({
+  createChannel: async (
+    name: string,
+    parentId?: string,
+    messageContent?: string,
+    options?: {
+      onError?: (error: string) => void;
+      messageId?: string;
+    }
+  ) => {
+    return new Promise<void>((resolve, reject) => {
+      socket.emit('create_channel', {
+        name,
+        parentId,
+        ...(messageContent && {
+          messageId: options?.messageId,
+          initialMessage: {
+            content: messageContent
+          }
+        })
+      });
+
+      const cleanup = () => {
+        socket.off('channel_created', handleSuccess);
+        socket.off('error', handleError);
+      };
+
+      const handleSuccess = () => {
+        cleanup();
+        resolve();
+      };
+
+      const handleError = (error: { error: string }) => {
+        cleanup();
+        options?.onError?.(error.error);
+        reject(new Error(error.error));
+      };
+
+      socket.once('channel_created', handleSuccess);
+      socket.once('error', handleError);
+    });
+  }
+});

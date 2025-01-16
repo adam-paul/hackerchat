@@ -33,12 +33,20 @@ export interface ChannelPayload {
   channelId: string;
 }
 
-export interface CreateChannelPayload {
+export type CreateChannelPayload = {
   name: string;
-  parentId?: string;
   description?: string;
+  parentId?: string;
   originalId?: string;
-}
+  messageId?: string; // ID of message to create thread from
+  initialMessage?: {
+    content: string;
+    fileUrl?: string;
+    fileName?: string;
+    fileType?: string;
+    fileSize?: number;
+  };
+};
 
 export interface UpdateChannelPayload {
   channelId: string;
@@ -66,10 +74,18 @@ export const channelSchema = z.object({
 });
 
 export const createChannelSchema = z.object({
-  name: z.string().min(1),
-  parentId: z.string().optional(),
+  name: z.string(),
   description: z.string().optional(),
-  originalId: z.string().optional()
+  parentId: z.string().optional(),
+  originalId: z.string().optional(),
+  messageId: z.string().optional(),
+  initialMessage: z.object({
+    content: z.string(),
+    fileUrl: z.string().optional(),
+    fileName: z.string().optional(),
+    fileType: z.string().optional(),
+    fileSize: z.number().optional()
+  }).optional()
 });
 
 export const updateChannelSchema = z.object({
