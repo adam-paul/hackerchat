@@ -165,10 +165,6 @@ export function useMessages() {
       }
     };
 
-    const handleMessageUpdate = (event: { messageId: string; message: Message }) => {
-      dispatch({ type: 'UPDATE_MESSAGE', payload: { id: event.messageId, message: event.message } });
-    };
-
     const handleReactionAdded = (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
       dispatch({ type: 'ADD_REACTION', payload: event });
     };
@@ -181,14 +177,12 @@ export function useMessages() {
     };
 
     socket.setMessageHandler(handleMessage);
-    socket.setMessageUpdateHandler(handleMessageUpdate);
     socket.setMessageDeleteHandler(handleMessageDeleted);
     socket.setReactionAddedHandler(handleReactionAdded);
     socket.setReactionRemovedHandler(handleReactionRemoved);
 
     return () => {
       socket.setMessageHandler(() => {});
-      socket.setMessageUpdateHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
       socket.setReactionAddedHandler(() => {});
       socket.setReactionRemovedHandler(() => {});
