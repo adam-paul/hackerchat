@@ -256,17 +256,17 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           createdAt: new Date().toISOString()
         }
       });
+
+      // Update the message locally first with optimistic data
+      socket.updateMessage(message.id, {
+        threadId: tempId,
+        threadMetadata: {
+          title: name,
+          createdAt: new Date().toISOString()
+        }
+      });
     
       try {
-        // Update the message locally first
-        socket.updateMessage(message.id, {
-          threadId: tempId,
-          threadMetadata: {
-            title: name,
-            createdAt: new Date().toISOString()
-          }
-        });
-
         await socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
@@ -279,7 +279,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
               originalId: tempId
             });
     
-            // Update the source message with thread metadata
+            // Update the source message with real thread metadata
             if (socket) {
               socket.updateMessage(message.id, {
                 threadId: channel.id,

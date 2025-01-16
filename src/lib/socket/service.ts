@@ -553,17 +553,26 @@ export class SocketService {
   }
 
   updateMessage(messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }): void {
-    if (!this.socket) return;
+    if (!this.socket) {
+      console.log('[SocketService] No socket connection for message update');
+      return;
+    }
+    
+    console.log('[SocketService] Updating message locally:', { messageId, updates });
     
     // Handle local update first
     if (this.onMessageUpdateHandler) {
+      console.log('[SocketService] Calling onMessageUpdateHandler');
       this.onMessageUpdateHandler({
         messageId,
         ...updates
       });
+    } else {
+      console.log('[SocketService] No onMessageUpdateHandler registered!');
     }
 
     // Then emit to other clients
+    console.log('[SocketService] Emitting message-updated event');
     this.socket.emit('message-updated', { messageId, ...updates });
   }
 } 
