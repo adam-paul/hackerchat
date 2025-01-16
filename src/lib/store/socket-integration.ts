@@ -4,7 +4,12 @@ import type { Channel } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
 import { useChannelStore } from './channel';
 
+// Ensure this only runs on the client
+const isClient = typeof window !== 'undefined';
+
 export function setupSocketIntegration(socket: SocketService) {
+  if (!isClient) return () => {};
+
   // Instead of accessing store directly, use setState
   const store = useChannelStore;
 

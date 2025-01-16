@@ -4,6 +4,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { Fira_Code } from 'next/font/google';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { ChannelList } from './ChannelList';
 import { Settings } from './Settings';
 import type { Channel, Message } from '@/types';
@@ -21,7 +22,19 @@ import { useChannelStore } from '@/lib/store/channel';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
+// Dynamically import components that depend on window/DOM
+const DynamicUserButton = dynamic(() => Promise.resolve(UserButton), {
+  ssr: false
+});
+
 export function HomeUI() {
+  // Add client-side only state
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const { userName, userId, userImageUrl } = useAuthContext();
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -428,13 +441,15 @@ export function HomeUI() {
             hacker_chat
           </span>
           <div className="flex items-center gap-2">
-            {socketError && (
+            {isMounted && socketError && (
               <span className="text-red-500 text-xs" title={socketError}>⚠️</span>
             )}
-            <span className={`text-xs ${isConnected ? 'text-green-500' : 'text-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'}>
-              ●
-            </span>
-            <UserButton 
+            {isMounted && (
+              <span className={`text-xs ${isConnected ? 'text-green-500' : 'text-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'}>
+                ●
+              </span>
+            )}
+            <DynamicUserButton 
               afterSignOutUrl="/"
               appearance={{
                 elements: {
@@ -468,13 +483,15 @@ export function HomeUI() {
         </div>
         
         {/* Channel list */}
-        {isLoading ? (
-          <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading channels...</div>
-        ) : (
-          <ChannelList
-            className="flex-1"
-          />
-        )}
+        {isMounted ? (
+          isLoading ? (
+            <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading channels...</div>
+          ) : (
+            <ChannelList
+              className="flex-1"
+            />
+          )
+        ) : null}
 
         {/* Settings */}
         <div className="mt-auto pt-4 border-t border-zinc-700">
@@ -484,7 +501,7 @@ export function HomeUI() {
 
       {/* Main content area */}
       <main className="flex-1 bg-zinc-900 flex flex-col h-screen">
-        {selectedChannelId ? (
+        {isMounted && selectedChannelId ? (
           <>
             {/* Channel header */}
             <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
@@ -564,44 +581,46 @@ export function HomeUI() {
       </main>
 
       {/* Right Sidebar - Users and Chat */}
-      <aside className="bg-zinc-800 p-4 flex flex-col">
-        <div className="flex flex-col h-full">
-          <UserListContainer
-            isCollapsed={isUserListCollapsed}
-            onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
-            className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
-          />
-          <ChatSection
-            isCollapsed={isChatSectionCollapsed}
-            isSidebarCollapsed={isUserListCollapsed}
-            onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
-            className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
-          />
-          {isUserListCollapsed && (
-            <div className="flex flex-col items-center gap-4 mt-auto pt-4">
-              <button
-                onClick={() => setIsUserListCollapsed(false)}
-                className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                aria-label="Show users"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setIsUserListCollapsed(false)}
-                className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                aria-label="Show chat"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-      </aside>
+      {isMounted && (
+        <aside className="bg-zinc-800 p-4 flex flex-col">
+          <div className="flex flex-col h-full">
+            <UserListContainer
+              isCollapsed={isUserListCollapsed}
+              onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
+              className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
+            />
+            <ChatSection
+              isCollapsed={isChatSectionCollapsed}
+              isSidebarCollapsed={isUserListCollapsed}
+              onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
+              className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
+            />
+            {isUserListCollapsed && (
+              <div className="flex flex-col items-center gap-4 mt-auto pt-4">
+                <button
+                  onClick={() => setIsUserListCollapsed(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                  aria-label="Show users"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIsUserListCollapsed(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                  aria-label="Show chat"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
