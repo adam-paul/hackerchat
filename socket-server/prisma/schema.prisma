@@ -33,11 +33,11 @@ model Channel {
   parent      Channel?  @relation("ChannelHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children    Channel[] @relation("ChannelHierarchy")
   messages    Message[]
-  creator     User      @relation("CreatedChannels", fields: [creatorId], references: [id], onDelete: Cascade)
-  creatorId   String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  originalId  String?   // For tracking optimistic updates
+  creatorId   String
+  creator     User      @relation("CreatedChannels", fields: [creatorId], references: [id], onDelete: Cascade)
+  originalId  String?   // For tracking optimistic channels
 }
 
 model Message {

@@ -137,6 +137,42 @@ export const handleCreateChannel = async (
       }
     });
 
+    // If this is a thread creation (has sourceMessageId and initialContent)
+    if (validData.sourceMessageId && validData.initialContent) {
+      // Find the source message (handle optimistic messages)
+      const sourceMessage = await prisma.message.findFirst({
+        where: {
+          OR: [
+            { id: validData.sourceMessageId },
+            { originalId: validData.sourceMessageId }
+          ]
+        }
+      });
+
+      if (sourceMessage) {
+        // Update the source message with thread info
+        await prisma.message.update({
+          where: { id: sourceMessage.id },
+          data: {
+            threadId: channel.id,
+            threadName: validData.name
+          }
+        });
+
+        // Create the initial message in the thread
+        await prisma.message.create({
+          data: {
+            id: createId(),
+            content: validData.initialContent,
+            channelId: channel.id,
+            authorId: socket.data.userId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        });
+      }
+    }
+
     // Join the channel room
     await socket.join(channel.id);
 

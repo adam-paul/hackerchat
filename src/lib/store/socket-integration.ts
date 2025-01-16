@@ -4,6 +4,7 @@
 import type { Channel } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
 import { useChannelStore } from './channel';
+import { useSocket } from '../socket/context';
 
 // Ensure this only runs on the client
 const isClient = typeof window !== 'undefined';
@@ -137,3 +138,32 @@ export function setupSocketIntegration(socket: SocketService) {
     socket.off('socket.reconnect', handleReconnect);
   };
 }
+
+export const createChannel = async (
+  name: string,
+  parentId?: string,
+  initialContent?: string,
+  messageId?: string,
+  options?: {
+    onError?: (error: string) => void;
+  }
+) => {
+  const { socket } = useSocket();
+  if (!socket) throw new Error('Socket not initialized');
+
+  await socket.createChannel(
+    name, 
+    parentId, 
+    undefined, 
+    {
+      onError: options?.onError,
+      onCreated: (channel) => {
+        // Channel created successfully
+      }
+    },
+    messageId && initialContent ? {
+      initialContent,
+      sourceMessageId: messageId
+    } : undefined
+  );
+};

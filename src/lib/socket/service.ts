@@ -429,7 +429,16 @@ export class SocketService {
   }
 
   // Channel operations with error handling and retries
-  async createChannel(name: string, parentId?: string, description?: string, callbacks?: ChannelCallbacks): Promise<void> {
+  async createChannel(
+    name: string, 
+    parentId?: string, 
+    description?: string, 
+    callbacks?: ChannelCallbacks,
+    threadOptions?: {
+      initialContent?: string;
+      sourceMessageId?: string;
+    }
+  ): Promise<void> {
     if (!this.socket?.connected) throw new Error('Socket not connected');
 
     const tempId = `temp_${name}`;
@@ -446,7 +455,11 @@ export class SocketService {
           name, 
           parentId, 
           description,
-          originalId: tempId
+          originalId: tempId,
+          ...(threadOptions && {
+            initialContent: threadOptions.initialContent,
+            sourceMessageId: threadOptions.sourceMessageId
+          })
         });
       } catch (error) {
         if (attempts < this.MAX_RETRY_ATTEMPTS) {
