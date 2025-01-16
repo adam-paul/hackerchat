@@ -39,6 +39,12 @@ export const EVENTS = {
   LEAVE_CHANNEL: 'leave-channel' as const,
   CHANNEL_JOINED: 'channel-joined' as const,
   CHANNEL_LEFT: 'channel-left' as const,
+  CREATE_CHANNEL: 'create-channel' as const,
+  CHANNEL_CREATED: 'channel-created' as const,
+  DELETE_CHANNEL: 'delete-channel' as const,
+  CHANNEL_DELETED: 'channel-deleted' as const,
+  UPDATE_CHANNEL: 'update-channel' as const,
+  CHANNEL_UPDATED: 'channel-updated' as const,
   
   // Message events
   MESSAGE: 'message' as const,

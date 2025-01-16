@@ -2,7 +2,14 @@
 
 import type { SocketType } from '../types/handlers';
 import type { MessageEvent, ReactionEvent } from '../types';
-import { handleJoinChannel, handleLeaveChannel, handleTyping } from './channel';
+import { 
+  handleJoinChannel, 
+  handleLeaveChannel, 
+  handleTyping,
+  handleCreateChannel,
+  handleUpdateChannel,
+  handleDeleteChannel
+} from './channel';
 import { handleMessage, handleMessageDelete } from './message';
 import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
@@ -53,6 +60,18 @@ export const handleConnection = (socket: SocketType): void => {
     await handleLeaveChannel(socket, channelId);
   });
 
+  socket.on(EVENTS.CREATE_CHANNEL, async (data) => {
+    await handleCreateChannel(socket, data);
+  });
+
+  socket.on(EVENTS.UPDATE_CHANNEL, async (data) => {
+    await handleUpdateChannel(socket, data);
+  });
+
+  socket.on(EVENTS.DELETE_CHANNEL, async (data) => {
+    await handleDeleteChannel(socket, data);
+  });
+
   // Message events
   socket.on(EVENTS.MESSAGE, async (data: MessageEvent) => {
     await handleMessage(socket, {
@@ -69,22 +88,6 @@ export const handleConnection = (socket: SocketType): void => {
 
   socket.on(EVENTS.MESSAGE_DELETED, async (messageId: string) => {
     await handleMessageDelete(socket, messageId);
-  });
-
-  // Channel events - add broadcasting for realtime updates
-  socket.on('channel:created', (channel) => {
-    console.log('Broadcasting channel created:', channel);
-    socket.broadcast.emit('channel:created', channel);
-  });
-
-  socket.on('channel:updated', (channel) => {
-    console.log('Broadcasting channel updated:', channel);
-    socket.broadcast.emit('channel:updated', channel);
-  });
-
-  socket.on('channel:deleted', (channelId) => {
-    console.log('Broadcasting channel deleted:', channelId);
-    socket.broadcast.emit('channel:deleted', channelId);
   });
 
   // Reaction events

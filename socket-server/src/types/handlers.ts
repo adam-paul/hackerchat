@@ -33,6 +33,22 @@ export interface ChannelPayload {
   channelId: string;
 }
 
+export interface CreateChannelPayload {
+  name: string;
+  parentId?: string;
+  description?: string;
+}
+
+export interface UpdateChannelPayload {
+  channelId: string;
+  name?: string;
+  description?: string;
+}
+
+export interface DeleteChannelPayload {
+  channelId: string;
+}
+
 export const messageSchema = z.object({
   messageId: z.string(),
   content: z.string(),
@@ -45,5 +61,21 @@ export const messageSchema = z.object({
 });
 
 export const channelSchema = z.object({
+  channelId: z.string()
+});
+
+export const createChannelSchema = z.object({
+  name: z.string().min(1),
+  parentId: z.string().optional(),
+  description: z.string().optional()
+});
+
+export const updateChannelSchema = z.object({
+  channelId: z.string(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional()
+});
+
+export const deleteChannelSchema = z.object({
   channelId: z.string()
 }); 
