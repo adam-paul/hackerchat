@@ -259,14 +259,13 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         initialMessage: optimisticThreadMessage,
         parentId
       });
-
+      
       try {
         await socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
-          },
-          messageId: message.id
+          }
         });
         return optimisticThread;
       } catch (error) {

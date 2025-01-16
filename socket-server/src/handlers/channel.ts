@@ -126,58 +126,15 @@ export const handleCreateChannel = async (
     // Validate channel data
     const validData = await validateEvent(createChannelSchema, data);
 
-    // Create channel and handle thread-specific operations in a transaction
-    const channel = await prisma.$transaction(async (tx) => {
-      // Create the channel
-      const newChannel = await tx.channel.create({
-        data: {
-          name: validData.name,
-          description: validData.description,
-          parentId: validData.parentId,
-          creatorId: socket.data.userId,
-          originalId: validData.originalId?.startsWith('temp_') ? validData.originalId : undefined
-        }
-      });
-
-      // If this is a thread creation (has messageId), update the original message
-      if (validData.messageId) {
-        const messageToUpdate = await tx.message.findFirst({
-          where: {
-            OR: [
-              { id: validData.messageId },
-              { originalId: validData.messageId }
-            ]
-          }
-        });
-
-        if (messageToUpdate) {
-          await tx.message.update({
-            where: { id: messageToUpdate.id },
-            data: {
-              threadId: newChannel.id,
-              threadName: validData.name
-            }
-          });
-
-          // If initial message content provided, create it in the thread
-          if (validData.initialMessage) {
-            await tx.message.create({
-              data: {
-                id: `msg_${createId()}`,
-                content: validData.initialMessage.content,
-                channelId: newChannel.id,
-                authorId: socket.data.userId,
-                fileUrl: validData.initialMessage.fileUrl,
-                fileName: validData.initialMessage.fileName,
-                fileType: validData.initialMessage.fileType,
-                fileSize: validData.initialMessage.fileSize
-              }
-            });
-          }
-        }
+    // Create channel with Prisma's default CUID generation
+    const channel = await prisma.channel.create({
+      data: {
+        name: validData.name,
+        description: validData.description,
+        parentId: validData.parentId,
+        creatorId: socket.data.userId,
+        originalId: validData.originalId?.startsWith('temp_') ? validData.originalId : undefined
       }
-
-      return newChannel;
     });
 
     // Join the channel room
