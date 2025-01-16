@@ -1,4 +1,5 @@
 import type { Channel, Message } from '@/types';
+import type { SocketService } from '@/lib/socket/service';
 
 export interface OptimisticUpdate {
   type: 'create' | 'update' | 'delete';
@@ -18,12 +19,13 @@ export interface ChannelStore {
   error: string | null;
   isLoading: boolean;
 
+  // Socket initialization
+  _initSocket: (socket: SocketService) => void;
+
   // Read operations
   selectChannel: (id: string | null) => void;
   getSelectedChannel: () => Channel | null;
   getChannel: (id: string) => Channel | undefined;
-  
-  // Tree operations
   getChannelTree: () => Channel[];
   getRootChannels: () => Channel[];
   getThreads: (parentId: string) => Channel[];
@@ -36,17 +38,17 @@ export interface ChannelStore {
   updateChannel: (id: string, updates: Partial<Channel>) => Promise<Channel>;
   deleteChannel: (id: string) => Promise<void>;
 
-  // Socket sync operations
-  handleChannelCreated: (channel: Channel) => void;
-  handleChannelUpdated: (channel: Channel) => void;
-  handleChannelDeleted: (channelId: string) => void;
-
   // Internal actions
   _setChannels: (channels: Channel[]) => void;
   _addOptimisticChannel: (channel: Channel, metadata?: OptimisticUpdate['metadata']) => void;
-  _addOptimisticUpdate: (channel: Channel) => void;
   _removeOptimisticChannel: (id: string) => void;
   _replaceOptimisticWithReal: (tempId: string, realChannel: Channel) => void;
   _setError: (error: string | null) => void;
   _setLoading: (isLoading: boolean) => void;
+  _addOptimisticUpdate: (channel: Channel) => void;
+
+  // Socket sync operations
+  handleChannelCreated: (channel: Channel) => void;
+  handleChannelUpdated: (channel: Channel) => void;
+  handleChannelDeleted: (channelId: string) => void;
 } 

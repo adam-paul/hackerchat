@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
 import type { Channel, Message } from '@/types';
-import { useSocket } from '@/lib/socket/context';
+import type { SocketService } from '@/lib/socket/service';
 
 // Store utilities
 const buildChannelTree = (channels: Channel[]): Channel[] => {
@@ -99,8 +99,8 @@ const selectChannelPath = (state: ChannelStore, channelId: string): string[] => 
 };
 
 export const useChannelStore = create<ChannelStore>((set, get) => {
-  // Get socket service from context
-  const { socket } = useSocket();
+  // Initialize socket as null - will be set later
+  let socket: SocketService | null = null;
 
   return {
     // State
@@ -109,6 +109,11 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     optimisticUpdates: new Map(),
     error: null,
     isLoading: false,
+
+    // Socket initialization
+    _initSocket: (socketService: SocketService) => {
+      socket = socketService;
+    },
 
     // Read operations
     selectChannel: (id: string | null) => {
@@ -134,6 +139,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
 
     // Write operations
     createRootChannel: async (name: string) => {
+      if (!socket) throw new Error('Socket not initialized');
       const store = get();
       const tempId = `temp_${name}`;
       
@@ -151,8 +157,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       store._addOptimisticChannel(optimisticChannel);
       
       try {
-        // Create channel via socket with callbacks
-        await socket?.createChannel(name, undefined, undefined, {
+        await socket.createChannel(name, undefined, undefined, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
@@ -167,6 +172,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     },
     
     createSubchannel: async (name: string, parentId: string) => {
+      if (!socket) throw new Error('Socket not initialized');
       const store = get();
       const tempId = `temp_${name}`;
       
@@ -190,8 +196,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       store._addOptimisticChannel(optimisticChannel, { parentId });
       
       try {
-        // Create channel via socket with callbacks
-        await socket?.createChannel(name, parentId, undefined, {
+        await socket.createChannel(name, parentId, undefined, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
@@ -206,6 +211,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     },
 
     createThread: async (name: string, parentId: string, message: Message) => {
+      if (!socket) throw new Error('Socket not initialized');
       const store = get();
       const tempId = `temp_${name}`;
       
@@ -247,8 +253,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       });
       
       try {
-        // Create thread via socket with callbacks
-        await socket?.createChannel(name, parentId, message.content, {
+        await socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
@@ -263,6 +268,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     },
 
     updateChannel: async (id: string, updates: Partial<Channel>) => {
+      if (!socket) throw new Error('Socket not initialized');
       const store = get();
       const channel = store.getChannel(id);
       if (!channel) {
@@ -278,8 +284,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       store._addOptimisticUpdate(optimisticChannel);
       
       try {
-        // Update channel via socket with callbacks
-        await socket?.updateChannel(id, {
+        await socket.updateChannel(id, {
           name: updates.name,
           description: updates.description || undefined
         }, {
@@ -297,6 +302,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     },
 
     deleteChannel: async (id: string) => {
+      if (!socket) throw new Error('Socket not initialized');
       const store = get();
       const channel = store.getChannel(id);
       if (!channel) {
@@ -334,8 +340,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       }
 
       try {
-        // Delete channel via socket with callbacks
-        await socket?.deleteChannel(id, {
+        await socket.deleteChannel(id, {
           onError: (error) => {
             // Restore all affected channels on error
             set(state => ({

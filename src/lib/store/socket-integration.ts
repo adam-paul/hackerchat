@@ -11,12 +11,12 @@ const isClient = typeof window !== 'undefined';
 export function setupSocketIntegration(socket: SocketService) {
   if (!isClient) return () => {};
 
-  // Instead of accessing store directly, use setState
-  const store = useChannelStore;
+  // Initialize socket in store
+  useChannelStore.getState()._initSocket(socket);
 
   // Define event handlers using store.setState
   const handleChannelCreated = (channel: Channel) => {
-    store.setState(state => {
+    useChannelStore.setState(state => {
       const optimisticUpdate = state.optimisticUpdates.get(channel.originalId || '');
       
       if (optimisticUpdate) {
@@ -40,7 +40,7 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   const handleChannelDeleted = (event: { channelId: string; timestamp: string }) => {
-    store.setState(state => {
+    useChannelStore.setState(state => {
       // Helper function to check if a channel is a descendant
       const isDescendant = (id: string, ancestorId: string): boolean => {
         const channel = state.channels.find(c => c.id === id);
@@ -62,14 +62,14 @@ export function setupSocketIntegration(socket: SocketService) {
     });
 
     // If deleted channel was selected, clear selection
-    const currentState = store.getState();
+    const currentState = useChannelStore.getState();
     if (currentState.selectedChannelId === event.channelId) {
-      store.setState({ selectedChannelId: null });
+      useChannelStore.setState({ selectedChannelId: null });
     }
   };
 
   const handleChannelUpdated = (channel: Channel) => {
-    store.setState(state => {
+    useChannelStore.setState(state => {
       const optimisticUpdate = state.optimisticUpdates.get(channel.id);
       if (optimisticUpdate) {
         return {
@@ -92,7 +92,7 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   const handleError = (error: string) => {
-    store.setState({ error });
+    useChannelStore.setState({ error });
   };
 
   const handleReconnect = () => {
@@ -100,10 +100,10 @@ export function setupSocketIntegration(socket: SocketService) {
     fetch('/api/channels')
       .then(res => res.json())
       .then(channels => {
-        store.setState({ channels });
+        useChannelStore.setState({ channels });
       })
       .catch(error => {
-        store.setState({ 
+        useChannelStore.setState({ 
           error: error instanceof Error ? error.message : 'Failed to fetch channels' 
         });
       });
