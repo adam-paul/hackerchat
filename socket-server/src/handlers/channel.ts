@@ -114,4 +114,21 @@ export const handleTyping = async (
   } catch (error) {
     return handleSocketError(socket, error, data.channelId);
   }
+};
+
+export const handleChannelCreated = async (
+  socket: SocketType,
+  channel: ChannelPayload
+): Promise<HandlerResult<ChannelPayload>> => {
+  try {
+    // Broadcast to all connected clients
+    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, channel);
+
+    return {
+      success: true,
+      data: channel
+    };
+  } catch (error) {
+    return handleSocketError(socket, error);
+  }
 }; 
