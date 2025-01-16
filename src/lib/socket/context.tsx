@@ -7,9 +7,10 @@ import { SocketService } from './service';
 import { setupSocketIntegration } from '../store/socket-integration';
 import type { Message } from '@/types';
 
-export type SocketContextType = {
+interface SocketContextType {
   isConnected: boolean;
-  error: string | null;
+  error?: string;
+  socket: SocketService | null;
   joinChannel: (channelId: string) => void;
   leaveChannel: (channelId: string) => void;
   sendMessage: (messageId: string, channelId: string, content: string, fileData?: {
@@ -19,34 +20,17 @@ export type SocketContextType = {
     fileSize: number;
   }, replyToId?: string) => void;
   updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
-  createChannel: (data: {
-    name: string;
-    description?: string;
-    parentId?: string;
-    initialMessage?: {
-      content: string;
-      authorId: string;
-      fileUrl?: string;
-      fileName?: string;
-      fileType?: string;
-      fileSize?: number;
-      originalId?: string;
-    };
-    messageId?: string;
-    originalId?: string;
-  }) => void;
-  getSocketService: () => SocketService | null;
-};
+  onMessage?: (message: Message) => void;
+}
 
 const SocketContext = createContext<SocketContextType>({
   isConnected: false,
-  error: null,
+  error: undefined,
+  socket: null,
   joinChannel: () => {},
   leaveChannel: () => {},
   sendMessage: () => {},
-  updateStatus: () => {},
-  createChannel: () => {},
-  getSocketService: () => null
+  updateStatus: () => {}
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
@@ -54,7 +38,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const tokenGetterRef = useRef(getToken);
   const [socketService, setSocketService] = useState<SocketService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
   const messageHandlerRef = useRef<((message: Message) => void) | undefined>();
   const serviceRef = useRef<SocketService | null>(null);
 
@@ -83,7 +67,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         
         await serviceRef.current.connect(token);
         setIsConnected(true);
-        setError(null);
+        setError(undefined);
 
         // Set up store integration
         const cleanup = setupSocketIntegration(serviceRef.current);
@@ -106,17 +90,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isLoaded]);
 
-  const handleError = (error: unknown) => {
-    const errorMessage = error instanceof Error ? error.message : 'An error occurred';
-    setError(errorMessage);
-  };
-
   const joinChannel = (channelId: string) => {
     try {
       socketService?.joinChannel(channelId);
     } catch (error) {
       console.error('Failed to join channel:', error);
-      handleError(error);
+      setError(error instanceof Error ? error.message : 'Failed to join channel');
     }
   };
 
@@ -125,7 +104,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socketService?.leaveChannel(channelId);
     } catch (error) {
       console.error('Failed to leave channel:', error);
-      handleError(error);
+      setError(error instanceof Error ? error.message : 'Failed to leave channel');
     }
   };
 
@@ -139,7 +118,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socketService?.sendMessage(messageId, channelId, content, fileData, replyToId);
     } catch (error) {
       console.error('Failed to send message:', error);
-      handleError(error);
+      setError(error instanceof Error ? error.message : 'Failed to send message');
     }
   };
 
@@ -148,55 +127,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socketService?.updateStatus(status);
     } catch (error) {
       console.error('Failed to update status:', error);
-      handleError(error);
+      setError(error instanceof Error ? error.message : 'Failed to update status');
     }
   };
 
-  useEffect(() => {
-    const initSocket = async () => {
-      try {
-        const token = await getToken();
-        if (!token) {
-          setError('No auth token available');
-          return;
-        }
-
-        const service = new SocketService();
-        await service.connect(token);
-        
-        setSocketService(service);
-        serviceRef.current = service;
-        setIsConnected(true);
-        setError(null);
-      } catch (error) {
-        console.error('Socket initialization error:', error);
-        setError(error instanceof Error ? error.message : 'Failed to initialize socket');
-      }
-    };
-
-    initSocket();
-  }, []);
-
-  const value: SocketContextType = {
-    isConnected,
-    error,
-    joinChannel,
-    leaveChannel,
-    sendMessage,
-    updateStatus,
-    createChannel: (data) => {
-      try {
-        socketService?.createChannel(data);
-      } catch (error) {
-        console.error('Failed to create channel:', error);
-        setError(error instanceof Error ? error.message : 'Failed to create channel');
-      }
-    },
-    getSocketService: () => socketService
-  };
-
   return (
-    <SocketContext.Provider value={value}>
+    <SocketContext.Provider value={{
+      isConnected,
+      error,
+      socket: socketService,
+      joinChannel,
+      leaveChannel,
+      sendMessage,
+      updateStatus,
+      onMessage: messageHandlerRef.current
+    }}>
       {children}
     </SocketContext.Provider>
   );

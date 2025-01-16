@@ -75,10 +75,8 @@ export function HomeUI() {
     joinChannel,
     leaveChannel,
     sendMessage: sendSocketMessage,
-    getSocketService
+    socket
   } = useSocket();
-
-  const socketService = getSocketService();
 
   const {
     searchQuery,
@@ -123,19 +121,19 @@ export function HomeUI() {
 
   // Handle socket events
   useEffect(() => {
-    if (!socketService) return;
+    if (!socket) return;
 
-    socketService.on('channel:created', handleSocketChannelCreated);
-    socketService.on('channel:updated', handleSocketChannelUpdated);
-    socketService.on('channel:deleted', handleSocketChannelDeleted);
+    socket.on('channel:created', handleSocketChannelCreated);
+    socket.on('channel:updated', handleSocketChannelUpdated);
+    socket.on('channel:deleted', handleSocketChannelDeleted);
 
     return () => {
-      if (!socketService) return;
-      socketService.off('channel:created', handleSocketChannelCreated);
-      socketService.off('channel:updated', handleSocketChannelUpdated);
-      socketService.off('channel:deleted', handleSocketChannelDeleted);
+      if (!socket) return;
+      socket.off('channel:created', handleSocketChannelCreated);
+      socket.off('channel:updated', handleSocketChannelUpdated);
+      socket.off('channel:deleted', handleSocketChannelDeleted);
     };
-  }, [socketService, handleSocketChannelCreated, handleSocketChannelUpdated, handleSocketChannelDeleted]);
+  }, [socket, handleSocketChannelCreated, handleSocketChannelUpdated, handleSocketChannelDeleted]);
 
   // Initial fetch of channels
   useEffect(() => {

@@ -386,24 +386,4 @@ export class SocketService {
     
     return null;
   }
-
-  createChannel(data: {
-    name: string;
-    description?: string;
-    parentId?: string;
-    initialMessage?: {
-      content: string;
-      authorId: string;
-      fileUrl?: string;
-      fileName?: string;
-      fileType?: string;
-      fileSize?: number;
-      originalId?: string;
-    };
-    messageId?: string;
-    originalId?: string;
-  }): void {
-    if (!this.socket?.connected) throw new Error('Socket not connected');
-    this.socket.emit('channel:create', data);
-  }
 } 

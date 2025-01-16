@@ -2,7 +2,7 @@
 
 import type { SocketType } from '../types/handlers';
 import type { MessageEvent, ReactionEvent } from '../types';
-import { handleJoinChannel, handleLeaveChannel, handleTyping, handleChannelCreate } from './channel';
+import { handleJoinChannel, handleLeaveChannel, handleTyping } from './channel';
 import { handleMessage, handleMessageDelete } from './message';
 import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
@@ -45,10 +45,6 @@ export const handleConnection = (socket: SocketType): void => {
   });
 
   // Channel events
-  socket.on('channel:create', async (data) => {
-    await handleChannelCreate(socket, data);
-  });
-
   socket.on(EVENTS.JOIN_CHANNEL, async (channelId: string) => {
     await handleJoinChannel(socket, channelId);
   });

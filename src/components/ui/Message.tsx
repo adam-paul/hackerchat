@@ -54,8 +54,7 @@ export const MessageComponent = React.memo(function MessageComponent({
   const [reactionInput, setReactionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userId } = useAuthContext();
-  const { getSocketService } = useSocket();
-  const socketService = getSocketService();
+  const { socket } = useSocket();
   const channels = useChannelStore(state => state.channels);
   const selectChannel = useChannelStore(state => state.selectChannel);
   const createThread = useChannelStore(state => state.createThread);
@@ -108,11 +107,11 @@ export const MessageComponent = React.memo(function MessageComponent({
   }, []);
 
   const handleDelete = useCallback(() => {
-    if (socketService && message.id) {
-      socketService.deleteMessage(message.id);
+    if (socket && message.id) {
+      socket.deleteMessage(message.id);
     }
     setContextMenu(null);
-  }, [socketService, message.id]);
+  }, [socket, message.id]);
 
   const handleReplyClick = useCallback(() => {
     onReply?.(message);
@@ -185,7 +184,7 @@ export const MessageComponent = React.memo(function MessageComponent({
   }, [hasUserReacted]);
 
   const handleReactionSubmit = useCallback(() => {
-    if (!reactionInput.trim() || !socketService) return;
+    if (!reactionInput.trim() || !socket) return;
     
     const optimisticReaction: Reaction = {
       id: `optimistic-${Date.now()}`,
@@ -203,21 +202,21 @@ export const MessageComponent = React.memo(function MessageComponent({
       reactions: [...(message.reactions || []), optimisticReaction],
     });
     
-    socketService.addReaction(message.channelId, message.id, reactionInput);
+    socket.addReaction(message.channelId, message.id, reactionInput);
     setIsReacting(false);
     setReactionInput('');
-  }, [reactionInput, socketService, userId, message, onMessageUpdate]);
+  }, [reactionInput, socket, userId, message, onMessageUpdate]);
 
   const handleRemoveReaction = useCallback((reactionId: string) => {
-    if (!socketService) return;
+    if (!socket) return;
 
     onMessageUpdate?.(message.id, {
       ...message,
       reactions: (message.reactions || []).filter(r => r.id !== reactionId),
     });
     
-    socketService.removeReaction(message.channelId, message.id, reactionId);
-  }, [socketService, message, onMessageUpdate]);
+    socket.removeReaction(message.channelId, message.id, reactionId);
+  }, [socket, message, onMessageUpdate]);
 
   return (
     <div

@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
 import type { Channel, Message } from '@/types';
-import { useSocket } from '../socket/context';
 
 // Store utilities
 const buildChannelTree = (channels: Channel[]): Channel[] => {
@@ -508,41 +507,4 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
         data: channel
       })
     })),
-
-  createChannel: async (name: string, description?: string) => {
-    const store = get();
-    const tempId = `temp_${name}`;
-    const socket = useSocket();
-    
-    // Create optimistic channel
-    const optimisticChannel: Channel = {
-      id: tempId,
-      name,
-      description,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      creatorId: 'optimistic', // Will be replaced by server
-    };
-
-    // Add optimistic update
-    store._addOptimisticChannel(optimisticChannel);
-    
-    try {
-      // Create channel via socket
-      socket.createChannel({
-        name,
-        description,
-        originalId: tempId
-      });
-
-      // The real channel will be received through the socket event
-      // and handled by the socket integration layer
-      return optimisticChannel;
-    } catch (error) {
-      // Remove optimistic update on error
-      store._removeOptimisticChannel(tempId);
-      store._setError(error instanceof Error ? error.message : 'Failed to create channel');
-      throw error;
-    }
-  },
 })); 
