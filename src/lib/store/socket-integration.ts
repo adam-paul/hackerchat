@@ -1,3 +1,4 @@
+// src/lib/store/socket-integration.ts
 'use client';
 
 import type { Channel } from '@/types';
@@ -16,16 +17,17 @@ export function setupSocketIntegration(socket: SocketService) {
   // Define event handlers using store.setState
   const handleChannelCreated = (channel: Channel) => {
     store.setState(state => {
-      const optimisticUpdate = state.optimisticUpdates.get(channel.id);
+      const optimisticUpdate = state.optimisticUpdates.get(channel.originalId || '');
+      
       if (optimisticUpdate) {
         // Replace optimistic with real
         return {
           channels: state.channels.map(c => 
-            c.id === channel.id ? channel : c
+            c.id === optimisticUpdate.data.id ? channel : c
           ),
           optimisticUpdates: new Map(
             Array.from(state.optimisticUpdates.entries())
-              .filter(([key]) => key !== channel.id)
+              .filter(([key]) => key !== (channel.originalId || ''))
           )
         };
       } else {
@@ -38,13 +40,29 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   const handleChannelDeleted = (channelId: string) => {
-    store.setState(state => ({
-      channels: state.channels.filter(c => c.id !== channelId),
-      optimisticUpdates: new Map(
-        Array.from(state.optimisticUpdates.entries())
-          .filter(([key]) => key !== channelId)
-      )
-    }));
+    store.setState(state => {
+      // Handle both optimistic and regular deletions
+      const optimisticUpdate = state.optimisticUpdates.get(channelId);
+      if (optimisticUpdate) {
+        return {
+          channels: state.channels.filter(c => c.id !== channelId),
+          optimisticUpdates: new Map(
+            Array.from(state.optimisticUpdates.entries())
+              .filter(([key]) => key !== channelId)
+          )
+        };
+      } else {
+        return {
+          channels: state.channels.filter(c => c.id !== channelId)
+        };
+      }
+    });
+
+    // If deleted channel was selected, clear selection
+    const currentState = store.getState();
+    if (currentState.selectedChannelId === channelId) {
+      store.setState({ selectedChannelId: null });
+    }
   };
 
   const handleChannelUpdated = (channel: Channel) => {
@@ -89,18 +107,18 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   // Set up event listeners
-  socket.on('channel-created', handleChannelCreated);
-  socket.on('channel-deleted', handleChannelDeleted);
-  socket.on('channel-updated', handleChannelUpdated);
+  socket.on('channel:created', handleChannelCreated);
+  socket.on('channel:deleted', handleChannelDeleted);
+  socket.on('channel:updated', handleChannelUpdated);
   socket.on('error', handleError);
   socket.on('socket.reconnect', handleReconnect);
 
   // Return cleanup function
   return () => {
-    socket.off('channel-created', handleChannelCreated);
-    socket.off('channel-deleted', handleChannelDeleted);
-    socket.off('channel-updated', handleChannelUpdated);
+    socket.off('channel:created', handleChannelCreated);
+    socket.off('channel:deleted', handleChannelDeleted);
+    socket.off('channel:updated', handleChannelUpdated);
     socket.off('error', handleError);
     socket.off('socket.reconnect', handleReconnect);
   };
-} 
+}

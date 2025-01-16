@@ -7,9 +7,7 @@ import { handleMessage, handleMessageDelete } from './message';
 import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
 import { EVENTS } from '../config/socket';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/db';
 
 // Track connected users
 const connectedUsers = new Set<string>();
@@ -73,6 +71,22 @@ export const handleConnection = (socket: SocketType): void => {
     await handleMessageDelete(socket, messageId);
   });
 
+  // Channel events - add broadcasting for realtime updates
+  socket.on('channel:created', (channel) => {
+    console.log('Broadcasting channel created:', channel);
+    socket.broadcast.emit('channel:created', channel);
+  });
+
+  socket.on('channel:updated', (channel) => {
+    console.log('Broadcasting channel updated:', channel);
+    socket.broadcast.emit('channel:updated', channel);
+  });
+
+  socket.on('channel:deleted', (channelId) => {
+    console.log('Broadcasting channel deleted:', channelId);
+    socket.broadcast.emit('channel:deleted', channelId);
+  });
+
   // Reaction events
   socket.on(EVENTS.ADD_REACTION, async (data: ReactionEvent) => {
     await handleAddReaction(socket, data);
@@ -103,4 +117,4 @@ export const handleConnection = (socket: SocketType): void => {
     // Broadcast user disconnected event to all clients
     socket.broadcast.emit('user-disconnected', userId);
   });
-}; 
+};
