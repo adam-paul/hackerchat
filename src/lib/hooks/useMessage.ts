@@ -278,6 +278,20 @@ export function useMessages() {
     dispatch({ type: 'SET_CHANNEL', payload: channelId });
   }, []);
 
+  const updateThreadMetadata = useCallback((messageId: string, threadId: string, title: string) => {
+    dispatch({
+      type: 'UPDATE_THREAD_METADATA',
+      payload: {
+        messageId,
+        threadId,
+        threadMetadata: {
+          title,
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+  }, []);
+
   return {
     messages: state.messages,
     status: state.status,
@@ -288,6 +302,18 @@ export function useMessages() {
     updateMessage,
     clearMessages,
     setError,
-    setCurrentChannel
+    setCurrentChannel,
+    updateThreadMetadata
   };
+}
+
+// Create a singleton store for global access
+let messageStore: ReturnType<typeof useMessages> | null = null;
+
+export function getMessageStore() {
+  return messageStore;
+}
+
+export function setMessageStore(store: ReturnType<typeof useMessages>) {
+  messageStore = store;
 }

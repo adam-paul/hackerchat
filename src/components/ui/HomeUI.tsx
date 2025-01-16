@@ -43,6 +43,9 @@ export function HomeUI() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   
+  // Initialize message store
+  useMessages();
+  
   // Add store hooks
   const { 
     selectedChannelId, 
