@@ -2,7 +2,6 @@
 
 import { io, Socket } from 'socket.io-client';
 import type { Message, Reaction, Channel } from '@/types';
-import { EVENTS } from './events';
 
 interface MessageCallbacks {
   onDelivered?: (messageId: string) => void;
@@ -24,10 +23,8 @@ export class SocketService {
   private token: string | null = null;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private readonly RECONNECT_DELAY = 1000;
-  private onMessageHandler: ((message: Message) => void) | null = null;
-  private onMessageDeleteHandler: ((event: { messageId: string; originalId?: string }) => void) | null = null;
-  private onMessageUpdateHandler: ((event: { messageId: string; message: Message }) => void) | null = null;
-  private onMessageErrorHandler: ((event: { messageId: string; error: string }) => void) | null = null;
+  private onMessageHandler?: (message: Message) => void;
+  private onMessageDeleteHandler?: (event: { messageId: string; originalId?: string }) => void;
   private onStatusChangeHandler?: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void;
   private onReactionAddedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
   private onReactionRemovedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
@@ -149,6 +146,12 @@ export class SocketService {
           });
         }
         this.messageCallbacks.delete(event.originalId || event.messageId);
+      }
+    });
+
+    this.socket.on('message-updated', (event) => {
+      if (this.onMessageHandler && event.message) {
+        this.onMessageHandler(event.message);
       }
     });
 
@@ -304,11 +307,28 @@ export class SocketService {
   }
 
   setMessageHandler(handler: (message: Message) => void): void {
-    this.onMessageHandler = handler;
-  }
+    // Wrap handler with validation
+    this.onMessageHandler = (message: Message) => {
+      // Validate message structure
+      if (!message || typeof message !== 'object') {
+        console.error('Invalid message received:', message);
+        return;
+      }
 
-  setMessageUpdateHandler(handler: (event: { messageId: string; message: Message }) => void): void {
-    this.onMessageUpdateHandler = handler;
+      // Ensure required fields exist
+      if (!message.id || !message.channelId || !message.author) {
+        console.error('Message missing required fields:', message);
+        return;
+      }
+
+      // Ensure author has required fields
+      if (!message.author.id) {
+        console.error('Message author missing required fields:', message);
+        return;
+      }
+
+      handler(message);
+    };
   }
 
   setMessageDeleteHandler(handler: (event: { messageId: string; originalId?: string }) => void): void {
@@ -524,27 +544,5 @@ export class SocketService {
 
   setChannelDeletedHandler(handler: (event: { channelId: string; timestamp: string }) => void): void {
     this.onChannelDeletedHandler = handler;
-  }
-
-  private setupMessageHandlers(): void {
-    if (!this.socket) return;
-
-    this.socket.on(EVENTS.MESSAGE, (event: { message: Message }) => {
-      if (this.onMessageHandler) {
-        this.onMessageHandler(event.message);
-      }
-    });
-
-    this.socket.on(EVENTS.MESSAGE_UPDATED, (event: { messageId: string; message: Message }) => {
-      if (this.onMessageUpdateHandler) {
-        this.onMessageUpdateHandler(event);
-      }
-    });
-
-    this.socket.on(EVENTS.MESSAGE_DELETED, (event: { messageId: string; originalId?: string }) => {
-      if (this.onMessageDeleteHandler) {
-        this.onMessageDeleteHandler(event);
-      }
-    });
   }
 } 

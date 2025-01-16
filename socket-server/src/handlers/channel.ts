@@ -137,22 +137,17 @@ export const handleCreateChannel = async (
       }
     });
 
-    // If this is a thread creation (has threadMessageId), update the original message with thread info
+    // If this is a thread creation (has threadMessageId), update the original message and create initial message
     if (validData.threadMessageId && validData.threadMessageContent) {
       // Update the original message with thread info
-      await prisma.message.update({
+      const updatedMessage = await prisma.message.update({
         where: {
           id: validData.threadMessageId
         },
         data: {
           threadId: channel.id,
           threadName: validData.name
-        }
-      });
-
-      // Emit message update event to notify clients
-      const updatedMessage = await prisma.message.findUnique({
-        where: { id: validData.threadMessageId },
+        },
         include: {
           author: {
             select: {
@@ -161,14 +156,13 @@ export const handleCreateChannel = async (
               imageUrl: true
             }
           },
-          replyTo: {
-            select: {
-              id: true,
-              content: true,
-              author: {
+          reactions: {
+            include: {
+              user: {
                 select: {
                   id: true,
-                  name: true
+                  name: true,
+                  imageUrl: true
                 }
               }
             }
@@ -176,21 +170,35 @@ export const handleCreateChannel = async (
         }
       });
 
-      if (updatedMessage) {
-        socket.to(updatedMessage.channelId).emit(EVENTS.MESSAGE_UPDATED, {
-          messageId: updatedMessage.id,
-          message: {
-            id: updatedMessage.id,
-            content: updatedMessage.content,
-            channelId: updatedMessage.channelId,
-            createdAt: updatedMessage.createdAt.toISOString(),
-            author: updatedMessage.author,
-            replyTo: updatedMessage.replyTo,
-            threadId: updatedMessage.threadId,
-            threadName: updatedMessage.threadName
-          }
-        });
-      }
+      // Emit message update event to all clients in the channel
+      socket.to(updatedMessage.channelId).emit(EVENTS.MESSAGE_UPDATED, {
+        messageId: updatedMessage.id,
+        message: {
+          ...updatedMessage,
+          createdAt: updatedMessage.createdAt.toISOString(),
+          updatedAt: updatedMessage.updatedAt.toISOString(),
+          reactions: updatedMessage.reactions.map(r => ({
+            id: r.id,
+            content: r.content,
+            createdAt: r.createdAt.toISOString(),
+            user: r.user
+          }))
+        }
+      });
+      socket.emit(EVENTS.MESSAGE_UPDATED, {
+        messageId: updatedMessage.id,
+        message: {
+          ...updatedMessage,
+          createdAt: updatedMessage.createdAt.toISOString(),
+          updatedAt: updatedMessage.updatedAt.toISOString(),
+          reactions: updatedMessage.reactions.map(r => ({
+            id: r.id,
+            content: r.content,
+            createdAt: r.createdAt.toISOString(),
+            user: r.user
+          }))
+        }
+      });
 
       // Create the initial thread message
       await prisma.message.create({
