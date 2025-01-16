@@ -141,7 +141,7 @@ export const handleCreateChannel = async (
 
       // If this is a thread (has threadMetadata), update the source message
       if (validData.threadMetadata) {
-        const { messageId, title } = validData.threadMetadata;
+        const { messageId, title, initialMessage } = validData.threadMetadata;
         await tx.message.update({
           where: { id: messageId },
           data: {
@@ -151,12 +151,12 @@ export const handleCreateChannel = async (
         });
 
         // Create initial message in thread if content is provided
-        if (validData.threadMetadata.initialMessage) {
+        if (initialMessage) {
           const messageId = `msg_${createId()}`;
           await tx.message.create({
             data: {
               id: messageId,
-              content: validData.threadMetadata.initialMessage,
+              content: initialMessage,
               channelId: channel.id,
               authorId: socket.data.userId
             }

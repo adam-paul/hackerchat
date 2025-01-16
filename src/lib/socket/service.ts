@@ -14,6 +14,14 @@ interface ChannelCallbacks {
   onUpdated?: (channel: Channel) => void;
   onDeleted?: (channelId: string) => void;
   onError?: (error: string) => void;
+  metadata?: {
+    messageId?: string;
+    initialMessage?: Message;
+    threadMetadata?: {
+      title: string;
+      createdAt: string;
+    };
+  };
 }
 
 export class SocketService {
@@ -449,11 +457,17 @@ export class SocketService {
     let attempts = 0;
     const attemptOperation = async () => {
       try {
+        const metadata = this.channelCallbacks.get(tempId)?.metadata;
         this.socket!.emit('create-channel', { 
           name, 
           parentId, 
           description,
-          originalId: tempId
+          originalId: tempId,
+          threadMetadata: metadata ? {
+            messageId: metadata.messageId,
+            title: name,
+            initialMessage: description // Use description param for initial message content
+          } : undefined
         });
       } catch (error) {
         if (attempts < this.MAX_RETRY_ATTEMPTS) {
