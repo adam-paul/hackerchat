@@ -114,4 +114,107 @@ export const handleTyping = async (
   } catch (error) {
     return handleSocketError(socket, error, data.channelId);
   }
+};
+
+export const handleChannelCreate = async (
+  socket: SocketType,
+  data: {
+    name: string;
+    description?: string;
+    parentId?: string;
+    initialMessage?: {
+      content: string;
+      authorId: string;
+      fileUrl?: string;
+      fileName?: string;
+      fileType?: string;
+      fileSize?: number;
+      originalId?: string;
+    };
+    messageId?: string;
+    originalId?: string;
+  }
+): Promise<HandlerResult<any>> => {
+  try {
+    // Create channel and initial message in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the channel
+      const channel = await tx.channel.create({
+        data: {
+          id: data.originalId?.startsWith('temp_') ? 
+            `channel_${Date.now()}_${Math.random().toString(36).slice(2)}` : 
+            data.originalId || undefined,
+          name: data.name,
+          description: data.description,
+          parentId: data.parentId,
+          creatorId: socket.data.userId,
+        },
+        include: {
+          _count: {
+            select: { messages: true }
+          }
+        }
+      });
+
+      // If this is a thread creation, update the original message
+      if (data.messageId) {
+        const messageToUpdate = await tx.message.findFirst({
+          where: {
+            OR: [
+              { id: data.messageId },
+              { originalId: data.messageId }
+            ]
+          }
+        });
+
+        if (messageToUpdate) {
+          await tx.message.update({
+            where: { id: messageToUpdate.id },
+            data: {
+              threadId: channel.id,
+              threadName: data.name
+            }
+          });
+        }
+      }
+
+      // If initialMessage is provided, create it
+      if (data.initialMessage) {
+        await tx.message.create({
+          data: {
+            id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            content: data.initialMessage.content,
+            channelId: channel.id,
+            authorId: data.initialMessage.authorId,
+            fileUrl: data.initialMessage.fileUrl,
+            fileName: data.initialMessage.fileName,
+            fileType: data.initialMessage.fileType,
+            fileSize: data.initialMessage.fileSize,
+            originalId: data.initialMessage.originalId
+          }
+        });
+      }
+
+      return channel;
+    });
+
+    const formattedChannel = {
+      ...result,
+      createdAt: result.createdAt.toISOString(),
+      updatedAt: result.updatedAt.toISOString(),
+      originalId: data.originalId?.startsWith('temp_') ? data.originalId : undefined
+    };
+
+    // Broadcast to all clients including sender
+    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+    socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+
+    return {
+      success: true,
+      data: formattedChannel
+    };
+  } catch (error) {
+    console.error("[CHANNEL_CREATE_HANDLER] Error:", error);
+    return handleSocketError(socket, error);
+  }
 }; 

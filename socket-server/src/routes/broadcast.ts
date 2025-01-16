@@ -41,26 +41,4 @@ router.post('/broadcast-status', verifyWebhookSecret, async (req, res) => {
   }
 });
 
-// Route to broadcast channel creation
-router.post('/channel-created', verifyWebhookSecret, async (req, res) => {
-  const channel = req.body;
-
-  if (!channel || !channel.id) {
-    return res.status(400).json({ error: 'Invalid channel data' });
-  }
-
-  try {
-    // Log the broadcast attempt
-    console.log('Broadcasting channel creation:', channel);
-
-    // Broadcast the channel creation to all connected clients
-    io.emit('channel:created', channel);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Broadcast error:', error);
-    res.status(500).json({ error: 'Failed to broadcast channel creation' });
-  }
-});
-
 export default router;

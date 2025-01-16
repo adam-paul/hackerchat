@@ -148,46 +148,41 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
 
 export function useMessages() {
   const [state, dispatch] = useReducer(messageReducer, initialState);
-  const { socket } = useSocket();
+  const { getSocketService } = useSocket();
+  const socketService = getSocketService();
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socketService) return;
 
     const handleMessage = (message: Message) => {
       dispatch({ type: 'ADD_MESSAGE', payload: message });
     };
 
     const handleMessageDeleted = (event: { messageId: string; originalId?: string }) => {
-      // Delete both the real message and any optimistic version
       dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
-      if (event.originalId) {
-        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
-      }
     };
 
-    const handleReactionAdded = (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
+    const handleReactionAdded = (event: { messageId: string; reaction: Reaction }) => {
       dispatch({ type: 'ADD_REACTION', payload: event });
     };
 
     const handleReactionRemoved = (event: { messageId: string; reaction: Reaction }) => {
-      dispatch({ type: 'REMOVE_REACTION', payload: { 
-        messageId: event.messageId, 
-        reactionId: event.reaction.id 
-      }});
+      dispatch({ type: 'REMOVE_REACTION', payload: { messageId: event.messageId, reactionId: event.reaction.id } });
     };
 
-    socket.setMessageHandler(handleMessage);
-    socket.setMessageDeleteHandler(handleMessageDeleted);
-    socket.setReactionAddedHandler(handleReactionAdded);
-    socket.setReactionRemovedHandler(handleReactionRemoved);
+    socketService.setMessageHandler(handleMessage);
+    socketService.setMessageDeleteHandler(handleMessageDeleted);
+    socketService.setReactionAddedHandler(handleReactionAdded);
+    socketService.setReactionRemovedHandler(handleReactionRemoved);
 
     return () => {
-      socket.setMessageHandler(() => {});
-      socket.setMessageDeleteHandler(() => {});
-      socket.setReactionAddedHandler(() => {});
-      socket.setReactionRemovedHandler(() => {});
+      if (!socketService) return;
+      socketService.setMessageHandler(() => {});
+      socketService.setMessageDeleteHandler(() => {});
+      socketService.setReactionAddedHandler(() => {});
+      socketService.setReactionRemovedHandler(() => {});
     };
-  }, [socket]);
+  }, [socketService]);
 
   const startLoading = useCallback(() => {
     dispatch({ type: 'FETCH_START' });
