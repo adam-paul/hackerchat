@@ -251,11 +251,13 @@ export const handleMessageUpdate = async (
   try {
     const validatedData = messageUpdateSchema.parse(data);
 
-    const message = await prisma.message.update({
-      where: { id: validatedData.messageId },
-      data: {
-        threadId: validatedData.threadId,
-        threadName: validatedData.threadMetadata?.title
+    // Find the message by either its real ID or optimistic ID
+    const message = await prisma.message.findFirst({
+      where: {
+        OR: [
+          { id: validatedData.messageId },
+          { originalId: validatedData.messageId }
+        ]
       }
     });
 
@@ -263,24 +265,33 @@ export const handleMessageUpdate = async (
       throw new Error('Message not found');
     }
 
+    // Update the message
+    const updatedMessage = await prisma.message.update({
+      where: { id: message.id }, // Use the real ID for the update
+      data: {
+        threadId: validatedData.threadId,
+        threadName: validatedData.threadMetadata?.title
+      }
+    });
+
     // Broadcast the message update to all clients in the channel
     socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, {
-      messageId: message.id,
-      threadId: message.threadId || undefined,
-      threadMetadata: message.threadName ? {
-        title: message.threadName,
-        createdAt: message.updatedAt
+      messageId: updatedMessage.id,
+      threadId: updatedMessage.threadId || undefined,
+      threadMetadata: updatedMessage.threadName ? {
+        title: updatedMessage.threadName,
+        createdAt: new Date() // Use current date for thread creation
       } : undefined
     });
 
     return {
       success: true,
       data: {
-        messageId: message.id,
-        threadId: message.threadId || undefined,
-        threadMetadata: message.threadName ? {
-          title: message.threadName,
-          createdAt: message.updatedAt
+        messageId: updatedMessage.id,
+        threadId: updatedMessage.threadId || undefined,
+        threadMetadata: updatedMessage.threadName ? {
+          title: updatedMessage.threadName,
+          createdAt: new Date() // Use current date for thread creation
         } : undefined
       }
     };

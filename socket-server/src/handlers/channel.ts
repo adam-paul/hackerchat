@@ -142,8 +142,23 @@ export const handleCreateChannel = async (
       // If this is a thread (has threadMetadata), update the source message
       if (validData.threadMetadata) {
         const { messageId, title, initialMessage } = validData.threadMetadata;
+        
+        // Find the message by either its real ID or optimistic ID
+        const message = await tx.message.findFirst({
+          where: {
+            OR: [
+              { id: messageId },
+              { originalId: messageId }
+            ]
+          }
+        });
+
+        if (!message) {
+          throw new Error('Source message not found');
+        }
+
         await tx.message.update({
-          where: { id: messageId },
+          where: { id: message.id }, // Use the real ID for the update
           data: {
             threadId: channel.id,
             threadName: title
