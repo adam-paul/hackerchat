@@ -302,6 +302,54 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     throw new Error('Not implemented');
   },
 
+  // Write operations
+  updateChannel: async (id: string, updates: Partial<Channel>) => {
+    const store = get();
+    const channel = store.getChannel(id);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    // Create optimistic update
+    const optimisticChannel = {
+      ...channel,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Add optimistic update
+    store._addOptimisticUpdate(optimisticChannel);
+    
+    try {
+      // Update channel on server
+      const response = await fetch(`/api/channels/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to update channel');
+      }
+
+      // Get updated channel from response
+      const updatedChannel = await response.json();
+
+      // Replace optimistic with real
+      store._replaceOptimisticWithReal(id, updatedChannel);
+
+      return updatedChannel;
+    } catch (error) {
+      // Remove optimistic update on error
+      store._removeOptimisticChannel(id);
+      store._setError(error instanceof Error ? error.message : 'Failed to update channel');
+      throw error;
+    }
+  },
+
   // Internal actions
   _setChannels: (channels: Channel[]) => set({ channels }),
   
@@ -386,4 +434,13 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
       store.selectChannel(null);
     }
   },
+
+  _addOptimisticUpdate: (channel: Channel) => 
+    set(state => ({
+      channels: state.channels.map(c => c.id === channel.id ? channel : c),
+      optimisticUpdates: new Map(state.optimisticUpdates).set(channel.id, {
+        type: 'create',
+        data: channel
+      })
+    })),
 })); 

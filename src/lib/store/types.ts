@@ -1,7 +1,7 @@
 import type { Channel, Message } from '@/types';
 
 export interface OptimisticUpdate {
-  type: 'create';
+  type: 'create' | 'update';
   data: Channel;
   metadata?: {
     parentId?: string;
@@ -33,6 +33,7 @@ export interface ChannelStore {
   createRootChannel: (name: string) => Promise<Channel>;
   createSubchannel: (name: string, parentId: string) => Promise<Channel>;
   createThread: (name: string, parentId: string, message: Message) => Promise<Channel>;
+  updateChannel: (id: string, updates: Partial<Channel>) => Promise<Channel>;
   deleteChannel: () => Promise<void>;
 
   // Socket sync operations
@@ -43,6 +44,7 @@ export interface ChannelStore {
   // Internal actions
   _setChannels: (channels: Channel[]) => void;
   _addOptimisticChannel: (channel: Channel, metadata?: OptimisticUpdate['metadata']) => void;
+  _addOptimisticUpdate: (channel: Channel) => void;
   _removeOptimisticChannel: (id: string) => void;
   _replaceOptimisticWithReal: (tempId: string, realChannel: Channel) => void;
   _setError: (error: string | null) => void;
