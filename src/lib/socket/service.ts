@@ -1,12 +1,19 @@
 // src/lib/socket/service.ts
 
 import { io, Socket } from 'socket.io-client';
-import type { Message, Reaction } from '@/types';
+import type { Message, Reaction, Channel } from '@/types';
 
 interface MessageCallbacks {
   onDelivered?: (messageId: string) => void;
   onError?: (messageId: string, error: string) => void;
   onMessage?: (message: Message) => void;
+}
+
+interface ChannelCallbacks {
+  onCreated?: (channel: Channel) => void;
+  onUpdated?: (channel: Channel) => void;
+  onDeleted?: (channelId: string) => void;
+  onError?: (error: string) => void;
 }
 
 export class SocketService {
@@ -21,6 +28,12 @@ export class SocketService {
   private onStatusChangeHandler?: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void;
   private onReactionAddedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
   private onReactionRemovedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
+  private onChannelCreatedHandler?: (channel: Channel) => void;
+  private onChannelUpdatedHandler?: (channel: Channel) => void;
+  private onChannelDeletedHandler?: (event: { channelId: string; timestamp: string }) => void;
+  private channelCallbacks: Map<string, ChannelCallbacks> = new Map();
+  private readonly MAX_RETRY_ATTEMPTS = 3;
+  private readonly RETRY_DELAY = 1000;
 
   constructor(private readonly url: string = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000') {}
 
@@ -170,6 +183,34 @@ export class SocketService {
         }
         this.onReactionRemovedHandler(event);
       }
+    });
+
+    // Channel event handlers with callback support
+    this.socket.on('channel-created', (event) => {
+      if (this.onChannelCreatedHandler) {
+        this.onChannelCreatedHandler(event.channel);
+      }
+      const callbacks = this.channelCallbacks.get(event.channel.originalId || event.channel.id);
+      callbacks?.onCreated?.(event.channel);
+      this.channelCallbacks.delete(event.channel.originalId || event.channel.id);
+    });
+
+    this.socket.on('channel-updated', (event) => {
+      if (this.onChannelUpdatedHandler) {
+        this.onChannelUpdatedHandler(event.channel);
+      }
+      const callbacks = this.channelCallbacks.get(event.channel.id);
+      callbacks?.onUpdated?.(event.channel);
+      this.channelCallbacks.delete(event.channel.id);
+    });
+
+    this.socket.on('channel-deleted', (event) => {
+      if (this.onChannelDeletedHandler) {
+        this.onChannelDeletedHandler(event);
+      }
+      const callbacks = this.channelCallbacks.get(event.channelId);
+      callbacks?.onDeleted?.(event.channelId);
+      this.channelCallbacks.delete(event.channelId);
     });
   }
 
@@ -385,5 +426,95 @@ export class SocketService {
     }
     
     return null;
+  }
+
+  // Channel operations with error handling and retries
+  async createChannel(name: string, parentId?: string, description?: string, callbacks?: ChannelCallbacks): Promise<void> {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+
+    const tempId = `temp_${name}`;
+    if (callbacks) {
+      this.channelCallbacks.set(tempId, callbacks);
+    }
+
+    let attempts = 0;
+    const attemptOperation = async () => {
+      try {
+        this.socket!.emit('create-channel', { name, parentId, description });
+      } catch (error) {
+        if (attempts < this.MAX_RETRY_ATTEMPTS) {
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
+          return attemptOperation();
+        }
+        callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to create channel');
+        throw error;
+      }
+    };
+
+    await attemptOperation();
+  }
+
+  async updateChannel(channelId: string, updates: { name?: string; description?: string }, callbacks?: ChannelCallbacks): Promise<void> {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+
+    if (callbacks) {
+      this.channelCallbacks.set(channelId, callbacks);
+    }
+
+    let attempts = 0;
+    const attemptOperation = async () => {
+      try {
+        this.socket!.emit('update-channel', { channelId, ...updates });
+      } catch (error) {
+        if (attempts < this.MAX_RETRY_ATTEMPTS) {
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
+          return attemptOperation();
+        }
+        callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to update channel');
+        throw error;
+      }
+    };
+
+    await attemptOperation();
+  }
+
+  async deleteChannel(channelId: string, callbacks?: ChannelCallbacks): Promise<void> {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+
+    if (callbacks) {
+      this.channelCallbacks.set(channelId, callbacks);
+    }
+
+    let attempts = 0;
+    const attemptOperation = async () => {
+      try {
+        this.socket!.emit('delete-channel', { channelId });
+      } catch (error) {
+        if (attempts < this.MAX_RETRY_ATTEMPTS) {
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
+          return attemptOperation();
+        }
+        callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to delete channel');
+        throw error;
+      }
+    };
+
+    await attemptOperation();
+  }
+
+  // Channel event handlers
+  setChannelCreatedHandler(handler: (channel: Channel) => void): void {
+    this.onChannelCreatedHandler = handler;
+  }
+
+  setChannelUpdatedHandler(handler: (channel: Channel) => void): void {
+    this.onChannelUpdatedHandler = handler;
+  }
+
+  setChannelDeletedHandler(handler: (event: { channelId: string; timestamp: string }) => void): void {
+    this.onChannelDeletedHandler = handler;
   }
 } 

@@ -1,6 +1,6 @@
 // src/types/socket.ts
 
-import type { Message } from './index';
+import type { Message, Channel } from './index';
 
 export interface MessageEvent {
   type: 'message';
@@ -27,6 +27,19 @@ export interface ChannelEvent {
   timestamp: string;
 }
 
+export interface ChannelCreatedEvent {
+  channel: Channel;
+}
+
+export interface ChannelUpdatedEvent {
+  channel: Channel;
+}
+
+export interface ChannelDeletedEvent {
+  channelId: string;
+  timestamp: string;
+}
+
 export interface TypingEvent {
   channelId: string;
   userId: string;
@@ -46,6 +59,9 @@ export interface ServerToClientEvents {
   'message-deleted': (event: MessageDeletedEvent) => void;
   'channel-joined': (event: ChannelEvent) => void;
   'channel-left': (event: ChannelEvent) => void;
+  'channel-created': (event: ChannelCreatedEvent) => void;
+  'channel-updated': (event: ChannelUpdatedEvent) => void;
+  'channel-deleted': (event: ChannelDeletedEvent) => void;
   'typing-start': (event: TypingEvent) => void;
   'typing-stop': (event: TypingEvent) => void;
 }
@@ -57,6 +73,9 @@ export interface ClientToServerEvents {
   'message-deleted': (messageId: string) => void;
   'join-channel': (channelId: string) => void;
   'leave-channel': (channelId: string) => void;
+  'create-channel': (data: { name: string; parentId?: string; description?: string }) => void;
+  'update-channel': (data: { channelId: string; name?: string; description?: string }) => void;
+  'delete-channel': (data: { channelId: string }) => void;
   'send-message': (messageId: string, channelId: string, content: string) => void;
   'typing-start': (channelId: string) => void;
   'typing-stop': (channelId: string) => void;

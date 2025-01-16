@@ -39,28 +39,31 @@ export function setupSocketIntegration(socket: SocketService) {
     });
   };
 
-  const handleChannelDeleted = (channelId: string) => {
+  const handleChannelDeleted = (event: { channelId: string; timestamp: string }) => {
     store.setState(state => {
-      // Handle both optimistic and regular deletions
-      const optimisticUpdate = state.optimisticUpdates.get(channelId);
-      if (optimisticUpdate) {
-        return {
-          channels: state.channels.filter(c => c.id !== channelId),
-          optimisticUpdates: new Map(
-            Array.from(state.optimisticUpdates.entries())
-              .filter(([key]) => key !== channelId)
-          )
-        };
-      } else {
-        return {
-          channels: state.channels.filter(c => c.id !== channelId)
-        };
-      }
+      // Helper function to check if a channel is a descendant
+      const isDescendant = (id: string, ancestorId: string): boolean => {
+        const channel = state.channels.find(c => c.id === id);
+        if (!channel) return false;
+        if (channel.parentId === ancestorId) return true;
+        return channel.parentId ? isDescendant(channel.parentId, ancestorId) : false;
+      };
+
+      // Remove channel and its descendants
+      return {
+        channels: state.channels.filter(c => 
+          c.id !== event.channelId && !isDescendant(c.id, event.channelId)
+        ),
+        optimisticUpdates: new Map(
+          Array.from(state.optimisticUpdates.entries())
+            .filter(([key]) => key !== event.channelId)
+        )
+      };
     });
 
     // If deleted channel was selected, clear selection
     const currentState = store.getState();
-    if (currentState.selectedChannelId === channelId) {
+    if (currentState.selectedChannelId === event.channelId) {
       store.setState({ selectedChannelId: null });
     }
   };
@@ -106,18 +109,20 @@ export function setupSocketIntegration(socket: SocketService) {
       });
   };
 
-  // Set up event listeners
-  socket.on('channel:created', handleChannelCreated);
-  socket.on('channel:deleted', handleChannelDeleted);
-  socket.on('channel:updated', handleChannelUpdated);
+  // Set up event handlers
+  socket.setChannelCreatedHandler(handleChannelCreated);
+  socket.setChannelUpdatedHandler(handleChannelUpdated);
+  socket.setChannelDeletedHandler(handleChannelDeleted);
+
+  // Set up error and reconnect handlers
   socket.on('error', handleError);
   socket.on('socket.reconnect', handleReconnect);
 
   // Return cleanup function
   return () => {
-    socket.off('channel:created', handleChannelCreated);
-    socket.off('channel:deleted', handleChannelDeleted);
-    socket.off('channel:updated', handleChannelUpdated);
+    socket.setChannelCreatedHandler(() => {});
+    socket.setChannelUpdatedHandler(() => {});
+    socket.setChannelDeletedHandler(() => {});
     socket.off('error', handleError);
     socket.off('socket.reconnect', handleReconnect);
   };
