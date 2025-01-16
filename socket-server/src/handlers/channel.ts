@@ -153,14 +153,10 @@ export const handleCreateChannel = async (
     };
 
     // Emit success to the creating client
-    socket.emit(EVENTS.CHANNEL_CREATED, {
-      channel: formattedChannel
-    });
+    socket.emit('channel-created', formattedChannel);
 
     // Broadcast channel creation to other clients
-    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, {
-      channel: formattedChannel
-    });
+    socket.broadcast.emit('channel-created', formattedChannel);
 
     return {
       success: true,

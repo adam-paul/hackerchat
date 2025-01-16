@@ -186,22 +186,22 @@ export class SocketService {
     });
 
     // Channel event handlers with callback support
-    this.socket.on('channel-created', (event) => {
+    this.socket.on('channel-created', (channel) => {
       if (this.onChannelCreatedHandler) {
-        this.onChannelCreatedHandler(event.channel);
+        this.onChannelCreatedHandler(channel);
       }
-      const callbacks = this.channelCallbacks.get(event.channel.originalId || event.channel.id);
-      callbacks?.onCreated?.(event.channel);
-      this.channelCallbacks.delete(event.channel.originalId || event.channel.id);
+      const callbacks = this.channelCallbacks.get(channel.originalId || channel.id);
+      callbacks?.onCreated?.(channel);
+      this.channelCallbacks.delete(channel.originalId || channel.id);
     });
 
-    this.socket.on('channel-updated', (event) => {
+    this.socket.on('channel-updated', (channel) => {
       if (this.onChannelUpdatedHandler) {
-        this.onChannelUpdatedHandler(event.channel);
+        this.onChannelUpdatedHandler(channel);
       }
-      const callbacks = this.channelCallbacks.get(event.channel.id);
-      callbacks?.onUpdated?.(event.channel);
-      this.channelCallbacks.delete(event.channel.id);
+      const callbacks = this.channelCallbacks.get(channel.id);
+      callbacks?.onUpdated?.(channel);
+      this.channelCallbacks.delete(channel.id);
     });
 
     this.socket.on('channel-deleted', (event) => {
@@ -433,6 +433,8 @@ export class SocketService {
     if (!this.socket?.connected) throw new Error('Socket not connected');
 
     const tempId = `temp_${name}`;
+    
+    // Register callbacks before emitting
     if (callbacks) {
       this.channelCallbacks.set(tempId, callbacks);
     }
@@ -444,7 +446,7 @@ export class SocketService {
           name, 
           parentId, 
           description,
-          originalId: tempId // Add this to track optimistic updates
+          originalId: tempId
         });
       } catch (error) {
         if (attempts < this.MAX_RETRY_ATTEMPTS) {
@@ -452,6 +454,8 @@ export class SocketService {
           await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
           return attemptOperation();
         }
+        // Clean up callback if operation fails
+        this.channelCallbacks.delete(tempId);
         callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to create channel');
         throw error;
       }
