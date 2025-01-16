@@ -2,7 +2,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import type { Message, Reaction, Channel } from '@/types';
-import { EVENTS } from '../../../socket-server/src/config/socket';
+import { EVENTS } from './events';
 
 interface MessageCallbacks {
   onDelivered?: (messageId: string) => void;
