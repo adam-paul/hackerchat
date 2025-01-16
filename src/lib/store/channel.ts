@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
 import type { Channel, Message } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
-import { getMessageStore } from '../hooks/useMessage';
 
 // Store utilities
 const buildChannelTree = (channels: Channel[]): Channel[] => {
@@ -233,24 +232,41 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         updatedAt: new Date().toISOString(),
         creatorId: message.author.id,
       };
-
+    
+      // Create optimistic thread message
+      const optimisticThreadMessage: Message = {
+        id: `temp_thread_${Date.now()}`,
+        content: message.content,
+        channelId: tempId,
+        createdAt: new Date().toISOString(),
+        author: message.author,
+        reactions: [],
+        fileUrl: message.fileUrl,
+        fileName: message.fileName,
+        fileType: message.fileType,
+        fileSize: message.fileSize
+      };
+    
       // Add optimistic update for thread channel
       store._addOptimisticChannel(optimisticThread, {
         messageId: message.id,
-        initialMessage: message,
+        initialMessage: optimisticThreadMessage,
         threadMetadata: {
           title: name,
           createdAt: new Date().toISOString()
         }
       });
-
-      // Add optimistic update for thread link in original message
-      const messageStore = getMessageStore();
-      if (messageStore) {
-        messageStore.updateThreadMetadata(message.id, tempId, name);
-      }
-
+    
       try {
+        // Update the message locally first
+        socket.updateMessage(message.id, {
+          threadId: tempId,
+          threadMetadata: {
+            title: name,
+            createdAt: new Date().toISOString()
+          }
+        });
+
         await socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
@@ -262,7 +278,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
               ...channel,
               originalId: tempId
             });
-
+    
             // Update the source message with thread metadata
             if (socket) {
               socket.updateMessage(message.id, {
@@ -276,14 +292,14 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           },
           metadata: {
             messageId: message.id,
-            initialMessage: message,
+            initialMessage: optimisticThreadMessage,
             threadMetadata: {
               title: name,
               createdAt: new Date().toISOString()
             }
           }
         });
-
+    
         return optimisticThread;
       } catch (error) {
         store._removeOptimisticChannel(tempId);

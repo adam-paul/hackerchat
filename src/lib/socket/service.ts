@@ -554,6 +554,16 @@ export class SocketService {
 
   updateMessage(messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }): void {
     if (!this.socket) return;
+    
+    // Handle local update first
+    if (this.onMessageUpdateHandler) {
+      this.onMessageUpdateHandler({
+        messageId,
+        ...updates
+      });
+    }
+
+    // Then emit to other clients
     this.socket.emit('message-updated', { messageId, ...updates });
   }
 } 
