@@ -555,10 +555,5 @@ export class SocketService {
   updateMessage(messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }): void {
     if (!this.socket) return;
     this.socket.emit('message-updated', { messageId, ...updates });
-    
-    // Also trigger local update
-    if (this.onMessageUpdateHandler) {
-      this.onMessageUpdateHandler({ messageId, ...updates });
-    }
   }
 } 
