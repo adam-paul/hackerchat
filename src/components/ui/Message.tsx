@@ -1,7 +1,7 @@
 // src/components/ui/Message.tsx
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
 import type { Message, Channel, Reaction } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
@@ -21,7 +21,36 @@ interface MessageProps {
   onAddMessage?: (message: Message) => void;
 }
 
-export function MessageComponent({ 
+// Memoize reaction component
+const ReactionComponent = memo(function ReactionComponent({
+  reaction,
+  userId,
+  onRemove
+}: {
+  reaction: Reaction;
+  userId: string;
+  onRemove: (id: string) => void;
+}) {
+  const isOwnReaction = reaction.user.id === userId;
+  
+  return (
+    <div
+      key={reaction.id}
+      onClick={() => isOwnReaction && onRemove(reaction.id)}
+      className={`${firaCode.className} text-xs px-1.5 py-0.5 rounded bg-zinc-800/50 hover:bg-zinc-800 cursor-pointer flex items-center gap-1 group ${
+        isOwnReaction ? 'hover:bg-red-900/20' : ''
+      }`}
+      title={`Added by ${reaction.user.name || 'Anonymous'}`}
+    >
+      <span>{reaction.content}</span>
+      {isOwnReaction && (
+        <span className="text-zinc-500 group-hover:text-red-400">×</span>
+      )}
+    </div>
+  );
+});
+
+export const MessageComponent = memo(function MessageComponent({ 
   message, 
   isHighlighted, 
   onReply, 
@@ -46,6 +75,20 @@ export function MessageComponent({
   const reactionInputRef = useRef<HTMLInputElement>(null);
   const threadInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Return early if no userId
+  if (!userId) return null;
+
+  // Memoize depth check
+  const isMaxDepth = useMemo(() => channels.some(c => {
+    if (c.id === message.channelId) {
+      if (c.parentId) {
+        const parent = channels.find(p => p.id === c.parentId);
+        return parent?.parentId !== null;
+      }
+    }
+    return false;
+  }), [channels, message.channelId]);
 
   useEffect(() => {
     if (!isReacting) return;
@@ -112,26 +155,53 @@ export function MessageComponent({
     }
   };
 
-  // Add helper to check if we're at depth 2 (channel's parent has a parent)
-  const isMaxDepth = channels.some(c => {
-    if (c.id === message.channelId) {
-      // If this channel has a parent
-      if (c.parentId) {
-        // Find the parent and check if it has a parent
-        const parent = channels.find(p => p.id === c.parentId);
-        return parent?.parentId !== null;
-      }
-    }
-    return false;
-  });
-
-  const handleCreateThread = () => {
+  // Memoize handlers
+  const handleCreateThread = useCallback(() => {
     if (isMaxDepth) return;
     setContextMenu(null);
     setIsNaming(true);
-  };
+  }, [isMaxDepth]);
 
-  const handleThreadNameSubmit = async () => {
+  const handleReactionSubmit = useCallback(() => {
+    if (!reactionInput.trim() || !socket || !userId) return;
+    
+    // Create optimistic reaction
+    const optimisticReaction: Reaction = {
+      id: `optimistic-${Date.now()}`,
+      content: reactionInput,
+      createdAt: new Date().toISOString(),
+      user: {
+        id: userId,
+        name: null,
+        imageUrl: null,
+      },
+    };
+
+    // Update message with optimistic reaction
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: [...(message.reactions || []), optimisticReaction],
+    });
+    
+    // Send to server
+    socket.addReaction(message.channelId, message.id, reactionInput);
+    setIsReacting(false);
+    setReactionInput('');
+  }, [reactionInput, socket, userId, message, onMessageUpdate]);
+
+  const handleRemoveReaction = useCallback((reactionId: string) => {
+    if (!socket) return;
+
+    // Optimistically remove the reaction
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: (message.reactions || []).filter(r => r.id !== reactionId),
+    });
+    
+    socket.removeReaction(message.channelId, message.id, reactionId);
+  }, [socket, message, onMessageUpdate]);
+
+  const handleThreadNameSubmit = useCallback(async () => {
     if (isSubmitting || !threadName.trim()) return;
     
     setIsSubmitting(true);
@@ -152,7 +222,7 @@ export function MessageComponent({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [threadName, isSubmitting, message, createThread]);
 
   const handleThreadNameKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -167,45 +237,6 @@ export function MessageComponent({
     if (hasUserReacted) return;
     setContextMenu(null);
     setIsReacting(true);
-  };
-
-  const handleReactionSubmit = () => {
-    if (!reactionInput.trim() || !socket) return;
-    
-    // Create optimistic reaction
-    const optimisticReaction: Reaction = {
-      id: `optimistic-${Date.now()}`,
-      content: reactionInput,
-      createdAt: new Date().toISOString(),
-      user: {
-        id: userId!,
-        name: null,
-        imageUrl: null,
-      },
-    };
-
-    // Update message with optimistic reaction
-    onMessageUpdate?.(message.id, {
-      ...message,
-      reactions: [...(message.reactions || []), optimisticReaction],
-    });
-    
-    // Send to server
-    socket.addReaction(message.channelId, message.id, reactionInput);
-    setIsReacting(false);
-    setReactionInput('');
-  };
-
-  const handleRemoveReaction = (reactionId: string) => {
-    if (!socket) return;
-
-    // Optimistically remove the reaction
-    onMessageUpdate?.(message.id, {
-      ...message,
-      reactions: (message.reactions || []).filter(r => r.id !== reactionId),
-    });
-    
-    socket.removeReaction(message.channelId, message.id, reactionId);
   };
 
   const isOwnMessage = message.author.id === userId;
@@ -303,19 +334,12 @@ export function MessageComponent({
       {message.reactions && message.reactions.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-1 pl-4">
           {message.reactions.map((reaction) => (
-            <div
+            <ReactionComponent
               key={reaction.id}
-              onClick={() => reaction.user.id === userId && handleRemoveReaction(reaction.id)}
-              className={`${firaCode.className} text-xs px-1.5 py-0.5 rounded bg-zinc-800/50 hover:bg-zinc-800 cursor-pointer flex items-center gap-1 group ${
-                reaction.user.id === userId ? 'hover:bg-red-900/20' : ''
-              }`}
-              title={`Added by ${reaction.user.name || 'Anonymous'}`}
-            >
-              <span>{reaction.content}</span>
-              {reaction.user.id === userId && (
-                <span className="text-zinc-500 group-hover:text-red-400">×</span>
-              )}
-            </div>
+              reaction={reaction}
+              userId={userId}
+              onRemove={handleRemoveReaction}
+            />
           ))}
         </div>
       )}
@@ -382,4 +406,4 @@ export function MessageComponent({
       )}
     </div>
   );
-} 
+}); 
