@@ -440,7 +440,12 @@ export class SocketService {
     let attempts = 0;
     const attemptOperation = async () => {
       try {
-        this.socket!.emit('create-channel', { name, parentId, description });
+        this.socket!.emit('create-channel', { 
+          name, 
+          parentId, 
+          description,
+          originalId: tempId // Add this to track optimistic updates
+        });
       } catch (error) {
         if (attempts < this.MAX_RETRY_ATTEMPTS) {
           attempts++;

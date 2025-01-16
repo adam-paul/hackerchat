@@ -150,7 +150,8 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         parentId: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        creatorId: 'optimistic',
+        creatorId: socket.getCurrentUserId() || 'optimistic',
+        originalId: tempId // Add this to track the optimistic update
       };
 
       // Add optimistic update
@@ -161,6 +162,13 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
+          },
+          onCreated: (channel) => {
+            // Replace optimistic update with real channel
+            store._replaceOptimisticWithReal(tempId, {
+              ...channel,
+              originalId: tempId // Preserve the originalId for matching
+            });
           }
         });
         return optimisticChannel;
