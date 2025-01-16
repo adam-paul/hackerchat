@@ -10,7 +10,7 @@ import {
   handleUpdateChannel,
   handleDeleteChannel
 } from './channel';
-import { handleMessage, handleMessageDelete } from './message';
+import { handleMessage, handleMessageDelete, handleMessageUpdate } from './message';
 import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
 import { EVENTS } from '../config/socket';
@@ -120,4 +120,6 @@ export const handleConnection = (socket: SocketType): void => {
     // Broadcast user disconnected event to all clients
     socket.broadcast.emit('user-disconnected', userId);
   });
+
+  socket.on(EVENTS.MESSAGE_UPDATED, (data) => handleMessageUpdate(socket, data));
 };

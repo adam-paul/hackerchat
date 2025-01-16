@@ -25,6 +25,7 @@ export class SocketService {
   private readonly RECONNECT_DELAY = 1000;
   private onMessageHandler?: (message: Message) => void;
   private onMessageDeleteHandler?: (event: { messageId: string; originalId?: string }) => void;
+  private onMessageUpdateHandler?: (message: Message) => void;
   private onStatusChangeHandler?: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void;
   private onReactionAddedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
   private onReactionRemovedHandler?: (event: { messageId: string; reaction: Reaction }) => void;
@@ -211,6 +212,12 @@ export class SocketService {
       const callbacks = this.channelCallbacks.get(event.channelId);
       callbacks?.onDeleted?.(event.channelId);
       this.channelCallbacks.delete(event.channelId);
+    });
+
+    this.socket.on('message-updated', (message: Message) => {
+      if (this.onMessageUpdateHandler) {
+        this.onMessageUpdateHandler(message);
+      }
     });
   }
 
@@ -429,39 +436,34 @@ export class SocketService {
   }
 
   // Channel operations with error handling and retries
-  async createChannel(name: string, parentId?: string, description?: string, callbacks?: ChannelCallbacks): Promise<void> {
-    if (!this.socket?.connected) throw new Error('Socket not connected');
-
-    const tempId = `temp_${name}`;
-    
-    // Register callbacks before emitting
-    if (callbacks) {
-      this.channelCallbacks.set(tempId, callbacks);
+  async createChannel(
+    name: string,
+    parentId?: string,
+    description?: string,
+    callbacks?: ChannelCallbacks,
+    threadMetadata?: {
+      messageId: string;
+      content: string;
     }
+  ): Promise<void> {
+    if (!this.socket) throw new Error('Socket not connected');
 
-    let attempts = 0;
-    const attemptOperation = async () => {
-      try {
-        this.socket!.emit('create-channel', { 
-          name, 
-          parentId, 
-          description,
-          originalId: tempId
-        });
-      } catch (error) {
-        if (attempts < this.MAX_RETRY_ATTEMPTS) {
-          attempts++;
-          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
-          return attemptOperation();
-        }
-        // Clean up callback if operation fails
-        this.channelCallbacks.delete(tempId);
-        callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to create channel');
-        throw error;
+    try {
+      this.socket.emit('create-channel', {
+        name,
+        parentId,
+        description,
+        threadMetadata,
+      });
+
+      if (callbacks) {
+        this.channelCallbacks.set(name, callbacks);
       }
-    };
-
-    await attemptOperation();
+    } catch (error) {
+      console.error('Failed to create channel:', error);
+      callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to create channel');
+      throw error;
+    }
   }
 
   async updateChannel(channelId: string, updates: { name?: string; description?: string }, callbacks?: ChannelCallbacks): Promise<void> {
@@ -525,5 +527,9 @@ export class SocketService {
 
   setChannelDeletedHandler(handler: (event: { channelId: string; timestamp: string }) => void): void {
     this.onChannelDeletedHandler = handler;
+  }
+
+  setMessageUpdateHandler(handler: (message: Message) => void): void {
+    this.onMessageUpdateHandler = handler;
   }
 } 

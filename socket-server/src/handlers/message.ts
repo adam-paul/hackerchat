@@ -1,13 +1,14 @@
 // socket-server/src/handlers/message.ts
 
-import type { SocketType, HandlerResult, MessagePayload } from '../types/handlers';
+import type { SocketType, HandlerResult, MessagePayload, MessageUpdatePayload } from '../types/handlers';
 import type { MessageEvent } from '../types';
-import { messageSchema } from '../types/handlers';
+import { messageSchema, messageUpdateSchema } from '../types/handlers';
 import { handleSocketError, validateEvent } from '../utils/errors';
 import { EVENTS } from '../config/socket';
 import { prisma } from '../lib/db';
 import { MAX_RETRIES, RETRY_DELAY } from '../config/constants';
 import { createId } from '@paralleldrive/cuid2';
+import type { Message } from '@prisma/client';
 
 type MessageResult = {
   messageId: string;
@@ -240,6 +241,39 @@ export const handleMessageDelete = async (
       userId: socket.data.userId,
       messageId
     });
+    return handleSocketError(socket, error);
+  }
+};
+
+export const handleMessageUpdate = async (
+  socket: SocketType,
+  data: MessageUpdatePayload
+): Promise<HandlerResult<Message>> => {
+  try {
+    // Validate message data
+    const validData = await validateEvent(messageUpdateSchema, data);
+
+    // Update message
+    const updatedMessage = await prisma.message.update({
+      where: { id: validData.messageId },
+      data: {
+        ...(validData.content && { content: validData.content }),
+        ...(validData.threadId && { threadId: validData.threadId }),
+        ...(validData.fileUrl && { fileUrl: validData.fileUrl }),
+        ...(validData.fileName && { fileName: validData.fileName }),
+        ...(validData.fileType && { fileType: validData.fileType }),
+        ...(validData.fileSize && { fileSize: validData.fileSize }),
+      },
+    });
+
+    // Broadcast message update to channel
+    socket.to(updatedMessage.channelId).emit(EVENTS.MESSAGE_UPDATED, updatedMessage);
+
+    return {
+      success: true,
+      data: updatedMessage,
+    };
+  } catch (error) {
     return handleSocketError(socket, error);
   }
 }; 

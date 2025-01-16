@@ -52,6 +52,21 @@ export interface MessageDeletedEvent {
   timestamp: string;
 }
 
+export interface MessageUpdatedEvent {
+  id: string;
+  content: string;
+  channelId: string;
+  authorId: string;
+  threadId?: string;
+  threadName?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ServerToClientEvents {
   'message': (event: MessageEvent) => void;
   'message-delivered': (event: MessageDeliveryEvent) => void;
@@ -64,6 +79,7 @@ export interface ServerToClientEvents {
   'channel-deleted': (event: ChannelDeletedEvent) => void;
   'typing-start': (event: TypingEvent) => void;
   'typing-stop': (event: TypingEvent) => void;
+  'message-updated': (event: MessageUpdatedEvent) => void;
 }
 
 export interface ClientToServerEvents {

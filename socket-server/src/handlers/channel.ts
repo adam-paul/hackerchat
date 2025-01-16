@@ -1,12 +1,13 @@
 // socket-server/src/handlers/channel.ts
 
-import type { SocketType, HandlerResult, ChannelPayload, CreateChannelPayload, UpdateChannelPayload, DeleteChannelPayload } from '../types/handlers';
-import { channelSchema, createChannelSchema, updateChannelSchema, deleteChannelSchema } from '../types/handlers';
+import type { SocketType, HandlerResult, ChannelPayload, UpdateChannelPayload, DeleteChannelPayload } from '../types/handlers';
+import { channelSchema, updateChannelSchema, deleteChannelSchema } from '../types/handlers';
 import { handleSocketError, validateEvent } from '../utils/errors';
 import { EVENTS } from '../config/socket';
 import { prisma } from '../lib/db';
 import type { Channel } from '@prisma/client';
 import { createId } from '@paralleldrive/cuid2';
+import { z } from 'zod';
 
 type ChannelResult = {
   channelId: string;
@@ -15,6 +16,99 @@ type ChannelResult = {
 type TypingResult = {
   channelId: string;
   isTyping: boolean;
+};
+
+interface ThreadMetadata {
+  messageId: string;
+  content: string;
+}
+
+interface CreateChannelData {
+  name: string;
+  parentId?: string;
+  description?: string;
+  originalId?: string;
+  threadMetadata?: ThreadMetadata;
+}
+
+const createChannelValidation = z.object({
+  name: z.string(),
+  parentId: z.string().optional(),
+  description: z.string().optional(),
+  originalId: z.string().optional(),
+  threadMetadata: z.object({
+    messageId: z.string(),
+    content: z.string(),
+  }).optional(),
+});
+
+export const handleCreateChannel = async (
+  socket: SocketType,
+  data: CreateChannelData
+): Promise<HandlerResult<Channel>> => {
+  try {
+    const validData = await validateEvent(createChannelValidation, data);
+    const channelId = createId();
+
+    // Use transaction to ensure atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the channel
+      const channel = await tx.channel.create({
+        data: {
+          id: channelId,
+          name: validData.name,
+          description: validData.description,
+          parentId: validData.parentId,
+          originalId: validData.originalId,
+          creatorId: socket.data.userId,
+        },
+      });
+
+      // If this is a thread, update the original message and create initial message
+      if (validData.threadMetadata) {
+        // Update original message with thread reference
+        await tx.message.update({
+          where: { id: validData.threadMetadata.messageId },
+          data: { threadId: channelId },
+        });
+
+        // Create initial message in thread
+        await tx.message.create({
+          data: {
+            id: createId(),
+            content: validData.threadMetadata.content,
+            channelId: channelId,
+            authorId: socket.data.userId,
+          },
+        });
+      }
+
+      return channel;
+    });
+
+    // Join the newly created channel
+    await socket.join(channelId);
+
+    // Broadcast channel creation
+    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, result);
+
+    // If this is a thread, broadcast message update
+    if (validData.threadMetadata) {
+      const updatedMessage = await prisma.message.findUnique({
+        where: { id: validData.threadMetadata.messageId },
+      });
+      if (updatedMessage) {
+        socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, updatedMessage);
+      }
+    }
+
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (error) {
+    return handleSocketError(socket, error);
+  }
 };
 
 export const handleJoinChannel = async (
@@ -115,70 +209,6 @@ export const handleTyping = async (
     };
   } catch (error) {
     return handleSocketError(socket, error, data.channelId);
-  }
-};
-
-export const handleCreateChannel = async (
-  socket: SocketType,
-  data: CreateChannelPayload
-): Promise<HandlerResult<Channel>> => {
-  try {
-    // Validate channel data
-    const validData = await validateEvent(createChannelSchema, data);
-
-    // Create channel with Prisma's default CUID generation
-    const channel = await prisma.channel.create({
-      data: {
-        name: validData.name,
-        description: validData.description,
-        parentId: validData.parentId,
-        creatorId: socket.data.userId,
-        originalId: validData.originalId?.startsWith('temp_') ? validData.originalId : undefined
-      }
-    });
-
-    // Join the channel room
-    await socket.join(channel.id);
-
-    // Format dates for socket emission
-    const formattedChannel = {
-      ...channel,
-      createdAt: channel.createdAt.toISOString(),
-      updatedAt: channel.updatedAt.toISOString(),
-      originalId: validData.originalId // Include originalId in response for client reconciliation
-    };
-
-    // Emit success to the creating client with both IDs for reconciliation
-    socket.emit(EVENTS.CHANNEL_CREATED, {
-      ...formattedChannel,
-      channelId: channel.id,
-      originalId: validData.originalId
-    });
-
-    // Broadcast channel creation to other clients
-    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-
-    return {
-      success: true,
-      data: channel
-    };
-  } catch (error) {
-    console.error('[CHANNEL_CREATE_ERROR]', {
-      error,
-      userId: socket.data.userId,
-      channelData: data,
-      stack: error instanceof Error ? error.stack : undefined
-    });
-
-    // Emit error to the creating client
-    socket.emit(EVENTS.ERROR, {
-      error: error instanceof Error ? error.message : 'Failed to create channel',
-      code: 'INTERNAL_ERROR',
-      channelId: data.originalId,
-      timestamp: new Date().toISOString()
-    });
-
-    return handleSocketError(socket, error);
   }
 };
 

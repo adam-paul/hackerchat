@@ -74,7 +74,12 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         messages: state.messages.map(msg => {
           // If this is the message being updated
           if (msg.id === action.payload.id || msg.id === action.payload.message.originalId) {
-            return action.payload.message;
+            return {
+              ...msg,
+              ...action.payload.message,
+              threadId: action.payload.message.threadId || msg.threadId,
+              threadName: action.payload.message.threadName || msg.threadName,
+            };
           }
           
           // If this message replies to the updated message
@@ -85,7 +90,9 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
               replyTo: {
                 id: action.payload.message.id,
                 content: action.payload.message.content,
-                author: action.payload.message.author
+                author: action.payload.message.author,
+                threadId: action.payload.message.threadId,
+                threadName: action.payload.message.threadName,
               }
             };
           }
@@ -158,11 +165,11 @@ export function useMessages() {
     };
 
     const handleMessageDeleted = (event: { messageId: string; originalId?: string }) => {
-      // Delete both the real message and any optimistic version
       dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
-      if (event.originalId) {
-        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
-      }
+    };
+
+    const handleMessageUpdated = (message: Message) => {
+      dispatch({ type: 'UPDATE_MESSAGE', payload: { id: message.id, message } });
     };
 
     const handleReactionAdded = (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
@@ -178,12 +185,14 @@ export function useMessages() {
 
     socket.setMessageHandler(handleMessage);
     socket.setMessageDeleteHandler(handleMessageDeleted);
+    socket.setMessageUpdateHandler(handleMessageUpdated);
     socket.setReactionAddedHandler(handleReactionAdded);
     socket.setReactionRemovedHandler(handleReactionRemoved);
 
     return () => {
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
+      socket.setMessageUpdateHandler(() => {});
       socket.setReactionAddedHandler(() => {});
       socket.setReactionRemovedHandler(() => {});
     };

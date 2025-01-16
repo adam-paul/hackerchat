@@ -20,7 +20,8 @@ interface SocketContextType {
     fileSize: number;
   }, replyToId?: string) => void;
   updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
-  onMessage?: (message: Message) => void;
+  onMessage: (handler: (message: Message) => void) => void;
+  onMessageUpdate: (handler: (message: Message) => void) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -30,7 +31,9 @@ const SocketContext = createContext<SocketContextType>({
   joinChannel: () => {},
   leaveChannel: () => {},
   sendMessage: () => {},
-  updateStatus: () => {}
+  updateStatus: () => {},
+  onMessage: () => {},
+  onMessageUpdate: () => {},
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
@@ -40,6 +43,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string>();
   const messageHandlerRef = useRef<((message: Message) => void) | undefined>();
+  const messageUpdateHandlerRef = useRef<((message: Message) => void) | undefined>();
   const serviceRef = useRef<SocketService | null>(null);
 
   // Update the ref when getToken changes
@@ -90,6 +94,26 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isLoaded]);
 
+  useEffect(() => {
+    if (!serviceRef.current) return;
+
+    // Set up message handlers
+    serviceRef.current.setMessageHandler((message) => {
+      messageHandlerRef.current?.(message);
+    });
+
+    serviceRef.current.setMessageUpdateHandler((message) => {
+      messageUpdateHandlerRef.current?.(message);
+    });
+
+    return () => {
+      if (serviceRef.current) {
+        serviceRef.current.setMessageHandler(() => {});
+        serviceRef.current.setMessageUpdateHandler(() => {});
+      }
+    };
+  }, []);
+
   const joinChannel = (channelId: string) => {
     try {
       socketService?.joinChannel(channelId);
@@ -131,17 +155,24 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const value = {
+    isConnected,
+    error,
+    socket: socketService,
+    joinChannel,
+    leaveChannel,
+    sendMessage,
+    updateStatus,
+    onMessage: (handler: (message: Message) => void) => {
+      messageHandlerRef.current = handler;
+    },
+    onMessageUpdate: (handler: (message: Message) => void) => {
+      messageUpdateHandlerRef.current = handler;
+    },
+  };
+
   return (
-    <SocketContext.Provider value={{
-      isConnected,
-      error,
-      socket: socketService,
-      joinChannel,
-      leaveChannel,
-      sendMessage,
-      updateStatus,
-      onMessage: messageHandlerRef.current
-    }}>
+    <SocketContext.Provider value={value}>
       {children}
     </SocketContext.Provider>
   );

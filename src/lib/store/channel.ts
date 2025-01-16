@@ -219,60 +219,59 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     },
 
     createThread: async (name: string, parentId: string, message: Message) => {
-      if (!socket) throw new Error('Socket not initialized');
+      if (!socket) throw new Error('Socket not connected');
       const store = get();
-      const tempId = `temp_${name}`;
-      
-      // Verify parent exists
-      const parent = store.getChannel(parentId);
-      if (!parent) {
-        throw new Error('Parent channel not found');
-      }
+      const tempId = `temp_${Date.now()}`;
 
-      // Create optimistic thread channel
-      const optimisticThread: Channel = {
+      const optimisticChannel: Channel = {
         id: tempId,
         name,
-        parentId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        creatorId: message.author.id,
+        creatorId: socket.getCurrentUserId() || '',
+        parentId,
+        originalId: tempId,
       };
 
-      // Create optimistic thread message
-      const optimisticThreadMessage: Message = {
-        id: `temp_thread_${Date.now()}`,
-        content: message.content,
-        channelId: tempId,
-        createdAt: new Date().toISOString(),
-        author: message.author,
-        reactions: [],
-        fileUrl: message.fileUrl,
-        fileName: message.fileName,
-        fileType: message.fileType,
-        fileSize: message.fileSize
-      };
-
-      // Add optimistic update with thread metadata
-      store._addOptimisticChannel(optimisticThread, {
+      // Add optimistic channel with thread metadata
+      store._addOptimisticChannel(optimisticChannel, {
         messageId: message.id,
-        initialMessage: optimisticThreadMessage,
-        parentId
+        initialMessage: {
+          ...message,
+          channelId: tempId,
+          id: `temp_${Date.now()}_msg`,
+        },
       });
-      
-      try {
-        await socket.createChannel(name, parentId, message.content, {
-          onError: (error) => {
-            store._removeOptimisticChannel(tempId);
-            store._setError(error);
-          }
-        });
-        return optimisticThread;
-      } catch (error) {
-        store._removeOptimisticChannel(tempId);
-        store._setError(error instanceof Error ? error.message : 'Failed to create thread');
-        throw error;
-      }
+
+      return withErrorHandling(
+        store,
+        'create thread',
+        async () => {
+          // Create thread with message metadata
+          return new Promise<Channel>((resolve, reject) => {
+            socket?.createChannel(
+              name,
+              parentId,
+              undefined,
+              {
+                onCreated: (channel) => {
+                  store._replaceOptimisticWithReal(tempId, channel);
+                  resolve(channel);
+                },
+                onError: (error) => reject(new Error(error))
+              },
+              {
+                messageId: message.id,
+                content: message.content,
+              }
+            );
+          });
+        },
+        () => {
+          // Cleanup on error
+          store._removeOptimisticChannel(tempId);
+        }
+      );
     },
 
     updateChannel: async (id: string, updates: Partial<Channel>) => {

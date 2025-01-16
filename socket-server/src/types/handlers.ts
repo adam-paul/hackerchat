@@ -29,6 +29,16 @@ export interface MessagePayload {
   replyToId?: string;
 }
 
+export interface MessageUpdatePayload {
+  messageId: string;
+  threadId?: string;
+  content?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+}
+
 export interface ChannelPayload {
   channelId: string;
 }
@@ -80,4 +90,14 @@ export const updateChannelSchema = z.object({
 
 export const deleteChannelSchema = z.object({
   channelId: z.string()
+});
+
+export const messageUpdateSchema = z.object({
+  messageId: z.string(),
+  threadId: z.string().optional(),
+  content: z.string().optional(),
+  fileUrl: z.string().optional(),
+  fileName: z.string().optional(),
+  fileType: z.string().optional(),
+  fileSize: z.number().optional(),
 }); 
