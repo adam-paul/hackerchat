@@ -275,7 +275,7 @@ export const handleMessageUpdate = async (
     });
 
     // Broadcast the message update to all clients in the channel
-    socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, {
+    socket.emit(EVENTS.MESSAGE_UPDATED, {
       messageId: updatedMessage.id,
       threadId: updatedMessage.threadId || undefined,
       threadMetadata: updatedMessage.threadName ? {
