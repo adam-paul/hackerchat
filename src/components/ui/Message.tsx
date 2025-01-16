@@ -29,6 +29,24 @@ export const MessageComponent = React.memo(function MessageComponent({
   onMessageUpdate,
   onAddMessage
 }: MessageProps) {
+  // Validate message prop
+  if (!message || typeof message !== 'object') {
+    console.error('Invalid message prop:', message);
+    return null;
+  }
+
+  // Ensure required fields exist
+  if (!message.id || !message.channelId || !message.author) {
+    console.error('Message missing required fields:', message);
+    return null;
+  }
+
+  // Ensure author has required fields
+  if (!message.author.id) {
+    console.error('Message author missing required fields:', message);
+    return null;
+  }
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isNaming, setIsNaming] = useState(false);
   const [threadName, setThreadName] = useState('');

@@ -239,7 +239,28 @@ export class SocketService {
   }
 
   setMessageHandler(handler: (message: Message) => void): void {
-    this.onMessageHandler = handler;
+    // Wrap handler with validation
+    this.onMessageHandler = (message: Message) => {
+      // Validate message structure
+      if (!message || typeof message !== 'object') {
+        console.error('Invalid message received:', message);
+        return;
+      }
+
+      // Ensure required fields exist
+      if (!message.id || !message.channelId || !message.author) {
+        console.error('Message missing required fields:', message);
+        return;
+      }
+
+      // Ensure author has required fields
+      if (!message.author.id) {
+        console.error('Message author missing required fields:', message);
+        return;
+      }
+
+      handler(message);
+    };
   }
 
   setMessageDeleteHandler(handler: (event: { messageId: string; originalId?: string }) => void): void {

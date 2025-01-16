@@ -16,13 +16,8 @@ export function setupSocketIntegration(socket: SocketService) {
 
   // Define event handlers using store.setState
   const handleChannelCreated = (channel: Channel) => {
-    if (!channel || !channel.id) {
-      console.error('Received invalid channel data:', channel);
-      return;
-    }
-
     store.setState(state => {
-      const optimisticUpdate = channel.originalId ? state.optimisticUpdates.get(channel.originalId) : null;
+      const optimisticUpdate = state.optimisticUpdates.get(channel.originalId || '');
       
       if (optimisticUpdate) {
         // Replace optimistic with real
@@ -32,7 +27,7 @@ export function setupSocketIntegration(socket: SocketService) {
           ),
           optimisticUpdates: new Map(
             Array.from(state.optimisticUpdates.entries())
-              .filter(([key]) => key !== channel.originalId)
+              .filter(([key]) => key !== (channel.originalId || ''))
           )
         };
       } else {
@@ -45,11 +40,6 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   const handleChannelDeleted = (channelId: string) => {
-    if (!channelId) {
-      console.error('Received invalid channelId:', channelId);
-      return;
-    }
-
     store.setState(state => {
       // Handle both optimistic and regular deletions
       const optimisticUpdate = state.optimisticUpdates.get(channelId);
@@ -76,11 +66,6 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   const handleChannelUpdated = (channel: Channel) => {
-    if (!channel || !channel.id) {
-      console.error('Received invalid channel data:', channel);
-      return;
-    }
-
     store.setState(state => {
       const optimisticUpdate = state.optimisticUpdates.get(channel.id);
       if (optimisticUpdate) {
@@ -104,7 +89,6 @@ export function setupSocketIntegration(socket: SocketService) {
   };
 
   const handleError = (error: string) => {
-    if (!error) return;
     store.setState({ error });
   };
 
@@ -113,29 +97,28 @@ export function setupSocketIntegration(socket: SocketService) {
     fetch('/api/channels')
       .then(res => res.json())
       .then(channels => {
-        if (Array.isArray(channels)) {
-          store.setState({ channels });
-        }
+        store.setState({ channels });
       })
       .catch(error => {
-        console.error('Failed to fetch channels on reconnect:', error);
-        store.setState({ error: 'Failed to reconnect and fetch channels' });
+        store.setState({ 
+          error: error instanceof Error ? error.message : 'Failed to fetch channels' 
+        });
       });
   };
 
-  // Set up socket event listeners
+  // Set up event listeners
   socket.on('channel:created', handleChannelCreated);
-  socket.on('channel:updated', handleChannelUpdated);
   socket.on('channel:deleted', handleChannelDeleted);
+  socket.on('channel:updated', handleChannelUpdated);
   socket.on('error', handleError);
-  socket.on('reconnect', handleReconnect);
+  socket.on('socket.reconnect', handleReconnect);
 
   // Return cleanup function
   return () => {
     socket.off('channel:created', handleChannelCreated);
-    socket.off('channel:updated', handleChannelUpdated);
     socket.off('channel:deleted', handleChannelDeleted);
+    socket.off('channel:updated', handleChannelUpdated);
     socket.off('error', handleError);
-    socket.off('reconnect', handleReconnect);
+    socket.off('socket.reconnect', handleReconnect);
   };
 }

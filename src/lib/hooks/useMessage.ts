@@ -198,10 +198,46 @@ export function useMessages() {
   }, []);
 
   const addMessage = useCallback((message: Message) => {
+    // Validate message before adding to state
+    if (!message || typeof message !== 'object') {
+      console.error('Invalid message received:', message);
+      return;
+    }
+
+    // Ensure required fields exist
+    if (!message.id || !message.channelId || !message.author) {
+      console.error('Message missing required fields:', message);
+      return;
+    }
+
+    // Ensure author has required fields
+    if (!message.author.id) {
+      console.error('Message author missing required fields:', message);
+      return;
+    }
+
     dispatch({ type: 'ADD_MESSAGE', payload: message });
   }, []);
 
   const updateMessage = useCallback((id: string, message: Message) => {
+    // Validate message before updating
+    if (!message || typeof message !== 'object') {
+      console.error('Invalid message update received:', message);
+      return;
+    }
+
+    // Ensure required fields exist
+    if (!message.id || !message.channelId || !message.author) {
+      console.error('Message update missing required fields:', message);
+      return;
+    }
+
+    // Ensure author has required fields
+    if (!message.author.id) {
+      console.error('Message author missing required fields:', message);
+      return;
+    }
+
     dispatch({
       type: 'UPDATE_MESSAGE',
       payload: { id, message }
