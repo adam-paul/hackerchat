@@ -36,9 +36,9 @@ export function HomeUI() {
     selectChannel,
     channels,
     getChannelPath,
-    handleChannelCreated: onChannelCreated,
-    handleChannelUpdated: onChannelUpdated,
-    handleChannelDeleted: onChannelDeleted,
+    handleChannelCreated: storeHandleChannelCreated,
+    handleChannelUpdated: storeHandleChannelUpdated,
+    handleChannelDeleted: storeHandleChannelDeleted,
     _setError: setStoreError,
     _setChannels: setStoreChannels
   } = useChannelStore();
@@ -92,6 +92,35 @@ export function HomeUI() {
       setTimeout(() => messageElement.classList.remove('bg-zinc-700/30'), 2000);
     }
   };
+
+  // Socket event handlers
+  const handleSocketChannelCreated = useCallback((channel: Channel) => {
+    storeHandleChannelCreated(channel);
+  }, [storeHandleChannelCreated]);
+
+  const handleSocketChannelUpdated = useCallback((channel: Channel) => {
+    storeHandleChannelUpdated(channel);
+  }, [storeHandleChannelUpdated]);
+
+  const handleSocketChannelDeleted = useCallback((channelId: string) => {
+    storeHandleChannelDeleted(channelId);
+  }, [storeHandleChannelDeleted]);
+
+  // Handle socket events
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('channel:created', handleSocketChannelCreated);
+    socket.on('channel:updated', handleSocketChannelUpdated);
+    socket.on('channel:deleted', handleSocketChannelDeleted);
+
+    return () => {
+      if (!socket) return;
+      socket.off('channel:created', handleSocketChannelCreated);
+      socket.off('channel:updated', handleSocketChannelUpdated);
+      socket.off('channel:deleted', handleSocketChannelDeleted);
+    };
+  }, [socket, handleSocketChannelCreated, handleSocketChannelUpdated, handleSocketChannelDeleted]);
 
   // Initial fetch of channels
   useEffect(() => {
@@ -389,22 +418,6 @@ export function HomeUI() {
       }
     });
   }, [channels, selectedChannelId, handleSelectChannel, messages, updateMessage, setStoreChannels]);
-
-  // Handle socket events
-  useEffect(() => {
-    if (!isConnected || !socket) return;
-
-    // Listen for channel events
-    socket.on('channel:created', onChannelCreated);
-    socket.on('channel:updated', onChannelUpdated);
-    socket.on('channel:deleted', onChannelDeleted);
-
-    return () => {
-      socket.off('channel:created', onChannelCreated);
-      socket.off('channel:updated', onChannelUpdated);
-      socket.off('channel:deleted', onChannelDeleted);
-    };
-  }, [isConnected, socket, onChannelCreated, onChannelUpdated, onChannelDeleted]);
 
   return (
     <div className="min-h-screen flex">

@@ -1,52 +1,72 @@
 'use client';
 
-import type { Channel, Message } from '@/types';
+import type { Channel } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
 import { useChannelStore } from './channel';
 
 export function setupSocketIntegration(socket: SocketService) {
-  // Get store actions
-  const store = useChannelStore.getState();
-  const { 
-    _addOptimisticChannel, 
-    _removeOptimisticChannel, 
-    _replaceOptimisticWithReal,
-    _setError
-  } = store;
+  // Instead of accessing store directly, use setState
+  const store = useChannelStore;
 
-  // Define event handlers
+  // Define event handlers using store.setState
   const handleChannelCreated = (channel: Channel) => {
-    // Check if we have an optimistic update for this channel
-    const optimisticUpdate = store.optimisticUpdates.get(channel.id);
-    if (optimisticUpdate) {
-      // Replace optimistic with real
-      _replaceOptimisticWithReal(channel.id, channel);
-    } else {
-      // Add new channel
-      _addOptimisticChannel(channel);
-    }
+    store.setState(state => {
+      const optimisticUpdate = state.optimisticUpdates.get(channel.id);
+      if (optimisticUpdate) {
+        // Replace optimistic with real
+        return {
+          channels: state.channels.map(c => 
+            c.id === channel.id ? channel : c
+          ),
+          optimisticUpdates: new Map(
+            Array.from(state.optimisticUpdates.entries())
+              .filter(([key]) => key !== channel.id)
+          )
+        };
+      } else {
+        // Add new channel
+        return {
+          channels: [...state.channels, channel].sort((a, b) => a.name.localeCompare(b.name))
+        };
+      }
+    });
   };
 
   const handleChannelDeleted = (channelId: string) => {
-    _removeOptimisticChannel(channelId);
+    store.setState(state => ({
+      channels: state.channels.filter(c => c.id !== channelId),
+      optimisticUpdates: new Map(
+        Array.from(state.optimisticUpdates.entries())
+          .filter(([key]) => key !== channelId)
+      )
+    }));
   };
 
   const handleChannelUpdated = (channel: Channel) => {
-    const optimisticUpdate = store.optimisticUpdates.get(channel.id);
-    if (optimisticUpdate) {
-      // Replace optimistic with real
-      _replaceOptimisticWithReal(channel.id, channel);
-    } else {
-      // Update existing channel
-      const channels = store.channels.map(c => 
-        c.id === channel.id ? channel : c
-      );
-      useChannelStore.setState({ channels });
-    }
+    store.setState(state => {
+      const optimisticUpdate = state.optimisticUpdates.get(channel.id);
+      if (optimisticUpdate) {
+        return {
+          channels: state.channels.map(c => 
+            c.id === channel.id ? channel : c
+          ),
+          optimisticUpdates: new Map(
+            Array.from(state.optimisticUpdates.entries())
+              .filter(([key]) => key !== channel.id)
+          )
+        };
+      } else {
+        return {
+          channels: state.channels.map(c => 
+            c.id === channel.id ? channel : c
+          )
+        };
+      }
+    });
   };
 
   const handleError = (error: string) => {
-    _setError(error);
+    store.setState({ error });
   };
 
   const handleReconnect = () => {
@@ -54,10 +74,12 @@ export function setupSocketIntegration(socket: SocketService) {
     fetch('/api/channels')
       .then(res => res.json())
       .then(channels => {
-        useChannelStore.setState({ channels });
+        store.setState({ channels });
       })
       .catch(error => {
-        _setError(error instanceof Error ? error.message : 'Failed to fetch channels');
+        store.setState({ 
+          error: error instanceof Error ? error.message : 'Failed to fetch channels' 
+        });
       });
   };
 
@@ -70,7 +92,6 @@ export function setupSocketIntegration(socket: SocketService) {
 
   // Return cleanup function
   return () => {
-    // Cleanup socket listeners
     socket.off('channel-created', handleChannelCreated);
     socket.off('channel-deleted', handleChannelDeleted);
     socket.off('channel-updated', handleChannelUpdated);
