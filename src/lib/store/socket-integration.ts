@@ -17,6 +17,7 @@ export function setupSocketIntegration(socket: SocketService) {
   // Define event handlers using store.setState
   const handleChannelCreated = (channel: Channel) => {
     useChannelStore.setState(state => {
+      // Check for optimistic update
       const optimisticUpdate = state.optimisticUpdates.get(channel.originalId || '');
       
       if (optimisticUpdate) {
@@ -31,10 +32,19 @@ export function setupSocketIntegration(socket: SocketService) {
           )
         };
       } else {
-        // Add new channel
-        return {
-          channels: [...state.channels, channel].sort((a, b) => a.name.localeCompare(b.name))
-        };
+        // Only add if this isn't a response to our own creation
+        // (i.e., no matching channel ID or originalId)
+        const existingChannel = state.channels.find(c => 
+          c.id === channel.id || c.id === channel.originalId
+        );
+        
+        if (!existingChannel) {
+          return {
+            channels: [...state.channels, channel].sort((a, b) => a.name.localeCompare(b.name))
+          };
+        }
+        
+        return state;
       }
     });
   };
