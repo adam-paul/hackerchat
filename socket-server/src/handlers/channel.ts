@@ -137,7 +137,7 @@ export const handleCreateChannel = async (
       }
     });
 
-    // If this is a thread creation (has threadMessageId), update the original message and create initial message
+    // If this is a thread creation (has threadMessageId), update the original message with thread info
     if (validData.threadMessageId && validData.threadMessageContent) {
       // Update the original message with thread info
       await prisma.message.update({
@@ -149,6 +149,48 @@ export const handleCreateChannel = async (
           threadName: validData.name
         }
       });
+
+      // Emit message update event to notify clients
+      const updatedMessage = await prisma.message.findUnique({
+        where: { id: validData.threadMessageId },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true
+            }
+          },
+          replyTo: {
+            select: {
+              id: true,
+              content: true,
+              author: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (updatedMessage) {
+        socket.to(updatedMessage.channelId).emit(EVENTS.MESSAGE_UPDATED, {
+          messageId: updatedMessage.id,
+          message: {
+            id: updatedMessage.id,
+            content: updatedMessage.content,
+            channelId: updatedMessage.channelId,
+            createdAt: updatedMessage.createdAt.toISOString(),
+            author: updatedMessage.author,
+            replyTo: updatedMessage.replyTo,
+            threadId: updatedMessage.threadId,
+            threadName: updatedMessage.threadName
+          }
+        });
+      }
 
       // Create the initial thread message
       await prisma.message.create({
