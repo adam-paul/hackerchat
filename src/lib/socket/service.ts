@@ -151,7 +151,47 @@ export class SocketService {
 
     this.socket.on('message-updated', (event) => {
       if (this.onMessageHandler && event.message) {
-        this.onMessageHandler(event.message);
+        // Debug logging
+        console.log('[MESSAGE_UPDATE_RECEIVED]', {
+          messageId: event.messageId,
+          threadId: event.message.threadId,
+          threadName: event.message.threadName,
+          message: event.message
+        });
+
+        // Validate and ensure thread fields are preserved
+        const message = {
+          ...event.message,
+          threadId: event.message.threadId,
+          threadName: event.message.threadName,
+          // Ensure dates are properly formatted
+          createdAt: event.message.createdAt,
+          updatedAt: event.message.updatedAt,
+          // Ensure reactions are properly formatted
+          reactions: event.message.reactions?.map((r: { 
+            id: string; 
+            content: string; 
+            createdAt: string;
+            user: { 
+              id: string;
+              name: string | null;
+              imageUrl: string | null;
+            }
+          }) => ({
+            id: r.id,
+            content: r.content,
+            createdAt: r.createdAt,
+            user: r.user
+          })) || []
+        };
+        
+        // Validate message before forwarding
+        if (!message.id || !message.channelId || !message.author || !message.author.id) {
+          console.error('Invalid message update received:', message);
+          return;
+        }
+
+        this.onMessageHandler(message);
       }
     });
 
