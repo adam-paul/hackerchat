@@ -29,16 +29,6 @@ export interface MessagePayload {
   replyToId?: string;
 }
 
-export interface MessageUpdatePayload {
-  messageId: string;
-  threadId?: string;
-  content?: string;
-  fileUrl?: string;
-  fileName?: string;
-  fileType?: string;
-  fileSize?: number;
-}
-
 export interface ChannelPayload {
   channelId: string;
 }
@@ -48,6 +38,11 @@ export interface CreateChannelPayload {
   parentId?: string;
   description?: string;
   originalId?: string;
+  threadMetadata?: {
+    messageId: string;
+    title: string;
+    initialMessage?: string;
+  };
 }
 
 export interface UpdateChannelPayload {
@@ -58,6 +53,15 @@ export interface UpdateChannelPayload {
 
 export interface DeleteChannelPayload {
   channelId: string;
+}
+
+export interface MessageUpdatePayload {
+  messageId: string;
+  threadId?: string;
+  threadMetadata?: {
+    title: string;
+    createdAt: Date;
+  };
 }
 
 export const messageSchema = z.object({
@@ -76,10 +80,15 @@ export const channelSchema = z.object({
 });
 
 export const createChannelSchema = z.object({
-  name: z.string().min(1),
+  name: z.string(),
   parentId: z.string().optional(),
   description: z.string().optional(),
-  originalId: z.string().optional()
+  originalId: z.string().optional(),
+  threadMetadata: z.object({
+    messageId: z.string(),
+    title: z.string(),
+    initialMessage: z.string().optional()
+  }).optional()
 });
 
 export const updateChannelSchema = z.object({
@@ -95,9 +104,8 @@ export const deleteChannelSchema = z.object({
 export const messageUpdateSchema = z.object({
   messageId: z.string(),
   threadId: z.string().optional(),
-  content: z.string().optional(),
-  fileUrl: z.string().optional(),
-  fileName: z.string().optional(),
-  fileType: z.string().optional(),
-  fileSize: z.number().optional(),
+  threadMetadata: z.object({
+    title: z.string(),
+    createdAt: z.date()
+  }).optional()
 }); 

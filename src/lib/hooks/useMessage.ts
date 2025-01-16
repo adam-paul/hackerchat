@@ -17,6 +17,7 @@ type MessageAction =
   | { type: 'FETCH_ERROR'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: Message }
   | { type: 'UPDATE_MESSAGE'; payload: { id: string; message: Message } }
+  | { type: 'UPDATE_THREAD_METADATA'; payload: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } } }
   | { type: 'DELETE_MESSAGE'; payload: string }
   | { type: 'MESSAGE_ERROR'; payload: { error: string } }
   | { type: 'CLEAR_MESSAGES' }
@@ -74,12 +75,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         messages: state.messages.map(msg => {
           // If this is the message being updated
           if (msg.id === action.payload.id || msg.id === action.payload.message.originalId) {
-            return {
-              ...msg,
-              ...action.payload.message,
-              threadId: action.payload.message.threadId || msg.threadId,
-              threadName: action.payload.message.threadName || msg.threadName,
-            };
+            return action.payload.message;
           }
           
           // If this message replies to the updated message
@@ -90,9 +86,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
               replyTo: {
                 id: action.payload.message.id,
                 content: action.payload.message.content,
-                author: action.payload.message.author,
-                threadId: action.payload.message.threadId,
-                threadName: action.payload.message.threadName,
+                author: action.payload.message.author
               }
             };
           }
@@ -148,6 +142,21 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
           } : msg
         )
       };
+    case 'UPDATE_THREAD_METADATA':
+      return {
+        ...state,
+        status: 'success',
+        messages: state.messages.map(msg => {
+          if (msg.id === action.payload.messageId) {
+            return {
+              ...msg,
+              threadId: action.payload.threadId,
+              threadName: action.payload.threadMetadata?.title
+            };
+          }
+          return msg;
+        })
+      };
     default:
       return state;
   }
@@ -165,11 +174,11 @@ export function useMessages() {
     };
 
     const handleMessageDeleted = (event: { messageId: string; originalId?: string }) => {
+      // Delete both the real message and any optimistic version
       dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
-    };
-
-    const handleMessageUpdated = (message: Message) => {
-      dispatch({ type: 'UPDATE_MESSAGE', payload: { id: message.id, message } });
+      if (event.originalId) {
+        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
+      }
     };
 
     const handleReactionAdded = (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
@@ -183,18 +192,22 @@ export function useMessages() {
       }});
     };
 
+    const handleMessageUpdated = (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+      dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
+    };
+
     socket.setMessageHandler(handleMessage);
     socket.setMessageDeleteHandler(handleMessageDeleted);
-    socket.setMessageUpdateHandler(handleMessageUpdated);
     socket.setReactionAddedHandler(handleReactionAdded);
     socket.setReactionRemovedHandler(handleReactionRemoved);
+    socket.setMessageUpdateHandler(handleMessageUpdated);
 
     return () => {
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
-      socket.setMessageUpdateHandler(() => {});
       socket.setReactionAddedHandler(() => {});
       socket.setReactionRemovedHandler(() => {});
+      socket.setMessageUpdateHandler(() => {});
     };
   }, [socket]);
 

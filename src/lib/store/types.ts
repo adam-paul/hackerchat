@@ -8,6 +8,10 @@ export interface OptimisticUpdate {
     parentId?: string;
     messageId?: string;
     initialMessage?: Message;
+    threadMetadata?: {
+      title: string;
+      createdAt: string;
+    };
   };
 }
 

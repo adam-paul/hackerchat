@@ -53,18 +53,12 @@ export interface MessageDeletedEvent {
 }
 
 export interface MessageUpdatedEvent {
-  id: string;
-  content: string;
-  channelId: string;
-  authorId: string;
+  messageId: string;
   threadId?: string;
-  threadName?: string;
-  fileUrl?: string;
-  fileName?: string;
-  fileType?: string;
-  fileSize?: number;
-  createdAt: string;
-  updatedAt: string;
+  threadMetadata?: {
+    title: string;
+    createdAt: string;
+  };
 }
 
 export interface ServerToClientEvents {
@@ -72,6 +66,7 @@ export interface ServerToClientEvents {
   'message-delivered': (event: MessageDeliveryEvent) => void;
   'message-error': (event: MessageErrorEvent) => void;
   'message-deleted': (event: MessageDeletedEvent) => void;
+  'message-updated': (event: MessageUpdatedEvent) => void;
   'channel-joined': (event: ChannelEvent) => void;
   'channel-left': (event: ChannelEvent) => void;
   'channel-created': (event: ChannelCreatedEvent) => void;
@@ -79,7 +74,6 @@ export interface ServerToClientEvents {
   'channel-deleted': (event: ChannelDeletedEvent) => void;
   'typing-start': (event: TypingEvent) => void;
   'typing-stop': (event: TypingEvent) => void;
-  'message-updated': (event: MessageUpdatedEvent) => void;
 }
 
 export interface ClientToServerEvents {
@@ -87,6 +81,7 @@ export interface ClientToServerEvents {
   'message-delivered': (event: MessageDeliveryEvent) => void;
   'message-error': (event: MessageErrorEvent) => void;
   'message-deleted': (messageId: string) => void;
+  'message-updated': (data: MessageUpdatedEvent) => void;
   'join-channel': (channelId: string) => void;
   'leave-channel': (channelId: string) => void;
   'create-channel': (data: { name: string; parentId?: string; description?: string }) => void;

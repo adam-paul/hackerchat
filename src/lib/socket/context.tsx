@@ -20,8 +20,8 @@ interface SocketContextType {
     fileSize: number;
   }, replyToId?: string) => void;
   updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
-  onMessage: (handler: (message: Message) => void) => void;
-  onMessageUpdate: (handler: (message: Message) => void) => void;
+  onMessage?: (message: Message) => void;
+  updateMessage: (messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -32,8 +32,7 @@ const SocketContext = createContext<SocketContextType>({
   leaveChannel: () => {},
   sendMessage: () => {},
   updateStatus: () => {},
-  onMessage: () => {},
-  onMessageUpdate: () => {},
+  updateMessage: () => {}
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
@@ -43,7 +42,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string>();
   const messageHandlerRef = useRef<((message: Message) => void) | undefined>();
-  const messageUpdateHandlerRef = useRef<((message: Message) => void) | undefined>();
   const serviceRef = useRef<SocketService | null>(null);
 
   // Update the ref when getToken changes
@@ -94,26 +92,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isLoaded]);
 
-  useEffect(() => {
-    if (!serviceRef.current) return;
-
-    // Set up message handlers
-    serviceRef.current.setMessageHandler((message) => {
-      messageHandlerRef.current?.(message);
-    });
-
-    serviceRef.current.setMessageUpdateHandler((message) => {
-      messageUpdateHandlerRef.current?.(message);
-    });
-
-    return () => {
-      if (serviceRef.current) {
-        serviceRef.current.setMessageHandler(() => {});
-        serviceRef.current.setMessageUpdateHandler(() => {});
-      }
-    };
-  }, []);
-
   const joinChannel = (channelId: string) => {
     try {
       socketService?.joinChannel(channelId);
@@ -155,24 +133,27 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = {
-    isConnected,
-    error,
-    socket: socketService,
-    joinChannel,
-    leaveChannel,
-    sendMessage,
-    updateStatus,
-    onMessage: (handler: (message: Message) => void) => {
-      messageHandlerRef.current = handler;
-    },
-    onMessageUpdate: (handler: (message: Message) => void) => {
-      messageUpdateHandlerRef.current = handler;
-    },
+  const updateMessage = (messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+    try {
+      socketService?.updateMessage(messageId, updates);
+    } catch (error) {
+      console.error('Failed to update message:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update message');
+    }
   };
 
   return (
-    <SocketContext.Provider value={value}>
+    <SocketContext.Provider value={{
+      isConnected,
+      error,
+      socket: socketService,
+      joinChannel,
+      leaveChannel,
+      sendMessage,
+      updateStatus,
+      onMessage: messageHandlerRef.current,
+      updateMessage
+    }}>
       {children}
     </SocketContext.Provider>
   );

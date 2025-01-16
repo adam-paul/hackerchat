@@ -1,6 +1,6 @@
 // socket-server/src/handlers/index.ts
 
-import type { SocketType } from '../types/handlers';
+import type { SocketType, MessagePayload, MessageUpdatePayload } from '../types/handlers';
 import type { MessageEvent, ReactionEvent } from '../types';
 import { 
   handleJoinChannel, 
@@ -73,22 +73,18 @@ export const handleConnection = (socket: SocketType): void => {
   });
 
   // Message events
-  socket.on(EVENTS.MESSAGE, async (data: MessageEvent) => {
-    await handleMessage(socket, {
-      content: data.message.content,
-      channelId: data.channelId,
-      messageId: data.messageId,
-      fileUrl: data.message.fileUrl,
-      fileName: data.message.fileName,
-      fileType: data.message.fileType,
-      fileSize: data.message.fileSize,
-      replyToId: data.message.replyToId
-    });
-  });
-
-  socket.on(EVENTS.MESSAGE_DELETED, async (messageId: string) => {
-    await handleMessageDelete(socket, messageId);
-  });
+  socket.on(EVENTS.MESSAGE, (data: MessageEvent) => handleMessage(socket, {
+    content: data.message.content,
+    channelId: data.channelId,
+    messageId: data.messageId,
+    fileUrl: data.message.fileUrl,
+    fileName: data.message.fileName,
+    fileType: data.message.fileType,
+    fileSize: data.message.fileSize,
+    replyToId: data.message.replyToId
+  }));
+  socket.on(EVENTS.MESSAGE_DELETED, (messageId: string) => handleMessageDelete(socket, messageId));
+  socket.on(EVENTS.MESSAGE_UPDATED, (data: MessageUpdatePayload) => handleMessageUpdate(socket, data));
 
   // Reaction events
   socket.on(EVENTS.ADD_REACTION, async (data: ReactionEvent) => {
@@ -120,6 +116,4 @@ export const handleConnection = (socket: SocketType): void => {
     // Broadcast user disconnected event to all clients
     socket.broadcast.emit('user-disconnected', userId);
   });
-
-  socket.on(EVENTS.MESSAGE_UPDATED, (data) => handleMessageUpdate(socket, data));
 };

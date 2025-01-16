@@ -8,7 +8,6 @@ import { EVENTS } from '../config/socket';
 import { prisma } from '../lib/db';
 import { MAX_RETRIES, RETRY_DELAY } from '../config/constants';
 import { createId } from '@paralleldrive/cuid2';
-import type { Message } from '@prisma/client';
 
 type MessageResult = {
   messageId: string;
@@ -248,30 +247,42 @@ export const handleMessageDelete = async (
 export const handleMessageUpdate = async (
   socket: SocketType,
   data: MessageUpdatePayload
-): Promise<HandlerResult<Message>> => {
+): Promise<HandlerResult<MessageUpdatePayload>> => {
   try {
-    // Validate message data
-    const validData = await validateEvent(messageUpdateSchema, data);
+    const validatedData = messageUpdateSchema.parse(data);
 
-    // Update message
-    const updatedMessage = await prisma.message.update({
-      where: { id: validData.messageId },
+    const message = await prisma.message.update({
+      where: { id: validatedData.messageId },
       data: {
-        ...(validData.content && { content: validData.content }),
-        ...(validData.threadId && { threadId: validData.threadId }),
-        ...(validData.fileUrl && { fileUrl: validData.fileUrl }),
-        ...(validData.fileName && { fileName: validData.fileName }),
-        ...(validData.fileType && { fileType: validData.fileType }),
-        ...(validData.fileSize && { fileSize: validData.fileSize }),
-      },
+        threadId: validatedData.threadId,
+        threadName: validatedData.threadMetadata?.title
+      }
     });
 
-    // Broadcast message update to channel
-    socket.to(updatedMessage.channelId).emit(EVENTS.MESSAGE_UPDATED, updatedMessage);
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    // Broadcast the message update to all clients in the channel
+    socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, {
+      messageId: message.id,
+      threadId: message.threadId || undefined,
+      threadMetadata: message.threadName ? {
+        title: message.threadName,
+        createdAt: message.updatedAt
+      } : undefined
+    });
 
     return {
       success: true,
-      data: updatedMessage,
+      data: {
+        messageId: message.id,
+        threadId: message.threadId || undefined,
+        threadMetadata: message.threadName ? {
+          title: message.threadName,
+          createdAt: message.updatedAt
+        } : undefined
+      }
     };
   } catch (error) {
     return handleSocketError(socket, error);
