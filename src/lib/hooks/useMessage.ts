@@ -74,13 +74,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         messages: state.messages.map(msg => {
           // If this is the message being updated
           if (msg.id === action.payload.id || msg.id === action.payload.message.originalId) {
-            // Preserve existing fields and merge with update, ensuring thread fields are included
-            return {
-              ...msg,
-              ...action.payload.message,
-              threadId: action.payload.message.threadId || msg.threadId,
-              threadName: action.payload.message.threadName || msg.threadName
-            };
+            return action.payload.message;
           }
           
           // If this message replies to the updated message

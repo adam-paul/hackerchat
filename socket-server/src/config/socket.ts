@@ -51,7 +51,6 @@ export const EVENTS = {
   MESSAGE_DELIVERED: 'message-delivered' as const,
   MESSAGE_ERROR: 'message-error' as const,
   MESSAGE_DELETED: 'message-deleted' as const,
-  MESSAGE_UPDATED: 'message-updated' as const,
   
   // Status events
   STATUS_UPDATE: 'status-update' as const,
