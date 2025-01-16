@@ -87,8 +87,29 @@ export class SocketService {
       console.error('Socket error:', error);
     });
 
-    this.socket.on('message', (message: Message) => {
+    this.socket.on('message', (event: any) => {
       if (this.onMessageHandler) {
+        // Handle both direct messages and message events
+        const message = event.message || event;
+        
+        // Validate message structure
+        if (!message || typeof message !== 'object') {
+          console.error('Invalid message received:', event);
+          return;
+        }
+
+        // Ensure required fields exist
+        if (!message.id || !message.channelId || !message.author) {
+          console.error('Message missing required fields:', message);
+          return;
+        }
+
+        // Ensure author has required fields
+        if (!message.author.id) {
+          console.error('Message author missing required fields:', message);
+          return;
+        }
+
         this.onMessageHandler(message);
       }
     });
