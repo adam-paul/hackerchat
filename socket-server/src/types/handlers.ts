@@ -37,6 +37,7 @@ export interface CreateChannelPayload {
   name: string;
   parentId?: string;
   description?: string;
+  originalId?: string;
 }
 
 export interface UpdateChannelPayload {
@@ -67,7 +68,8 @@ export const channelSchema = z.object({
 export const createChannelSchema = z.object({
   name: z.string().min(1),
   parentId: z.string().optional(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  originalId: z.string().optional()
 });
 
 export const updateChannelSchema = z.object({

@@ -125,9 +125,15 @@ export const handleCreateChannel = async (
     // Validate channel data
     const validData = await validateEvent(createChannelSchema, data);
 
+    // Generate a permanent ID if this is an optimistic update
+    const permanentId = validData.originalId?.startsWith('temp_') 
+      ? `channel_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      : undefined;
+
     // Create channel
     const channel = await prisma.channel.create({
       data: {
+        id: permanentId, // Use generated permanent ID if this was an optimistic update
         name: validData.name,
         description: validData.description,
         parentId: validData.parentId,
@@ -142,17 +148,31 @@ export const handleCreateChannel = async (
     const formattedChannel = {
       ...channel,
       createdAt: channel.createdAt.toISOString(),
-      updatedAt: channel.updatedAt.toISOString()
+      updatedAt: channel.updatedAt.toISOString(),
+      originalId: validData.originalId // Include originalId in response
     };
 
-    // Broadcast channel creation to all connected clients
-    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+    // Emit success to the creating client
+    socket.emit(EVENTS.CHANNEL_CREATED, {
+      channel: formattedChannel
+    });
+
+    // Broadcast channel creation to other clients
+    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, {
+      channel: formattedChannel
+    });
 
     return {
       success: true,
       data: channel
     };
   } catch (error) {
+    // Emit error to the creating client
+    socket.emit('message-error', {
+      error: error instanceof Error ? error.message : 'Failed to create channel',
+      code: 'INTERNAL_ERROR',
+      channelId: data.originalId
+    });
     return handleSocketError(socket, error);
   }
 };
