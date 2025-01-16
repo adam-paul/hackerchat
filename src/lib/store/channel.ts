@@ -323,10 +323,30 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
       return handleStoreError(store, new Error('Channel not found'), 'delete channel');
     }
 
-    store._addOptimisticUpdate({
-      ...channel,
-      _remove: true
-    } as Channel);
+    // Helper function to check if a channel is a descendant
+    const isDescendant = (channelId: string, ancestorId: string): boolean => {
+      const ch = store.getChannel(channelId);
+      if (!ch) return false;
+      if (ch.parentId === ancestorId) return true;
+      return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
+    };
+
+    // Optimistically remove the channel and its descendants from UI
+    set(state => ({
+      channels: state.channels.filter(c => 
+        c.id !== id && !isDescendant(c.id, id)
+      ),
+      optimisticUpdates: new Map(state.optimisticUpdates).set(id, {
+        type: 'delete',
+        data: channel
+      })
+    }));
+
+    // If deleted channel was selected, clear selection
+    if (store.selectedChannelId === id || 
+        (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
+      store.selectChannel(null);
+    }
 
     return withErrorHandling(
       store,
@@ -340,27 +360,19 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
           throw new Error(await response.text() || 'Failed to delete channel');
         }
 
-        const isDescendant = (channelId: string, ancestorId: string): boolean => {
-          const ch = store.getChannel(channelId);
-          if (!ch) return false;
-          if (ch.parentId === ancestorId) return true;
-          return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
-        };
-
-        set(state => ({
-          channels: state.channels.filter(c => 
-            c.id !== id && !isDescendant(c.id, id)
-          )
-        }));
-
-        if (store.selectedChannelId === id || 
-            (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
-          store.selectChannel(null);
-        }
-
+        // Remove from optimistic updates after successful deletion
         store._removeOptimisticChannel(id);
       },
-      () => store._removeOptimisticChannel(id)
+      () => {
+        // On error, restore the channel and its descendants
+        set(state => ({
+          channels: [...state.channels, channel],
+          optimisticUpdates: new Map(
+            Array.from(state.optimisticUpdates.entries())
+              .filter(([key]) => key !== id)
+          )
+        }));
+      }
     );
   },
 
