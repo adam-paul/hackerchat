@@ -39,6 +39,27 @@ const buildChannelTree = (channels: Channel[]): Channel[] => {
   return rootNodes;
 };
 
+// Error handling utilities
+const handleStoreError = (store: ChannelStore, error: unknown, operation: string) => {
+  const errorMessage = error instanceof Error ? error.message : `Failed to ${operation}`;
+  store._setError(errorMessage);
+  throw error;
+};
+
+const withErrorHandling = async <T>(
+  store: ChannelStore,
+  operation: string,
+  action: () => Promise<T>,
+  cleanup?: () => void
+): Promise<T> => {
+  try {
+    return await action();
+  } catch (error) {
+    cleanup?.();
+    return handleStoreError(store, error, operation);
+  }
+};
+
 export const useChannelStore = create<ChannelStore>((set, get) => ({
   // State
   channels: [],
@@ -108,46 +129,33 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
       parentId: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      creatorId: 'optimistic', // Will be replaced by server
+      creatorId: 'optimistic',
     };
 
     // Add optimistic update
     store._addOptimisticChannel(optimisticChannel);
     
-    try {
-      // Create channel on server
-      const response = await fetch('/api/channels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          originalId: tempId
-        }),
-      });
+    return withErrorHandling(
+      store,
+      'create channel',
+      async () => {
+        const response = await fetch('/api/channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, originalId: tempId }),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to create channel');
-      }
+        if (!response.ok) {
+          throw new Error(await response.text() || 'Failed to create channel');
+        }
 
-      // Get real channel from response
-      const realChannel = await response.json();
-
-      // Replace optimistic with real
-      store._replaceOptimisticWithReal(tempId, realChannel);
-      
-      // Select the new channel
-      store.selectChannel(realChannel.id);
-
-      return realChannel;
-    } catch (error) {
-      // Remove optimistic update on error
-      store._removeOptimisticChannel(tempId);
-      store._setError(error instanceof Error ? error.message : 'Failed to create channel');
-      throw error;
-    }
+        const realChannel = await response.json();
+        store._replaceOptimisticWithReal(tempId, realChannel);
+        store.selectChannel(realChannel.id);
+        return realChannel;
+      },
+      () => store._removeOptimisticChannel(tempId)
+    );
   },
   
   createSubchannel: async (name: string, parentId: string) => {
@@ -302,54 +310,48 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     const store = get();
     const channel = store.getChannel(id);
     if (!channel) {
-      throw new Error('Channel not found');
+      return handleStoreError(store, new Error('Channel not found'), 'delete channel');
     }
 
-    // Add optimistic deletion
     store._addOptimisticUpdate({
       ...channel,
       _remove: true
     } as Channel);
 
-    try {
-      // Delete channel on server
-      const response = await fetch(`/api/channels/${id}`, {
-        method: 'DELETE'
-      });
+    return withErrorHandling(
+      store,
+      'delete channel',
+      async () => {
+        const response = await fetch(`/api/channels/${id}`, {
+          method: 'DELETE'
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to delete channel');
-      }
+        if (!response.ok) {
+          throw new Error(await response.text() || 'Failed to delete channel');
+        }
 
-      // Remove channel and its descendants
-      const isDescendant = (channelId: string, ancestorId: string): boolean => {
-        const ch = store.getChannel(channelId);
-        if (!ch) return false;
-        if (ch.parentId === ancestorId) return true;
-        return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
-      };
+        const isDescendant = (channelId: string, ancestorId: string): boolean => {
+          const ch = store.getChannel(channelId);
+          if (!ch) return false;
+          if (ch.parentId === ancestorId) return true;
+          return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
+        };
 
-      set(state => ({
-        channels: state.channels.filter(c => 
-          c.id !== id && !isDescendant(c.id, id)
-        )
-      }));
+        set(state => ({
+          channels: state.channels.filter(c => 
+            c.id !== id && !isDescendant(c.id, id)
+          )
+        }));
 
-      // If deleted channel was selected, clear selection
-      if (store.selectedChannelId === id || 
-          (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
-        store.selectChannel(null);
-      }
+        if (store.selectedChannelId === id || 
+            (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
+          store.selectChannel(null);
+        }
 
-      // Clear optimistic update
-      store._removeOptimisticChannel(id);
-    } catch (error) {
-      // Restore channel on error
-      store._removeOptimisticChannel(id);
-      store._setError(error instanceof Error ? error.message : 'Failed to delete channel');
-      throw error;
-    }
+        store._removeOptimisticChannel(id);
+      },
+      () => store._removeOptimisticChannel(id)
+    );
   },
 
   // Write operations
@@ -357,47 +359,37 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     const store = get();
     const channel = store.getChannel(id);
     if (!channel) {
-      throw new Error('Channel not found');
+      return handleStoreError(store, new Error('Channel not found'), 'update channel');
     }
 
-    // Create optimistic update
     const optimisticChannel = {
       ...channel,
       ...updates,
       updatedAt: new Date().toISOString()
     };
 
-    // Add optimistic update
     store._addOptimisticUpdate(optimisticChannel);
     
-    try {
-      // Update channel on server
-      const response = await fetch(`/api/channels/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
+    return withErrorHandling(
+      store,
+      'update channel',
+      async () => {
+        const response = await fetch(`/api/channels/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to update channel');
-      }
+        if (!response.ok) {
+          throw new Error(await response.text() || 'Failed to update channel');
+        }
 
-      // Get updated channel from response
-      const updatedChannel = await response.json();
-
-      // Replace optimistic with real
-      store._replaceOptimisticWithReal(id, updatedChannel);
-
-      return updatedChannel;
-    } catch (error) {
-      // Remove optimistic update on error
-      store._removeOptimisticChannel(id);
-      store._setError(error instanceof Error ? error.message : 'Failed to update channel');
-      throw error;
-    }
+        const updatedChannel = await response.json();
+        store._replaceOptimisticWithReal(id, updatedChannel);
+        return updatedChannel;
+      },
+      () => store._removeOptimisticChannel(id)
+    );
   },
 
   // Internal actions
