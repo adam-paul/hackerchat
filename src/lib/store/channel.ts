@@ -60,6 +60,43 @@ const withErrorHandling = async <T>(
   }
 };
 
+// Memoized selectors
+const selectChannels = (state: ChannelStore) => state.channels;
+const selectSelectedChannelId = (state: ChannelStore) => state.selectedChannelId;
+const selectError = (state: ChannelStore) => state.error;
+const selectIsLoading = (state: ChannelStore) => state.isLoading;
+const selectOptimisticUpdates = (state: ChannelStore) => state.optimisticUpdates;
+
+const selectSelectedChannel = (state: ChannelStore) => {
+  if (!state.selectedChannelId) return null;
+  return state.channels.find(c => c.id === state.selectedChannelId) || null;
+};
+
+const selectChannelTree = (state: ChannelStore) => buildChannelTree(state.channels);
+
+const selectRootChannels = (state: ChannelStore) => 
+  state.channels.filter(c => !c.parentId);
+
+const selectThreads = (state: ChannelStore, parentId: string) => 
+  state.channels.filter(c => c.parentId === parentId);
+
+const selectChannelPath = (state: ChannelStore, channelId: string): string[] => {
+  const channel = state.channels.find(c => c.id === channelId);
+  if (!channel) return [];
+
+  const path = [channel.name];
+  let current = channel;
+
+  while (current.parentId) {
+    const parent = state.channels.find(c => c.id === current.parentId);
+    if (!parent) break;
+    path.unshift(parent.name);
+    current = parent;
+  }
+
+  return path;
+};
+
 export const useChannelStore = create<ChannelStore>((set, get) => ({
   // State
   channels: [],
@@ -83,39 +120,12 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     store._setError(null);
   },
   
-  getSelectedChannel: () => {
-    const store = get();
-    if (!store.selectedChannelId) return null;
-    const channel = store.getChannel(store.selectedChannelId);
-    return channel || null;
-  },
-  
+  getSelectedChannel: () => selectSelectedChannel(get()),
   getChannel: (id: string) => get().channels.find(c => c.id === id),
-  
-  // Tree operations
-  getChannelTree: () => buildChannelTree(get().channels),
-  
-  getRootChannels: () => get().channels.filter(c => !c.parentId),
-  
-  getThreads: (parentId: string) => get().channels.filter(c => c.parentId === parentId),
-  
-  getChannelPath: (channelId: string): string[] => {
-    const store = get();
-    const channel = store.getChannel(channelId);
-    if (!channel) return [];
-
-    const path = [channel.name];
-    let current = channel;
-
-    while (current.parentId) {
-      const parent = store.getChannel(current.parentId);
-      if (!parent) break;
-      path.unshift(parent.name);
-      current = parent;
-    }
-
-    return path;
-  },
+  getChannelTree: () => selectChannelTree(get()),
+  getRootChannels: () => selectRootChannels(get()),
+  getThreads: (parentId: string) => selectThreads(get(), parentId),
+  getChannelPath: (channelId: string) => selectChannelPath(get(), channelId),
 
   // Write operations (stubs for now)
   createRootChannel: async (name: string) => {

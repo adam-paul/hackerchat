@@ -1,7 +1,7 @@
 // src/components/ui/Message.tsx
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
 import type { Message, Channel, Reaction } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
@@ -21,36 +21,7 @@ interface MessageProps {
   onAddMessage?: (message: Message) => void;
 }
 
-// Memoize reaction component
-const ReactionComponent = memo(function ReactionComponent({
-  reaction,
-  userId,
-  onRemove
-}: {
-  reaction: Reaction;
-  userId: string;
-  onRemove: (id: string) => void;
-}) {
-  const isOwnReaction = reaction.user.id === userId;
-  
-  return (
-    <div
-      key={reaction.id}
-      onClick={() => isOwnReaction && onRemove(reaction.id)}
-      className={`${firaCode.className} text-xs px-1.5 py-0.5 rounded bg-zinc-800/50 hover:bg-zinc-800 cursor-pointer flex items-center gap-1 group ${
-        isOwnReaction ? 'hover:bg-red-900/20' : ''
-      }`}
-      title={`Added by ${reaction.user.name || 'Anonymous'}`}
-    >
-      <span>{reaction.content}</span>
-      {isOwnReaction && (
-        <span className="text-zinc-500 group-hover:text-red-400">×</span>
-      )}
-    </div>
-  );
-});
-
-export const MessageComponent = memo(function MessageComponent({ 
+export const MessageComponent = React.memo(function MessageComponent({ 
   message, 
   isHighlighted, 
   onReply, 
@@ -66,29 +37,13 @@ export const MessageComponent = memo(function MessageComponent({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userId } = useAuthContext();
   const { socket } = useSocket();
-  const { 
-    channels,
-    selectChannel,
-    createThread 
-  } = useChannelStore();
+  const channels = useChannelStore(state => state.channels);
+  const selectChannel = useChannelStore(state => state.selectChannel);
+  const createThread = useChannelStore(state => state.createThread);
   const messageRef = useRef<HTMLDivElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
   const threadInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-
-  // Return early if no userId
-  if (!userId) return null;
-
-  // Memoize depth check
-  const isMaxDepth = useMemo(() => channels.some(c => {
-    if (c.id === message.channelId) {
-      if (c.parentId) {
-        const parent = channels.find(p => p.id === c.parentId);
-        return parent?.parentId !== null;
-      }
-    }
-    return false;
-  }), [channels, message.channelId]);
 
   useEffect(() => {
     if (!isReacting) return;
@@ -122,7 +77,7 @@ export const MessageComponent = memo(function MessageComponent({
     };
   }, [isNaming]);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const rect = messageRef.current?.getBoundingClientRect();
     if (rect) {
@@ -131,21 +86,21 @@ export const MessageComponent = memo(function MessageComponent({
         y: e.clientY
       });
     }
-  };
+  }, []);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (socket && message.id) {
       socket.deleteMessage(message.id);
     }
     setContextMenu(null);
-  };
+  }, [socket, message.id]);
 
-  const handleReplyClick = () => {
+  const handleReplyClick = useCallback(() => {
     onReply?.(message);
     setContextMenu(null);
-  };
+  }, [onReply, message]);
 
-  const handleReplyPreviewClick = () => {
+  const handleReplyPreviewClick = useCallback(() => {
     if (message.replyTo && onHighlightMessage) {
       onHighlightMessage(message.replyTo.id);
       const replyElement = document.getElementById(`message-${message.replyTo.id}`);
@@ -153,53 +108,26 @@ export const MessageComponent = memo(function MessageComponent({
         replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  };
+  }, [message.replyTo, onHighlightMessage]);
 
-  // Memoize handlers
+  const isOwnMessage = useMemo(() => message.author.id === userId, [message.author.id, userId]);
+  const hasUserReacted = useMemo(() => message.reactions?.some(reaction => reaction.user.id === userId), [message.reactions, userId]);
+
+  const isMaxDepth = useMemo(() => channels.some(c => {
+    if (c.id === message.channelId) {
+      if (c.parentId) {
+        const parent = channels.find(p => p.id === c.parentId);
+        return parent?.parentId !== null;
+      }
+    }
+    return false;
+  }), [channels, message.channelId]);
+
   const handleCreateThread = useCallback(() => {
     if (isMaxDepth) return;
     setContextMenu(null);
     setIsNaming(true);
   }, [isMaxDepth]);
-
-  const handleReactionSubmit = useCallback(() => {
-    if (!reactionInput.trim() || !socket || !userId) return;
-    
-    // Create optimistic reaction
-    const optimisticReaction: Reaction = {
-      id: `optimistic-${Date.now()}`,
-      content: reactionInput,
-      createdAt: new Date().toISOString(),
-      user: {
-        id: userId,
-        name: null,
-        imageUrl: null,
-      },
-    };
-
-    // Update message with optimistic reaction
-    onMessageUpdate?.(message.id, {
-      ...message,
-      reactions: [...(message.reactions || []), optimisticReaction],
-    });
-    
-    // Send to server
-    socket.addReaction(message.channelId, message.id, reactionInput);
-    setIsReacting(false);
-    setReactionInput('');
-  }, [reactionInput, socket, userId, message, onMessageUpdate]);
-
-  const handleRemoveReaction = useCallback((reactionId: string) => {
-    if (!socket) return;
-
-    // Optimistically remove the reaction
-    onMessageUpdate?.(message.id, {
-      ...message,
-      reactions: (message.reactions || []).filter(r => r.id !== reactionId),
-    });
-    
-    socket.removeReaction(message.channelId, message.id, reactionId);
-  }, [socket, message, onMessageUpdate]);
 
   const handleThreadNameSubmit = useCallback(async () => {
     if (isSubmitting || !threadName.trim()) return;
@@ -212,35 +140,65 @@ export const MessageComponent = memo(function MessageComponent({
     setIsNaming(false);
 
     try {
-      // Create thread using store method
       await createThread(name, message.channelId, message);
     } catch (error) {
       console.error('Failed to create thread:', error);
-      // Restore UI state for retry
       setThreadName(name);
       setIsNaming(true);
     } finally {
       setIsSubmitting(false);
     }
-  }, [threadName, isSubmitting, message, createThread]);
+  }, [isSubmitting, threadName, createThread, message]);
 
-  const handleThreadNameKeyPress = (e: React.KeyboardEvent) => {
+  const handleThreadNameKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleThreadNameSubmit();
     } else if (e.key === 'Escape') {
       setIsNaming(false);
       setThreadName('');
     }
-  };
+  }, [handleThreadNameSubmit]);
 
-  const handleReactionClick = () => {
+  const handleReactionClick = useCallback(() => {
     if (hasUserReacted) return;
     setContextMenu(null);
     setIsReacting(true);
-  };
+  }, [hasUserReacted]);
 
-  const isOwnMessage = message.author.id === userId;
-  const hasUserReacted = message.reactions?.some(reaction => reaction.user.id === userId);
+  const handleReactionSubmit = useCallback(() => {
+    if (!reactionInput.trim() || !socket) return;
+    
+    const optimisticReaction: Reaction = {
+      id: `optimistic-${Date.now()}`,
+      content: reactionInput,
+      createdAt: new Date().toISOString(),
+      user: {
+        id: userId!,
+        name: null,
+        imageUrl: null,
+      },
+    };
+
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: [...(message.reactions || []), optimisticReaction],
+    });
+    
+    socket.addReaction(message.channelId, message.id, reactionInput);
+    setIsReacting(false);
+    setReactionInput('');
+  }, [reactionInput, socket, userId, message, onMessageUpdate]);
+
+  const handleRemoveReaction = useCallback((reactionId: string) => {
+    if (!socket) return;
+
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: (message.reactions || []).filter(r => r.id !== reactionId),
+    });
+    
+    socket.removeReaction(message.channelId, message.id, reactionId);
+  }, [socket, message, onMessageUpdate]);
 
   return (
     <div
@@ -334,12 +292,19 @@ export const MessageComponent = memo(function MessageComponent({
       {message.reactions && message.reactions.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-1 pl-4">
           {message.reactions.map((reaction) => (
-            <ReactionComponent
+            <div
               key={reaction.id}
-              reaction={reaction}
-              userId={userId}
-              onRemove={handleRemoveReaction}
-            />
+              onClick={() => reaction.user.id === userId && handleRemoveReaction(reaction.id)}
+              className={`${firaCode.className} text-xs px-1.5 py-0.5 rounded bg-zinc-800/50 hover:bg-zinc-800 cursor-pointer flex items-center gap-1 group ${
+                reaction.user.id === userId ? 'hover:bg-red-900/20' : ''
+              }`}
+              title={`Added by ${reaction.user.name || 'Anonymous'}`}
+            >
+              <span>{reaction.content}</span>
+              {reaction.user.id === userId && (
+                <span className="text-zinc-500 group-hover:text-red-400">×</span>
+              )}
+            </div>
           ))}
         </div>
       )}
