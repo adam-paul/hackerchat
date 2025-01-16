@@ -37,6 +37,7 @@ model Channel {
   creatorId   String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  originalId  String?   // For tracking optimistic updates
 }
 
 model Message {

@@ -6,6 +6,7 @@ import { handleSocketError, validateEvent } from '../utils/errors';
 import { EVENTS } from '../config/socket';
 import { prisma } from '../lib/db';
 import type { Channel } from '@prisma/client';
+import { createId } from '@paralleldrive/cuid2';
 
 type ChannelResult = {
   channelId: string;
@@ -125,19 +126,14 @@ export const handleCreateChannel = async (
     // Validate channel data
     const validData = await validateEvent(createChannelSchema, data);
 
-    // Generate a permanent ID if this is an optimistic update
-    const permanentId = validData.originalId?.startsWith('temp_') 
-      ? `channel_${Date.now()}_${Math.random().toString(36).slice(2)}`
-      : undefined;
-
-    // Create channel
+    // Create channel with Prisma's default CUID generation
     const channel = await prisma.channel.create({
       data: {
-        id: permanentId, // Use generated permanent ID if this was an optimistic update
         name: validData.name,
         description: validData.description,
         parentId: validData.parentId,
         creatorId: socket.data.userId,
+        originalId: validData.originalId?.startsWith('temp_') ? validData.originalId : undefined
       }
     });
 
@@ -149,26 +145,39 @@ export const handleCreateChannel = async (
       ...channel,
       createdAt: channel.createdAt.toISOString(),
       updatedAt: channel.updatedAt.toISOString(),
-      originalId: validData.originalId // Include originalId in response
+      originalId: validData.originalId // Include originalId in response for client reconciliation
     };
 
-    // Emit success to the creating client
-    socket.emit('channel-created', formattedChannel);
+    // Emit success to the creating client with both IDs for reconciliation
+    socket.emit(EVENTS.CHANNEL_CREATED, {
+      ...formattedChannel,
+      channelId: channel.id,
+      originalId: validData.originalId
+    });
 
     // Broadcast channel creation to other clients
-    socket.broadcast.emit('channel-created', formattedChannel);
+    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
     return {
       success: true,
       data: channel
     };
   } catch (error) {
+    console.error('[CHANNEL_CREATE_ERROR]', {
+      error,
+      userId: socket.data.userId,
+      channelData: data,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+
     // Emit error to the creating client
-    socket.emit('message-error', {
+    socket.emit(EVENTS.ERROR, {
       error: error instanceof Error ? error.message : 'Failed to create channel',
       code: 'INTERNAL_ERROR',
-      channelId: data.originalId
+      channelId: data.originalId,
+      timestamp: new Date().toISOString()
     });
+
     return handleSocketError(socket, error);
   }
 };
