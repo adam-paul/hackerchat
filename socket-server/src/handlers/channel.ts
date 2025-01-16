@@ -203,14 +203,26 @@ export const handleCreateChannel = async (
     // If this was a thread creation, emit message update
     if (validData.threadMetadata) {
       const { messageId, title } = validData.threadMetadata;
-      socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, {
-        messageId,
-        threadId: result.id,
-        threadMetadata: {
-          title,
-          createdAt: new Date(result.createdAt)
+      // Find the message again to get its real ID
+      const message = await prisma.message.findFirst({
+        where: {
+          OR: [
+            { id: messageId },
+            { originalId: messageId }
+          ]
         }
       });
+
+      if (message) {
+        socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, {
+          messageId: message.id,  // Use the real message ID
+          threadId: result.id,
+          threadMetadata: {
+            title,
+            createdAt: new Date(result.createdAt)
+          }
+        });
+      }
     }
 
     // Broadcast channel creation to other clients

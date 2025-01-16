@@ -106,6 +106,8 @@ export const messageUpdateSchema = z.object({
   threadId: z.string().optional(),
   threadMetadata: z.object({
     title: z.string(),
-    createdAt: z.date()
+    createdAt: z.union([z.date(), z.string()]).transform(val => 
+      typeof val === 'string' ? new Date(val) : val
+    )
   }).optional()
 }); 
