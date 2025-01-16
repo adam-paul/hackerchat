@@ -155,13 +155,6 @@ export class SocketService {
       this.messageCallbacks.delete(messageId);
     });
 
-    // Handle message update events
-    this.socket.on('message-updated', (message) => {
-      if (this.onMessageHandler) {
-        this.onMessageHandler(message);
-      }
-    });
-
     // Handle message deletion events from the server
     this.socket.on('message-deleted', (event) => {
       if (this.onMessageDeleteHandler) {
@@ -437,11 +430,13 @@ export class SocketService {
 
   // Channel operations with error handling and retries
   async createChannel(
-    name: string,
-    parentId?: string,
-    messageContent?: string,
-    callbacks?: ChannelCallbacks & {
-      messageId?: string;
+    name: string, 
+    parentId?: string, 
+    description?: string, 
+    callbacks?: ChannelCallbacks,
+    threadInfo?: {
+      threadMessageId: string;
+      threadMessageContent: string;
     }
   ): Promise<void> {
     if (!this.socket?.connected) throw new Error('Socket not connected');
@@ -456,16 +451,14 @@ export class SocketService {
     let attempts = 0;
     const attemptOperation = async () => {
       try {
-        this.socket!.emit('create_channel', { 
+        this.socket!.emit('create-channel', { 
           name, 
           parentId, 
-          description: undefined,
+          description,
           originalId: tempId,
-          ...(messageContent && callbacks?.messageId && {
-            messageId: callbacks.messageId,
-            initialMessage: {
-              content: messageContent
-            }
+          ...(threadInfo && {
+            threadMessageId: threadInfo.threadMessageId,
+            threadMessageContent: threadInfo.threadMessageContent
           })
         });
       } catch (error) {
