@@ -266,6 +266,13 @@ export function useMessages() {
     });
   }, []);
 
+  const updateMessageFields = useCallback((id: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+    dispatch({
+      type: 'UPDATE_THREAD_METADATA',
+      payload: { messageId: id, ...updates }
+    });
+  }, []);
+
   const clearMessages = useCallback(() => {
     dispatch({ type: 'CLEAR_MESSAGES' });
   }, []);
@@ -286,6 +293,7 @@ export function useMessages() {
     setMessages,
     addMessage,
     updateMessage,
+    updateMessageFields,
     clearMessages,
     setError,
     setCurrentChannel

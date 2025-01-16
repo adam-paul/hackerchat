@@ -64,6 +64,7 @@ export function HomeUI() {
     setMessages,
     addMessage,
     updateMessage,
+    updateMessageFields,
     clearMessages,
     setError: setMessageError,
     setCurrentChannel
@@ -553,6 +554,7 @@ export function HomeUI() {
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
                         onMessageUpdate={updateMessage}
+                        onMessageFieldsUpdate={updateMessageFields}
                         onAddMessage={addMessage}
                       />
                     ))}

@@ -18,6 +18,7 @@ interface MessageProps {
   onReply?: (message: Message) => void;
   onHighlightMessage?: (messageId: string) => void;
   onMessageUpdate?: (id: string, message: Message) => void;
+  onMessageFieldsUpdate?: (id: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void;
   onAddMessage?: (message: Message) => void;
 }
 
@@ -27,6 +28,7 @@ export const MessageComponent = React.memo(function MessageComponent({
   onReply, 
   onHighlightMessage,
   onMessageUpdate,
+  onMessageFieldsUpdate,
   onAddMessage
 }: MessageProps) {
   // Validate message prop
@@ -157,6 +159,15 @@ export const MessageComponent = React.memo(function MessageComponent({
     setThreadName('');
     setIsNaming(false);
 
+    // Update the message locally first with optimistic data
+    onMessageFieldsUpdate?.(message.id, {
+      threadId: `temp_${name}`,
+      threadMetadata: {
+        title: name,
+        createdAt: new Date().toISOString()
+      }
+    });
+
     try {
       await createThread(name, message.channelId, message);
     } catch (error) {
@@ -166,7 +177,7 @@ export const MessageComponent = React.memo(function MessageComponent({
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, threadName, createThread, message]);
+  }, [isSubmitting, threadName, createThread, message, onMessageFieldsUpdate]);
 
   const handleThreadNameKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
