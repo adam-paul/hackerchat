@@ -459,11 +459,6 @@ export function HomeUI() {
           <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading channels...</div>
         ) : (
           <ChannelList
-            channels={channels}
-            selectedChannel={selectedChannelId}
-            onSelectChannel={handleSelectChannel}
-            onChannelCreated={handleChannelCreated}
-            onChannelDeleted={handleChannelDeleted}
             className="flex-1"
           />
         )}
@@ -524,14 +519,11 @@ export function HomeUI() {
                       <MessageComponent
                         key={message.id}
                         message={message}
-                        isHighlighted={message.id === selectedMessageId}
+                        isHighlighted={selectedMessageId === message.id}
                         onReply={handleReply}
                         onHighlightMessage={setSelectedMessageId}
-                        onSelectChannel={handleSelectChannel}
-                        onAddMessage={addMessage}
-                        onChannelCreated={handleChannelCreated}
                         onMessageUpdate={updateMessage}
-                        channels={channels}
+                        onAddMessage={addMessage}
                       />
                     ))}
                   </div>

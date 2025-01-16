@@ -17,23 +17,17 @@ interface MessageProps {
   isHighlighted?: boolean;
   onReply?: (message: Message) => void;
   onHighlightMessage?: (messageId: string) => void;
-  onSelectChannel?: (channelId: string) => void;
-  onChannelCreated?: (channel: Channel) => void;
   onMessageUpdate?: (id: string, message: Message) => void;
   onAddMessage?: (message: Message) => void;
-  channels?: Channel[];
 }
 
 export function MessageComponent({ 
   message, 
   isHighlighted, 
   onReply, 
-  onHighlightMessage, 
-  onSelectChannel,
-  onChannelCreated,
+  onHighlightMessage,
   onMessageUpdate,
-  onAddMessage,
-  channels = []
+  onAddMessage
 }: MessageProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isNaming, setIsNaming] = useState(false);
@@ -44,9 +38,8 @@ export function MessageComponent({
   const { userId } = useAuthContext();
   const { socket } = useSocket();
   const { 
-    _addOptimisticChannel, 
-    _replaceOptimisticWithReal, 
-    _removeOptimisticChannel,
+    channels,
+    selectChannel,
     createThread 
   } = useChannelStore();
   const messageRef = useRef<HTMLDivElement>(null);
@@ -346,7 +339,7 @@ export function MessageComponent({
       {message.threadId && message.threadName && (
         <div 
           className={`${firaCode.className} text-xs text-zinc-500 hover:text-zinc-400 cursor-pointer pl-4 mt-1`}
-          onClick={() => onSelectChannel?.(message.threadId!)}
+          onClick={() => selectChannel(message.threadId!)}
         >
           ↳ {message.threadName}
         </div>

@@ -10,11 +10,6 @@ import { useChannelStore } from '@/lib/store/channel';
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 interface ChannelListProps {
-  channels: Channel[];
-  selectedChannel: string | null;
-  onSelectChannel: (channelId: string) => void;
-  onChannelCreated: (channel: Channel) => void;
-  onChannelDeleted?: (channelId: string) => void;
   className?: string;
 }
 
@@ -55,14 +50,7 @@ function buildChannelTree(channels: Channel[]): ChannelNode[] {
   return rootNodes;
 }
 
-export function ChannelList({ 
-  channels, 
-  selectedChannel, 
-  onSelectChannel,
-  onChannelCreated,
-  onChannelDeleted,
-  className = '' 
-}: ChannelListProps) {
+export function ChannelList({ className = '' }: ChannelListProps) {
   const { userId } = useAuthContext();
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,20 +60,13 @@ export function ChannelList({
 
   // Add Zustand store hooks
   const { 
-    selectChannel, 
+    channels,
+    selectedChannelId,
+    selectChannel,
     createRootChannel,
     createSubchannel,
-    _addOptimisticChannel, 
-    _replaceOptimisticWithReal, 
-    _removeOptimisticChannel 
+    deleteChannel
   } = useChannelStore();
-
-  // Sync store with prop changes
-  useEffect(() => {
-    if (selectedChannel) {
-      selectChannel(selectedChannel);
-    }
-  }, [selectedChannel, selectChannel]);
 
   const channelTree = buildChannelTree(channels);
 
@@ -133,30 +114,9 @@ export function ChannelList({
 
   const handleDeleteChannel = async (channelId: string) => {
     try {
-      // Optimistically update UI first
-      onChannelDeleted?.(channelId);
-      if (selectedChannel === channelId) {
-        const nextChannel = channels.find(c => c.id !== channelId);
-        if (nextChannel) {
-          onSelectChannel(nextChannel.id);
-        } else {
-          onSelectChannel('');
-        }
-      }
-
-      // Then perform the actual deletion
-      const response = await fetch(`/api/channels/${channelId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
+      await deleteChannel(channelId);
     } catch (error) {
       console.error('Error deleting channel:', error);
-      // TODO: Implement rollback of UI state if needed
-      // For now, we'll let the optimistic update stand as the operation will eventually succeed
     }
   };
 
@@ -179,9 +139,9 @@ export function ChannelList({
             {prefix}{branchSymbol}
           </span>
           <button
-            onClick={() => onSelectChannel(channel.id)}
+            onClick={() => selectChannel(channel.id)}
             className={`hover:text-zinc-200 transition-colors ${
-              selectedChannel === channel.id ? 'text-zinc-200' : ''
+              selectedChannelId === channel.id ? 'text-zinc-200' : ''
             }`}
           >
             {channel.name}
