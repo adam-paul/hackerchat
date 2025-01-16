@@ -298,8 +298,58 @@ export const useChannelStore = create<ChannelStore>((set, get) => ({
     }
   },
   
-  deleteChannel: async () => {
-    throw new Error('Not implemented');
+  deleteChannel: async (id: string) => {
+    const store = get();
+    const channel = store.getChannel(id);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    // Add optimistic deletion
+    store._addOptimisticUpdate({
+      ...channel,
+      _remove: true
+    } as Channel);
+
+    try {
+      // Delete channel on server
+      const response = await fetch(`/api/channels/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to delete channel');
+      }
+
+      // Remove channel and its descendants
+      const isDescendant = (channelId: string, ancestorId: string): boolean => {
+        const ch = store.getChannel(channelId);
+        if (!ch) return false;
+        if (ch.parentId === ancestorId) return true;
+        return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
+      };
+
+      set(state => ({
+        channels: state.channels.filter(c => 
+          c.id !== id && !isDescendant(c.id, id)
+        )
+      }));
+
+      // If deleted channel was selected, clear selection
+      if (store.selectedChannelId === id || 
+          (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
+        store.selectChannel(null);
+      }
+
+      // Clear optimistic update
+      store._removeOptimisticChannel(id);
+    } catch (error) {
+      // Restore channel on error
+      store._removeOptimisticChannel(id);
+      store._setError(error instanceof Error ? error.message : 'Failed to delete channel');
+      throw error;
+    }
   },
 
   // Write operations
