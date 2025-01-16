@@ -193,7 +193,7 @@ export const handleCreateChannel = async (
         threadId: result.id,
         threadMetadata: {
           title,
-          createdAt: result.createdAt
+          createdAt: new Date(result.createdAt)
         }
       });
     }

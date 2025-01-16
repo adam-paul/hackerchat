@@ -466,7 +466,7 @@ export class SocketService {
           threadMetadata: metadata ? {
             messageId: metadata.messageId,
             title: name,
-            initialMessage: description // Use description param for initial message content
+            initialMessage: metadata.initialMessage?.content // Use the actual message content
           } : undefined
         });
       } catch (error) {

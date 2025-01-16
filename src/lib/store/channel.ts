@@ -273,6 +273,14 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
                 }
               });
             }
+          },
+          metadata: {
+            messageId: message.id,
+            initialMessage: message,
+            threadMetadata: {
+              title: name,
+              createdAt: new Date().toISOString()
+            }
           }
         });
 
