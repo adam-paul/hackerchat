@@ -141,10 +141,11 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         ...state,
         status: 'success',
         messages: state.messages.map(msg =>
-          msg.id === action.payload.messageId || msg.originalId === action.payload.messageId ? {
+          msg.id === action.payload.messageId ? {
             ...msg,
             reactions: [
               ...msg.reactions.filter(r => 
+                // Remove any optimistic version of this reaction
                 !(r.id.startsWith('optimistic-') && r.content === action.payload.reaction.content)
               ),
               action.payload.reaction
@@ -157,7 +158,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         ...state,
         status: 'success',
         messages: state.messages.map(msg =>
-          msg.id === action.payload.messageId || msg.originalId === action.payload.messageId ? {
+          msg.id === action.payload.messageId ? {
             ...msg,
             reactions: msg.reactions.filter(r => r.id !== action.payload.reactionId)
           } : msg
