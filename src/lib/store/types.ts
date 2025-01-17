@@ -32,6 +32,7 @@ export interface ChannelStore {
   getChannel: (id: string) => Channel | undefined;
   getChannelTree: () => Channel[];
   getRootChannels: () => Channel[];
+  getDMChannels: () => Channel[];
   getThreads: (parentId: string) => Channel[];
   getChannelPath: (channelId: string) => string[];
 

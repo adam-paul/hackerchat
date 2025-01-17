@@ -35,9 +35,11 @@ export interface ChannelPayload {
 
 export interface CreateChannelPayload {
   name: string;
+  type?: "DEFAULT" | "DM";
   parentId?: string;
   description?: string;
   originalId?: string;
+  participantIds?: string[];  // For DM channels
   threadMetadata?: {
     messageId: string;
     title: string;
@@ -81,9 +83,11 @@ export const channelSchema = z.object({
 
 export const createChannelSchema = z.object({
   name: z.string(),
+  type: z.enum(["DEFAULT", "DM"]).optional(),
   parentId: z.string().optional(),
   description: z.string().optional(),
   originalId: z.string().optional(),
+  participantIds: z.array(z.string()).optional(),
   threadMetadata: z.object({
     messageId: z.string(),
     title: z.string(),

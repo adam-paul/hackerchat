@@ -3,6 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Fira_Code } from 'next/font/google';
 import { StatusIndicator } from './StatusIndicator';
+import { useChannelStore } from '@/lib/store/channel';
+import { useSocket } from '@/lib/socket/context';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -19,6 +21,20 @@ interface UserProfileModalProps {
 
 export function UserProfileModal({ isOpen, onClose, user }: UserProfileModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const socket = useSocket();
+  const { selectChannel } = useChannelStore();
+
+  const handleStartDM = async () => {
+    if (!socket.socket) return;
+    
+    try {
+      const channel = await socket.socket.createDM(user.id);
+      selectChannel(channel.id);
+      onClose();
+    } catch (error) {
+      console.error('Failed to create DM:', error);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -89,10 +105,27 @@ export function UserProfileModal({ isOpen, onClose, user }: UserProfileModalProp
               {user.status || 'offline'}
             </div>
 
-            {/* Placeholder for future profile details */}
-            <div className="w-full pt-4 border-t border-zinc-700 text-zinc-400 text-sm">
-              More profile details coming soon...
-            </div>
+            {/* Chat Button */}
+            <button
+              onClick={handleStartDM}
+              className="w-full flex items-center justify-center space-x-2 py-2 px-4 text-zinc-200 hover:text-white border border-zinc-700 rounded transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                className="w-4 h-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
+              <span>chat</span>
+            </button>
           </div>
         </div>
       </div>

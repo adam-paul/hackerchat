@@ -76,7 +76,10 @@ const selectSelectedChannel = (state: ChannelStore) => {
 const selectChannelTree = (state: ChannelStore) => buildChannelTree(state.channels);
 
 const selectRootChannels = (state: ChannelStore) => 
-  state.channels.filter(c => !c.parentId);
+  state.channels.filter(c => !c.parentId && c.type === "DEFAULT");
+
+const selectDMChannels = (state: ChannelStore) =>
+  state.channels.filter(c => c.type === "DM");
 
 const selectThreads = (state: ChannelStore, parentId: string) => 
   state.channels.filter(c => c.parentId === parentId);
@@ -134,6 +137,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     getChannel: (id: string) => get().channels.find(c => c.id === id),
     getChannelTree: () => selectChannelTree(get()),
     getRootChannels: () => selectRootChannels(get()),
+    getDMChannels: () => selectDMChannels(get()),
     getThreads: (parentId: string) => selectThreads(get(), parentId),
     getChannelPath: (channelId: string) => selectChannelPath(get(), channelId),
 
@@ -147,6 +151,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const optimisticChannel: Channel = {
         id: tempId,
         name,
+        type: "DEFAULT",
         parentId: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -196,6 +201,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const optimisticChannel: Channel = {
         id: tempId,
         name,
+        type: "DEFAULT",
         parentId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -239,6 +245,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const optimisticThread: Channel = {
         id: tempId,
         name,
+        type: "DEFAULT",
         parentId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

@@ -19,6 +19,7 @@ model User {
   messages  Message[]
   reactions Reaction[]
   createdChannels Channel[] @relation("CreatedChannels")
+  participatingChannels Channel[] @relation("ChannelParticipants")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -28,6 +29,7 @@ model User {
 model Channel {
   id          String    @id @default(cuid())
   name        String
+  type        String    @default("DEFAULT")
   description String?
   parentId    String?
   parent      Channel?  @relation("ChannelHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
@@ -35,6 +37,7 @@ model Channel {
   messages    Message[]
   creator     User      @relation("CreatedChannels", fields: [creatorId], references: [id], onDelete: Cascade)
   creatorId   String
+  participants User[]   @relation("ChannelParticipants")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   originalId  String?   // For tracking optimistic updates

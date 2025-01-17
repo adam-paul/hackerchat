@@ -42,16 +42,6 @@ export const handleJoinChannel = async (
       throw new Error('Channel not found');
     }
 
-    console.log(`[CHANNEL_JOIN] User ${socket.data.userId} joining channel ${data.channelId}`);
-
-    // Leave any other channels first to prevent duplicate subscriptions
-    const currentRooms = Array.from(socket.rooms.values());
-    for (const room of currentRooms) {
-      if (room !== socket.id) { // Don't leave the socket's own room
-        await socket.leave(room);
-      }
-    }
-
     // Join the channel room
     await socket.join(data.channelId);
 
@@ -61,9 +51,6 @@ export const handleJoinChannel = async (
       userId: socket.data.userId,
       timestamp: new Date().toISOString()
     });
-
-    console.log(`[CHANNEL_JOIN] User ${socket.data.userId} successfully joined channel ${data.channelId}`);
-    console.log(`[CHANNEL_JOIN] Current rooms for socket:`, Array.from(socket.rooms.values()));
 
     return {
       success: true,
@@ -414,5 +401,124 @@ export const handleDeleteChannel = async (
     };
   } catch (error) {
     return handleSocketError(socket, error, data.channelId);
+  }
+};
+
+export const handleCreateDM = async (
+  socket: SocketType,
+  data: { participantIds: string[] }
+): Promise<HandlerResult<Channel>> => {
+  try {
+    // Get the participant user
+    const participant = await prisma.user.findUnique({
+      where: { id: data.participantIds[0] },
+      select: { id: true, name: true }
+    });
+
+    if (!participant) {
+      throw new Error('Participant not found');
+    }
+
+    // Check if a DM channel already exists between these users
+    const existingDM = await prisma.channel.findFirst({
+      where: {
+        type: 'DM',
+        AND: [
+          { participants: { some: { id: socket.data.userId } } },
+          { participants: { some: { id: participant.id } } }
+        ]
+      },
+      include: {
+        participants: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+            status: true
+          }
+        }
+      }
+    });
+
+    if (existingDM) {
+      // Join the channel room
+      await socket.join(existingDM.id);
+      
+      // Format dates for socket emission
+      const formattedChannel = {
+        ...existingDM,
+        createdAt: existingDM.createdAt.toISOString(),
+        updatedAt: existingDM.updatedAt.toISOString()
+      };
+
+      // Emit to sender only since this is just a fetch
+      socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+
+      return {
+        success: true,
+        data: existingDM
+      };
+    }
+
+    // Create new DM channel
+    const channel = await prisma.channel.create({
+      data: {
+        name: `DM with ${participant.name || 'User'}`,
+        type: 'DM',
+        creatorId: socket.data.userId,
+        participants: {
+          connect: [
+            { id: socket.data.userId },
+            { id: participant.id }
+          ]
+        }
+      },
+      include: {
+        participants: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+            status: true
+          }
+        }
+      }
+    });
+
+    // Join the channel room
+    await socket.join(channel.id);
+
+    // Format dates for socket emission
+    const formattedChannel = {
+      ...channel,
+      createdAt: channel.createdAt.toISOString(),
+      updatedAt: channel.updatedAt.toISOString()
+    };
+
+    // Emit to sender
+    socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+
+    // Broadcast to the other participant
+    socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+
+    return {
+      success: true,
+      data: channel
+    };
+  } catch (error) {
+    console.error('[DM_CREATE_ERROR]', {
+      error,
+      userId: socket.data.userId,
+      participantIds: data.participantIds,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+
+    socket.emit(EVENTS.ERROR, {
+      error: error instanceof Error ? error.message : 'Failed to create DM',
+      code: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString()
+    });
+
+    return handleSocketError(socket, error);
   }
 }; 

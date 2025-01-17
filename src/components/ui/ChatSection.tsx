@@ -1,7 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Fira_Code } from 'next/font/google';
+import { useChannelStore } from '@/lib/store/channel';
+import { useAuthContext } from '@/lib/auth/context';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -18,6 +20,27 @@ export function ChatSection({
   onToggleCollapse,
   className = '' 
 }: ChatSectionProps) {
+  const { userId } = useAuthContext();
+  
+  // Get raw channels from store without filtering
+  const channels = useChannelStore(state => state.channels);
+  const selectedChannelId = useChannelStore(state => state.selectedChannelId);
+  const selectChannel = useChannelStore(state => state.selectChannel);
+
+  // Memoize DM channel filtering
+  const dmChannels = useMemo(() => 
+    channels.filter(c => c.type === "DM"),
+    [channels]
+  );
+
+  // Memoize participant name lookup
+  const dmChannelsWithNames = useMemo(() => 
+    dmChannels.map(channel => ({
+      ...channel,
+      displayName: channel.participants?.find(p => p.id !== userId)?.name || 'Unknown User'
+    }))
+  , [dmChannels, userId]);
+
   if (isSidebarCollapsed) return null;
 
   return (
@@ -43,7 +66,17 @@ export function ChatSection({
 
       {!isCollapsed && (
         <div className="space-y-1 text-sm overflow-y-auto overflow-x-hidden">
-          {/* Placeholder for future chat content */}
+          {dmChannelsWithNames.map(channel => (
+            <button
+              key={channel.id}
+              onClick={() => selectChannel(channel.id)}
+              className={`w-full text-left px-2 py-1 hover:text-zinc-200 transition-colors ${
+                selectedChannelId === channel.id ? 'text-zinc-200' : 'text-zinc-400'
+              }`}
+            >
+              {channel.displayName}
+            </button>
+          ))}
         </div>
       )}
     </div>

@@ -49,6 +49,7 @@ export function HomeUI() {
     selectChannel,
     channels,
     getChannelPath,
+    getChannel,
     handleChannelCreated: storeHandleChannelCreated,
     handleChannelUpdated: storeHandleChannelUpdated,
     handleChannelDeleted: storeHandleChannelDeleted,
@@ -91,6 +92,21 @@ export function HomeUI() {
 
   const [isUserListCollapsed, setIsUserListCollapsed] = useLocalStorage('userListCollapsed', false);
   const [isChatSectionCollapsed, setIsChatSectionCollapsed] = useLocalStorage('chatSectionCollapsed', false);
+
+  // Get the selected channel
+  const selectedChannel = selectedChannelId ? getChannel(selectedChannelId) : null;
+  const isDM = selectedChannel?.type === "DM";
+  const otherParticipant = isDM ? selectedChannel?.participants?.find(p => p.id !== userId) : null;
+
+  const formatChannelPath = (channelId: string): string => {
+    const channel = getChannel(channelId);
+    if (channel?.type === "DM") {
+      const otherUser = channel.participants?.find(p => p.id !== userId);
+      return `_dm.${otherUser?.name || 'Unknown User'}`;
+    }
+    const path = getChannelPath(channelId);
+    return '_' + path.join('.');
+  };
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
@@ -301,11 +317,6 @@ export function HomeUI() {
     setReplyTo(null);
   }, []);
 
-  const formatChannelPath = (channelId: string): string => {
-    const path = getChannelPath(channelId);
-    return '_' + path.join('.');
-  };
-
   // Clear reply indicator on channel change
   useEffect(() => {
     setReplyTo(null);
@@ -427,7 +438,7 @@ export function HomeUI() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Sidebar */}
+      {/* Left Sidebar - same as original */}
       <aside className="w-64 bg-zinc-800 p-4 flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <span className={`${firaCode.className} text-zinc-200 text-lg`}>
@@ -492,11 +503,11 @@ export function HomeUI() {
         </div>
       </aside>
 
-      {/* Main content area */}
+      {/* Main content area - same as original but with DM title support */}
       <main className="flex-1 bg-zinc-900 flex flex-col h-screen">
         {isMounted && selectedChannelId ? (
           <>
-            {/* Channel header */}
+            {/* Channel header with DM support */}
             <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
@@ -517,7 +528,7 @@ export function HomeUI() {
               />
             </div>
             
-            {/* Messages area */}
+            {/* Messages area - same as original */}
             <div className="flex-1 overflow-hidden">
               <div className="h-full p-4 overflow-y-auto flex flex-col-reverse">
                 {messageStatus === 'loading' ? (
@@ -562,7 +573,7 @@ export function HomeUI() {
               </div>
             </div>
 
-            {/* Replace the old message input with the new ChatInput component */}
+            {/* Chat input - same as original */}
             <ChatInput
               isConnected={isConnected}
               selectedChannel={selectedChannelId}
@@ -581,7 +592,7 @@ export function HomeUI() {
         )}
       </main>
 
-      {/* Right Sidebar - Users and Chat */}
+      {/* Right Sidebar - Users and Chat - restored to original structure */}
       {isMounted && (
         <aside className="bg-zinc-800 p-4 flex flex-col">
           <div className="flex flex-col h-full">

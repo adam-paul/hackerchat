@@ -67,7 +67,7 @@ export function ChannelList({ className = '' }: ChannelListProps) {
   const deleteChannel = useChannelStore(state => state.deleteChannel);
 
   // Memoize channel tree
-  const channelTree = useMemo(() => buildChannelTree(channels), [channels]);
+  const channelTree = useMemo(() => buildChannelTree(channels.filter(c => c.type === "DEFAULT")), [channels]);
 
   // Memoize handlers
   const handleCreateChannel = useCallback(async () => {
