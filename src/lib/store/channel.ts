@@ -156,12 +156,18 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
 
       // Add optimistic update
       store._addOptimisticChannel(optimisticChannel);
+      // Select the channel optimistically
+      store.selectChannel(tempId);
       
       try {
         await socket.createChannel(name, undefined, undefined, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
+            // Clear selection if it was our temp channel
+            if (store.selectedChannelId === tempId) {
+              store.selectChannel(null);
+            }
           },
           onCreated: (channel) => {
             // Replace optimistic update with real channel
@@ -169,11 +175,18 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
               ...channel,
               originalId: tempId // Preserve the originalId for matching
             });
+            // Update selection to real channel ID
+            if (store.selectedChannelId === tempId) {
+              store.selectChannel(channel.id);
+            }
           }
         });
         return optimisticChannel;
       } catch (error) {
         store._removeOptimisticChannel(tempId);
+        if (store.selectedChannelId === tempId) {
+          store.selectChannel(null);
+        }
         store._setError(error instanceof Error ? error.message : 'Failed to create channel');
         throw error;
       }
@@ -202,17 +215,26 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
 
       // Add optimistic update
       store._addOptimisticChannel(optimisticChannel, { parentId });
+      // Select the channel optimistically
+      store.selectChannel(tempId);
       
       try {
         await socket.createChannel(name, parentId, undefined, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
+            // Clear selection if it was our temp channel
+            if (store.selectedChannelId === tempId) {
+              store.selectChannel(null);
+            }
           }
         });
         return optimisticChannel;
       } catch (error) {
         store._removeOptimisticChannel(tempId);
+        if (store.selectedChannelId === tempId) {
+          store.selectChannel(null);
+        }
         store._setError(error instanceof Error ? error.message : 'Failed to create subchannel');
         throw error;
       }
@@ -256,6 +278,8 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           createdAt: new Date().toISOString()
         }
       });
+      // Select the thread channel optimistically
+      store.selectChannel(tempId);
 
       try {
         // Don't update message with temporary ID - wait for real ID
@@ -263,6 +287,10 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
+            // Clear selection if it was our temp channel
+            if (store.selectedChannelId === tempId) {
+              store.selectChannel(null);
+            }
           },
           onCreated: (channel) => {
             // Replace optimistic update with real channel
@@ -270,6 +298,10 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
               ...channel,
               originalId: tempId
             });
+            // Update selection to real channel ID
+            if (store.selectedChannelId === tempId) {
+              store.selectChannel(channel.id);
+            }
 
             // Update the source message with real thread metadata
             if (socket) {
@@ -296,6 +328,9 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         return optimisticThread;
       } catch (error) {
         store._removeOptimisticChannel(tempId);
+        if (store.selectedChannelId === tempId) {
+          store.selectChannel(null);
+        }
         store._setError(error instanceof Error ? error.message : 'Failed to create thread');
         throw error;
       }
@@ -452,6 +487,8 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           channels: [...state.channels, channel].sort((a, b) => a.name.localeCompare(b.name))
         }));
       }
+      // Select the newly created channel
+      store.selectChannel(channel.id);
     },
 
     handleChannelUpdated: (channel: Channel) => {
