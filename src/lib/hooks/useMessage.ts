@@ -183,37 +183,61 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
 export function useMessages() {
   const [state, dispatch] = useReducer(messageReducer, initialState);
   const { socket } = useSocket();
+  const isInitializedRef = useRef(false);
   
   // Store handlers in refs to maintain them across re-renders
   const handlersRef = useRef({
     handleMessage: (message: Message) => {
+      console.log('[useMessages] Handling new message:', message.id);
       dispatch({ type: 'ADD_MESSAGE', payload: message });
     },
     handleMessageDeleted: (event: { messageId: string; originalId?: string }) => {
+      console.log('[useMessages] Handling message deletion:', event.messageId);
       dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
       if (event.originalId) {
         dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
       }
     },
     handleReactionAdded: (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
+      console.log('[useMessages] Handling reaction added:', event.messageId);
       dispatch({ type: 'ADD_REACTION', payload: event });
     },
     handleReactionRemoved: (event: { messageId: string; reaction: Reaction }) => {
+      console.log('[useMessages] Handling reaction removed:', event.messageId);
       dispatch({ type: 'REMOVE_REACTION', payload: { 
         messageId: event.messageId, 
         reactionId: event.reaction.id 
       }});
     },
     handleMessageUpdated: (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
-      console.log('[useMessages] Received message update:', event);
+      console.log('[useMessages] Handling message update:', event);
       dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
     }
   });
 
+  // Setup effect - only runs once on mount
   useEffect(() => {
-    if (!socket) return;
+    console.log('[useMessages] Initial setup effect running');
+    isInitializedRef.current = false;
+    return () => {
+      console.log('[useMessages] Component fully unmounting');
+      isInitializedRef.current = false;
+    };
+  }, []);
 
-    console.log('[useMessages] Setting up socket handlers');
+  // Socket handler registration effect
+  useEffect(() => {
+    if (!socket) {
+      console.log('[useMessages] No socket available, skipping handler registration');
+      return;
+    }
+
+    if (isInitializedRef.current) {
+      console.log('[useMessages] Handlers already initialized, skipping');
+      return;
+    }
+
+    console.log('[useMessages] Registering socket handlers');
 
     // Register all handlers using the persistent refs
     socket.setMessageHandler(handlersRef.current.handleMessage);
@@ -222,20 +246,22 @@ export function useMessages() {
     socket.setReactionRemovedHandler(handlersRef.current.handleReactionRemoved);
     socket.setMessageUpdateHandler(handlersRef.current.handleMessageUpdated);
 
-    console.log('[useMessages] Socket handlers registered');
+    isInitializedRef.current = true;
+    console.log('[useMessages] Socket handlers registered successfully');
 
-    // Only clean up on unmount, not on re-renders
+    // Only clean up on actual unmount
     return () => {
-      console.log('[useMessages] Component unmounting, cleaning up socket handlers');
       if (!socket) return;
       
+      console.log('[useMessages] Cleaning up socket handlers');
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
       socket.setReactionAddedHandler(() => {});
       socket.setReactionRemovedHandler(() => {});
       socket.setMessageUpdateHandler(() => {});
+      isInitializedRef.current = false;
     };
-  }, [socket]); // Only re-run if socket changes
+  }, [socket]);
 
   const startLoading = useCallback(() => {
     dispatch({ type: 'FETCH_START' });
