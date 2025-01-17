@@ -594,7 +594,7 @@ export function HomeUI() {
 
       {/* Right Sidebar - Users and Chat - restored to original structure */}
       {isMounted && (
-        <aside className="w-64 bg-zinc-800 p-4 flex flex-col">
+        <aside className="bg-zinc-800 p-4 flex flex-col">
           <div className="flex flex-col h-full">
             <UserListContainer
               isCollapsed={isUserListCollapsed}
