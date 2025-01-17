@@ -147,6 +147,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const optimisticChannel: Channel = {
         id: tempId,
         name,
+        type: "DEFAULT",
         parentId: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -196,6 +197,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const optimisticChannel: Channel = {
         id: tempId,
         name,
+        type: "DEFAULT",
         parentId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -239,6 +241,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const optimisticThread: Channel = {
         id: tempId,
         name,
+        type: "DEFAULT",
         parentId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

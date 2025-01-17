@@ -49,6 +49,17 @@ export const authMiddleware = async (
         return next(new Error('Invalid session'));
       }
 
+      // Check if session is expired
+      const now = Math.floor(Date.now() / 1000);
+      if (session.exp && now >= session.exp) {
+        console.error('Session expired:', {
+          userId: session.sub,
+          expiry: new Date(session.exp * 1000).toISOString(),
+          now: new Date().toISOString()
+        });
+        return next(new Error('Session expired'));
+      }
+
       // Get user details
       const user = await clerkClient.users.getUser(session.sub);
       

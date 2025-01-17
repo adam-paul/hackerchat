@@ -106,6 +106,12 @@ export async function POST(req: Request) {
 
   // Handle session end events
   if (evt.type === 'session.ended' || evt.type === 'session.removed') {
+    console.log('Received session end event:', {
+      type: evt.type,
+      data: evt.data,
+      timestamp: new Date().toISOString()
+    });
+    
     const { user_id } = evt.data;
     
     if (!user_id) {

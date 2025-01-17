@@ -90,4 +90,5 @@ export interface ClientToServerEvents {
   'send-message': (messageId: string, channelId: string, content: string) => void;
   'typing-start': (channelId: string) => void;
   'typing-stop': (channelId: string) => void;
+  'session.expired': () => void;
 } 

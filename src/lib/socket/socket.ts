@@ -6,6 +6,7 @@ type EventsMap = ServerToClientEvents & {
   disconnect: (reason: string) => void;
   connect_error: (error: Error) => void;
   'socket.reconnect': (attemptNumber: number) => void;
+  'session.expired': () => void;
 };
 
 export class SocketManager {
@@ -65,12 +66,18 @@ export class SocketManager {
 
     this.socket.on('connect_error', async (error) => {
       console.error('Socket connection error:', error);
-      if (error.message === 'invalid token') {
+      if (error.message === 'invalid token' || error.message === 'Session expired') {
         // Token expired or invalid, get new token and reconnect
         const newToken = await this.tokenProvider();
         if (newToken && this.socket) {
           this.socket.auth = { token: newToken };
           this.socket.connect();
+        } else if (this.socket) {
+          // If we can't get a new token, the session is likely truly expired
+          console.log('Session expired - disconnecting socket');
+          this.socket.disconnect();
+          // Emit a custom event that can be handled by the application
+          this.emit('session.expired');
         }
       }
     });

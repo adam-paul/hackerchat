@@ -3,12 +3,14 @@
 export type Channel = {
   id: string;
   name: string;
+  type: "DEFAULT" | "DM";
   description?: string | null;
   parentId?: string | null;
   createdAt: string;
   updatedAt: string;
   originalId?: string;
   creatorId: string;
+  participants?: User[];
   _count?: {
     messages: number;
   };
