@@ -21,7 +21,7 @@ type MessageAction =
   | { type: 'DELETE_MESSAGE'; payload: string }
   | { type: 'MESSAGE_ERROR'; payload: { error: string } }
   | { type: 'CLEAR_MESSAGES' }
-  | { type: 'ADD_REACTION'; payload: { messageId: string; reaction: Reaction } }
+  | { type: 'ADD_REACTION'; payload: { messageId: string; originalId?: string; reaction: Reaction } }
   | { type: 'REMOVE_REACTION'; payload: { messageId: string; reactionId: string } }
   | { type: 'SET_CHANNEL'; payload: string | null };
 
@@ -141,11 +141,11 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         ...state,
         status: 'success',
         messages: state.messages.map(msg =>
-          msg.id === action.payload.messageId ? {
+          (msg.id === action.payload.messageId || 
+           (action.payload.originalId && (msg.id === action.payload.originalId || msg.originalId === action.payload.originalId))) ? {
             ...msg,
             reactions: [
               ...msg.reactions.filter(r => 
-                // Remove any optimistic version of this reaction
                 !(r.id.startsWith('optimistic-') && r.content === action.payload.reaction.content)
               ),
               action.payload.reaction
@@ -203,9 +203,13 @@ export function useMessages() {
         dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
       }
     },
-    handleReactionAdded: (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
+    handleReactionAdded: (event: { messageId: string; originalId?: string; reaction: Reaction; optimisticId?: string }) => {
       console.log('[useMessages] Handling reaction added:', event.messageId);
-      dispatch({ type: 'ADD_REACTION', payload: event });
+      dispatch({ type: 'ADD_REACTION', payload: { 
+        messageId: event.messageId,
+        originalId: event.originalId,
+        reaction: event.reaction 
+      }});
     },
     handleReactionRemoved: (event: { messageId: string; reaction: Reaction }) => {
       console.log('[useMessages] Handling reaction removed:', event.messageId);
