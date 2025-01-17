@@ -238,11 +238,15 @@ export function useMessages() {
     // Cleanup function
     return () => {
       console.log('[useMessages] Cleaning up socket handlers');
-      socket.setMessageHandler(() => {});
-      socket.setMessageDeleteHandler(() => {});
-      socket.setReactionAddedHandler(() => {});
-      socket.setReactionRemovedHandler(() => {});
-      socket.setMessageUpdateHandler(() => {});
+      // Don't clear handlers on unmount, let the socket provider manage them
+      // Only clear if socket is being destroyed
+      if (!socket.isConnected()) {
+        socket.setMessageHandler(() => {});
+        socket.setMessageDeleteHandler(() => {});
+        socket.setReactionAddedHandler(() => {});
+        socket.setReactionRemovedHandler(() => {});
+        socket.setMessageUpdateHandler(() => {});
+      }
     };
   }, [socket]); // Re-run when socket changes
 

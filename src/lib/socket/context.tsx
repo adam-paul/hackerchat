@@ -43,6 +43,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string>();
   const messageHandlerRef = useRef<((message: Message) => void) | undefined>();
   const serviceRef = useRef<SocketService | null>(null);
+  const handlersRef = useRef<{
+    messageUpdate?: (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void;
+  }>({});
 
   // Update the ref when getToken changes
   useEffect(() => {
@@ -70,6 +73,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         await serviceRef.current.connect(token);
         setIsConnected(true);
         setError(undefined);
+
+        // Re-register handlers after connection
+        if (handlersRef.current.messageUpdate) {
+          console.log('[SOCKET_PROVIDER] Re-registering message update handler after connection');
+          serviceRef.current.setMessageUpdateHandler(handlersRef.current.messageUpdate);
+        }
 
         // Set up store integration
         const cleanup = setupSocketIntegration(serviceRef.current);
@@ -135,6 +144,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const updateMessage = (messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
     try {
+      if (!handlersRef.current.messageUpdate) {
+        console.log('[SOCKET_PROVIDER] Setting message update handler');
+        handlersRef.current.messageUpdate = (event) => {
+          console.log('[SOCKET_PROVIDER] Message update handler called:', event);
+          // Your message update logic here
+        };
+        socketService?.setMessageUpdateHandler(handlersRef.current.messageUpdate);
+      }
       socketService?.updateMessage(messageId, updates);
     } catch (error) {
       console.error('Failed to update message:', error);

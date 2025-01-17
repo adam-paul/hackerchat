@@ -429,27 +429,9 @@ export class SocketService {
     this.onReactionRemovedHandler = handler;
   }
 
-  getCurrentUserId(): string | null {
-    if (!this.socket) return null;
-    
-    // First try to get from auth object
-    const authUserId = (this.socket.auth as { userId?: string })?.userId;
-    if (authUserId) return authUserId;
-    
-    // Fallback to parsing from token if auth is not set
-    if (this.token) {
-      try {
-        const tokenParts = this.token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(atob(tokenParts[1]));
-          return payload.sub;
-        }
-      } catch (error) {
-        console.error('Error parsing token:', error);
-      }
-    }
-    
-    return null;
+  getCurrentUserId(): string | undefined {
+    if (!this.socket?.auth) return undefined;
+    return (this.socket.auth as { userId?: string }).userId;
   }
 
   // Channel operations with error handling and retries
