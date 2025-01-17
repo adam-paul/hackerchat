@@ -59,11 +59,16 @@ export const MessageComponent = React.memo(function MessageComponent({
   const { socket } = useSocket();
   const channels = useChannelStore(state => state.channels);
   const selectChannel = useChannelStore(state => state.selectChannel);
+  const getChannel = useChannelStore(state => state.getChannel);
   const createThread = useChannelStore(state => state.createThread);
   const messageRef = useRef<HTMLDivElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
   const threadInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Check if the message is in a DM channel
+  const channel = getChannel(message.channelId);
+  const isDM = channel?.type === "DM";
 
   useEffect(() => {
     if (!isReacting) return;
@@ -411,13 +416,15 @@ export const MessageComponent = React.memo(function MessageComponent({
             <ContextMenuItem onClick={handleReplyClick}>
               _reply
             </ContextMenuItem>
-            <ContextMenuItem 
-              onClick={handleCreateThread}
-              disabled={isMaxDepth}
-              className={isMaxDepth ? "opacity-50 cursor-not-allowed" : ""}
-            >
-              _create.thread
-            </ContextMenuItem>
+            {!isDM && (
+              <ContextMenuItem 
+                onClick={handleCreateThread}
+                disabled={isMaxDepth}
+                className={isMaxDepth ? "opacity-50 cursor-not-allowed" : ""}
+              >
+                _create.thread
+              </ContextMenuItem>
+            )}
             {isOwnMessage && (
               <ContextMenuItem
                 onClick={handleDelete}
