@@ -82,10 +82,4 @@ export interface User {
   imageUrl?: string | null;
   status?: 'online' | 'offline' | 'away' | 'busy';
 }
-
-export interface MessageCallbacks {
-  onDelivered?: (messageId: string) => void;
-  onError?: (messageId: string, error: string) => void;
-  onMessage?: (message: Message) => void;
-}
   

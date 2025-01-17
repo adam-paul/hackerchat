@@ -99,12 +99,6 @@ export function HomeUI() {
 
   const handleSearchResultClick = (messageId: string) => {
     setSelectedMessageId(messageId);
-    const messageElement = document.getElementById(`message-${messageId}`);
-    if (messageElement) {
-      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      messageElement.classList.add('bg-zinc-700/30');
-      setTimeout(() => messageElement.classList.remove('bg-zinc-700/30'), 2000);
-    }
   };
 
   // Socket event handlers
@@ -230,7 +224,7 @@ export function HomeUI() {
 
     addMessage(optimisticMessage);
     setReplyTo(null);
-    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id, replyTo?.originalId, undefined);
+    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id);
   }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -287,7 +281,7 @@ export function HomeUI() {
         fileName,
         fileType,
         fileSize
-      }, replyTo?.id, replyTo?.originalId, undefined);
+      }, replyTo?.id);
     } catch (error) {
       console.error('Failed to upload file:', error);
       setMessageError(error instanceof Error ? error.message : 'Failed to upload file');
@@ -315,7 +309,7 @@ export function HomeUI() {
     setReplyTo(null);
   }, [selectedChannelId]);
 
-  // Handle ESC key and click-away for message highlighting
+  // Handle ESC key for message highlighting
   useEffect(() => {
     const handleEscKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && selectedMessageId) {
@@ -323,27 +317,20 @@ export function HomeUI() {
       }
     };
 
-    const handleClickAway = (e: MouseEvent) => {
-      const clickedElement = e.target as HTMLElement;
-      const clickedMessage = clickedElement.closest('[id^="message-"]');
-      
-      // Clear highlight if:
-      // 1. Clicked outside any message OR
-      // 2. Clicked on a different message than the currently highlighted one
-      if (selectedMessageId && 
-          (!clickedMessage || 
-           clickedMessage.id !== `message-${selectedMessageId}`)) {
-        setSelectedMessageId(null);
-      }
-    };
-
     document.addEventListener('keydown', handleEscKey);
-    document.addEventListener('click', handleClickAway);
-
     return () => {
       document.removeEventListener('keydown', handleEscKey);
-      document.removeEventListener('click', handleClickAway);
     };
+  }, [selectedMessageId, setSelectedMessageId]);
+
+  // Auto-clear highlight after delay
+  useEffect(() => {
+    if (selectedMessageId) {
+      const timer = setTimeout(() => {
+        setSelectedMessageId(null);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
   }, [selectedMessageId, setSelectedMessageId]);
 
   // Update replyTo when a message gets its permanent ID
@@ -552,9 +539,9 @@ export function HomeUI() {
                       <MessageComponent
                         key={message.id}
                         message={message}
-                        isHighlighted={selectedMessageId === message.id}
-                        onReply={handleReply}
+                        isHighlighted={selectedMessageId === message.id || selectedMessageId === message.originalId}
                         onHighlightMessage={setSelectedMessageId}
+                        onReply={handleReply}
                         onMessageUpdate={updateMessage}
                         onMessageFieldsUpdate={updateMessageFields}
                         onAddMessage={addMessage}

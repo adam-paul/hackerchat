@@ -43,9 +43,7 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         where: {
           OR: [
             { id: replyToId },
-            { originalId: replyToId },
-            { id: data.replyToOriginalId },
-            { originalId: data.replyToOriginalId }
+            { originalId: replyToId }
           ]
         }
       });

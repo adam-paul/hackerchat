@@ -27,7 +27,6 @@ export interface MessagePayload {
   fileType?: string;
   fileSize?: number;
   replyToId?: string;
-  replyToOriginalId?: string;
 }
 
 export interface ChannelPayload {
@@ -73,8 +72,7 @@ export const messageSchema = z.object({
   fileName: z.string().optional(),
   fileType: z.string().optional(),
   fileSize: z.number().optional(),
-  replyToId: z.string().optional(),
-  replyToOriginalId: z.string().optional()
+  replyToId: z.string().optional()
 });
 
 export const channelSchema = z.object({

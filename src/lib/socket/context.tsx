@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { SocketService } from './service';
 import { setupSocketIntegration } from '../store/socket-integration';
-import type { Message, Channel, MessageCallbacks } from '@/types';
+import type { Message } from '@/types';
 
 interface SocketContextType {
   isConnected: boolean;
@@ -13,20 +13,12 @@ interface SocketContextType {
   socket: SocketService | null;
   joinChannel: (channelId: string) => void;
   leaveChannel: (channelId: string) => void;
-  sendMessage: (
-    messageId: string,
-    channelId: string,
-    content: string,
-    fileData?: {
-      fileUrl: string;
-      fileName: string;
-      fileType: string;
-      fileSize: number;
-    },
-    replyToId?: string,
-    replyToOriginalId?: string,
-    callbacks?: MessageCallbacks
-  ) => void;
+  sendMessage: (messageId: string, channelId: string, content: string, fileData?: {
+    fileUrl: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }, replyToId?: string) => void;
   updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
   onMessage?: (message: Message) => void;
   updateMessage: (messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void;
@@ -127,22 +119,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const sendMessage = (
-    messageId: string,
-    channelId: string,
-    content: string,
-    fileData?: {
-      fileUrl: string;
-      fileName: string;
-      fileType: string;
-      fileSize: number;
-    },
-    replyToId?: string,
-    replyToOriginalId?: string,
-    callbacks?: MessageCallbacks
-  ) => {
+  const sendMessage = (messageId: string, channelId: string, content: string, fileData?: {
+    fileUrl: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }, replyToId?: string) => {
     try {
-      socketService?.sendMessage(messageId, channelId, content, fileData, replyToId, replyToOriginalId, callbacks);
+      socketService?.sendMessage(messageId, channelId, content, fileData, replyToId);
     } catch (error) {
       console.error('Failed to send message:', error);
       setError(error instanceof Error ? error.message : 'Failed to send message');

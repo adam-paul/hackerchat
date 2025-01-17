@@ -121,13 +121,9 @@ export const MessageComponent = React.memo(function MessageComponent({
   }, [onReply, message]);
 
   const handleReplyPreviewClick = useCallback(() => {
-    if (message.replyTo && onHighlightMessage) {
-      onHighlightMessage(message.replyTo.originalId || message.replyTo.id);
-      const replyElement = document.getElementById(`message-${message.replyTo.id}`) || 
-                          document.getElementById(`message-${message.replyTo.originalId}`);
-      if (replyElement) {
-        replyElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    if (message.replyTo) {
+      // Try both IDs when highlighting
+      onHighlightMessage?.(message.replyTo.originalId || message.replyTo.id);
     }
   }, [message.replyTo, onHighlightMessage]);
 
@@ -230,14 +226,19 @@ export const MessageComponent = React.memo(function MessageComponent({
     socket.removeReaction(message.channelId, message.id, reactionId);
   }, [socket, message, onMessageUpdate]);
 
+  useEffect(() => {
+    if (isHighlighted && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isHighlighted]);
+
   return (
     <div
       ref={messageRef}
-      id={`message-${message.id}`}
-      onContextMenu={handleContextMenu}
       className={`mb-4 transition-colors duration-300 rounded-lg p-2 hover:bg-zinc-700/10 ${
         isHighlighted ? 'bg-zinc-700/30' : ''
       }`}
+      onContextMenu={handleContextMenu}
     >
       {message.replyTo && (
         <div 
