@@ -151,32 +151,28 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         creatorId: socket.getCurrentUserId() || 'optimistic',
-        originalId: tempId // Add this to track the optimistic update
+        originalId: tempId
       };
 
-      // Add optimistic update
+      // Add optimistic update and select it
       store._addOptimisticChannel(optimisticChannel);
+      store.selectChannel(tempId);
       
       try {
-        let realChannelId: string | null = null;
         await socket.createChannel(name, undefined, undefined, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
           },
           onCreated: (channel) => {
-            realChannelId = channel.id;
-            // Replace optimistic update with real channel
+            // Replace optimistic update with real channel and update selection
             store._replaceOptimisticWithReal(tempId, {
               ...channel,
-              originalId: tempId // Preserve the originalId for matching
+              originalId: tempId
             });
+            store.selectChannel(channel.id);
           }
         });
-        // Only select the channel once we have the real ID
-        if (realChannelId) {
-          store.selectChannel(realChannelId);
-        }
         return optimisticChannel;
       } catch (error) {
         store._removeOptimisticChannel(tempId);
@@ -203,32 +199,29 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         parentId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        creatorId: 'optimistic',
+        creatorId: socket.getCurrentUserId() || 'optimistic',
+        originalId: tempId
       };
 
-      // Add optimistic update
-      store._addOptimisticChannel(optimisticChannel, { parentId });
+      // Add optimistic update and select it
+      store._addOptimisticChannel(optimisticChannel);
+      store.selectChannel(tempId);
       
       try {
-        let realChannelId: string | null = null;
         await socket.createChannel(name, parentId, undefined, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
           },
           onCreated: (channel) => {
-            realChannelId = channel.id;
-            // Replace optimistic update with real channel
+            // Replace optimistic update with real channel and update selection
             store._replaceOptimisticWithReal(tempId, {
               ...channel,
               originalId: tempId
             });
+            store.selectChannel(channel.id);
           }
         });
-        // Only select the channel once we have the real ID
-        if (realChannelId) {
-          store.selectChannel(realChannelId);
-        }
         return optimisticChannel;
       } catch (error) {
         store._removeOptimisticChannel(tempId);
@@ -275,9 +268,9 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           createdAt: new Date().toISOString()
         }
       });
+      store.selectChannel(tempId);
 
       try {
-        let realChannelId: string | null = null;
         // Don't update message with temporary ID - wait for real ID
         const createPromise = socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
@@ -285,12 +278,12 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
             store._setError(error);
           },
           onCreated: (channel) => {
-            realChannelId = channel.id;
             // Replace optimistic update with real channel
             store._replaceOptimisticWithReal(tempId, {
               ...channel,
               originalId: tempId
             });
+            store.selectChannel(channel.id);
 
             // Update the source message with real thread metadata
             if (socket) {
@@ -314,10 +307,6 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         });
 
         await createPromise;
-        // Only select the channel once we have the real ID
-        if (realChannelId) {
-          store.selectChannel(realChannelId);
-        }
         return optimisticThread;
       } catch (error) {
         store._removeOptimisticChannel(tempId);
@@ -476,8 +465,6 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         set(state => ({
           channels: [...state.channels, channel].sort((a, b) => a.name.localeCompare(b.name))
         }));
-        // Only select if this was a brand new channel (not one we created)
-        store.selectChannel(channel.id);
       }
     },
 
