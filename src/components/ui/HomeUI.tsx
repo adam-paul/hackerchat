@@ -217,7 +217,7 @@ export function HomeUI() {
       reactions: [],
       ...(replyTo && {
         replyTo: {
-          id: replyTo.id,
+          id: replyTo.originalId || replyTo.id,
           content: replyTo.content,
           author: {
             id: replyTo.author.id,
@@ -270,7 +270,7 @@ export function HomeUI() {
         reactions: [],
         ...(replyTo && {
           replyTo: {
-            id: replyTo.id,
+            id: replyTo.originalId || replyTo.id,
             content: replyTo.content,
             author: {
               id: replyTo.author.id,
