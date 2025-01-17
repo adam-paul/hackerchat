@@ -174,6 +174,16 @@ export class SocketService {
     // Handle reaction events
     this.socket.on('reaction-added', (event) => {
       if (this.onReactionAddedHandler) {
+        console.log('[SocketService] Received reaction-added event:', {
+          messageId: event.messageId,
+          originalId: event.originalId,
+          reaction: {
+            id: event.reaction.id,
+            content: event.reaction.content,
+            userId: event.reaction.user?.id
+          }
+        });
+
         // Check both permanent and optimistic IDs
         const eventWithId = {
           ...event,
@@ -183,12 +193,33 @@ export class SocketService {
             messageId: event.originalId || event.messageId
           }
         };
+
+        console.log('[SocketService] Transformed reaction event:', {
+          messageId: eventWithId.messageId,
+          reaction: {
+            id: eventWithId.reaction.id,
+            content: eventWithId.reaction.content,
+            messageId: eventWithId.reaction.messageId,
+            userId: eventWithId.reaction.user?.id
+          }
+        });
+
         this.onReactionAddedHandler(eventWithId);
       }
     });
 
     this.socket.on('reaction-removed', (event) => {
       if (this.onReactionRemovedHandler) {
+        console.log('[SocketService] Received reaction-removed event:', {
+          messageId: event.messageId,
+          originalId: event.originalId,
+          reaction: {
+            id: event.reaction.id,
+            content: event.reaction.content,
+            userId: event.reaction.user?.id
+          }
+        });
+
         // Check both permanent and optimistic IDs
         const eventWithId = {
           ...event,
@@ -198,6 +229,17 @@ export class SocketService {
             messageId: event.originalId || event.messageId
           }
         };
+
+        console.log('[SocketService] Transformed reaction removal event:', {
+          messageId: eventWithId.messageId,
+          reaction: {
+            id: eventWithId.reaction.id,
+            content: eventWithId.reaction.content,
+            messageId: eventWithId.reaction.messageId,
+            userId: eventWithId.reaction.user?.id
+          }
+        });
+
         this.onReactionRemovedHandler(eventWithId);
       }
     });
@@ -403,14 +445,23 @@ export class SocketService {
     
     const optimisticId = `optimistic-${Date.now()}`;
     
+    console.log('[SocketService] Sending add-reaction:', {
+      channelId,
+      messageId,
+      reaction: {
+        id: optimisticId,
+        content
+      }
+    });
+
     this.socket.emit('add-reaction', {
       type: 'reaction',
       channelId,
       messageId,
       reaction: {
-        id: optimisticId, // Add optimistic ID here
+        id: optimisticId,
         content,
-        optimisticId // Add this to help track optimistic updates
+        optimisticId
       }
     });
   }
@@ -418,13 +469,19 @@ export class SocketService {
   removeReaction(channelId: string, messageId: string, reactionId: string): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
+    console.log('[SocketService] Sending remove-reaction:', {
+      channelId,
+      messageId,
+      reactionId
+    });
+
     this.socket.emit('remove-reaction', {
       type: 'reaction',
       channelId,
       messageId,
       reaction: {
         id: reactionId,
-        user: null // We don't need user info for removal
+        user: null
       }
     });
   }

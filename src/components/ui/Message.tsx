@@ -198,6 +198,13 @@ export const MessageComponent = React.memo(function MessageComponent({
   const handleReactionSubmit = useCallback(() => {
     if (!reactionInput.trim() || !socket) return;
     
+    console.log('[Message] Creating optimistic reaction:', {
+      messageId: message.id,
+      originalId: message.originalId,
+      content: reactionInput,
+      userId
+    });
+
     const optimisticReaction: Reaction = {
       id: `optimistic-${Date.now()}`,
       content: reactionInput,
@@ -209,11 +216,23 @@ export const MessageComponent = React.memo(function MessageComponent({
       },
     };
 
+    console.log('[Message] Updating message with optimistic reaction:', {
+      messageId: message.id,
+      reactionId: optimisticReaction.id,
+      reactions: [...(message.reactions || []), optimisticReaction]
+    });
+
     onMessageUpdate?.(message.id, {
       ...message,
       reactions: [...(message.reactions || []), optimisticReaction],
     });
     
+    console.log('[Message] Sending reaction to socket:', {
+      channelId: message.channelId,
+      messageId: message.originalId || message.id,
+      content: reactionInput
+    });
+
     socket.addReaction(message.channelId, message.originalId || message.id, reactionInput);
     setIsReacting(false);
     setReactionInput('');
@@ -222,11 +241,23 @@ export const MessageComponent = React.memo(function MessageComponent({
   const handleRemoveReaction = useCallback((reactionId: string) => {
     if (!socket) return;
 
+    console.log('[Message] Removing reaction:', {
+      messageId: message.id,
+      originalId: message.originalId,
+      reactionId
+    });
+
     onMessageUpdate?.(message.id, {
       ...message,
       reactions: (message.reactions || []).filter(r => r.id !== reactionId),
     });
     
+    console.log('[Message] Sending reaction removal to socket:', {
+      channelId: message.channelId,
+      messageId: message.originalId || message.id,
+      reactionId
+    });
+
     socket.removeReaction(message.channelId, message.originalId || message.id, reactionId);
   }, [socket, message, onMessageUpdate]);
 
