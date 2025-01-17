@@ -122,7 +122,7 @@ export const MessageComponent = React.memo(function MessageComponent({
 
   const handleReplyPreviewClick = useCallback(() => {
     if (message.replyTo) {
-      // Try both IDs when highlighting
+      // Try both IDs when highlighting, prioritizing the original ID
       onHighlightMessage?.(message.replyTo.originalId || message.replyTo.id);
     }
   }, [message.replyTo, onHighlightMessage]);

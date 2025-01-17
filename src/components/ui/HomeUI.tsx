@@ -213,7 +213,7 @@ export function HomeUI() {
       ...(replyTo && {
         replyTo: {
           id: replyTo.id,
-          originalId: replyTo.originalId,
+          originalId: replyTo.originalId || replyTo.id,
           content: replyTo.content,
           author: {
             id: replyTo.author.id,
@@ -250,6 +250,7 @@ export function HomeUI() {
 
       const optimisticMessage: Message = {
         id: messageId,
+        originalId: messageId,
         content: fileName,
         fileUrl: url,
         fileName,
@@ -266,7 +267,7 @@ export function HomeUI() {
         ...(replyTo && {
           replyTo: {
             id: replyTo.id,
-            originalId: replyTo.originalId,
+            originalId: replyTo.originalId || replyTo.id,
             content: replyTo.content,
             author: {
               id: replyTo.author.id,
@@ -423,32 +424,6 @@ export function HomeUI() {
     });
   }, [channels, selectedChannelId, handleSelectChannel, messages, updateMessage, setStoreChannels]);
 
-  // Update messages when receiving socket updates
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleMessageUpdate = (updatedMessage: Message) => {
-      // If this is a permanent ID update for a temporary message
-      if (updatedMessage.originalId && updatedMessage.originalId.startsWith('temp_')) {
-        const existingMessage = messages.find(m => m.id === updatedMessage.originalId);
-        if (existingMessage) {
-          // Keep the originalId when updating to permanent message
-          updateMessage(existingMessage.id, {
-            ...updatedMessage,
-            originalId: existingMessage.id // Keep the temp ID as originalId
-          });
-          return;
-        }
-      }
-      updateMessage(updatedMessage.id, updatedMessage);
-    };
-
-    socket.on('message:updated', handleMessageUpdate);
-    return () => {
-      socket.off('message:updated', handleMessageUpdate);
-    };
-  }, [socket, messages, updateMessage]);
-
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -566,7 +541,11 @@ export function HomeUI() {
                       <MessageComponent
                         key={message.id}
                         message={message}
-                        isHighlighted={selectedMessageId === message.id || selectedMessageId === message.originalId}
+                        isHighlighted={Boolean(
+                          selectedMessageId === message.id || 
+                          selectedMessageId === message.originalId ||
+                          (message.originalId && selectedMessageId === message.originalId)
+                        )}
                         onHighlightMessage={setSelectedMessageId}
                         onReply={handleReply}
                         onMessageUpdate={updateMessage}
