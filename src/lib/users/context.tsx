@@ -64,9 +64,9 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
       socket.updateStatus(newStatus);
     } catch (error) {
       console.error('Failed to update status:', error);
-      fetchUsers();
+      setError(error instanceof Error ? error.message : 'Failed to update status');
     }
-  }, [socket, fetchUsers]);
+  }, [socket]);
 
   // Initial fetch and socket setup
   useEffect(() => {
