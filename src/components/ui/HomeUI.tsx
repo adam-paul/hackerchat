@@ -198,6 +198,14 @@ export function HomeUI() {
     if (!selectedChannelId || !isConnected) return;
 
     const messageId = `temp_${Date.now()}`;
+    console.log('[HomeUI] Creating optimistic message:', {
+      messageId,
+      replyTo: replyTo ? {
+        id: replyTo.id,
+        originalId: replyTo.originalId,
+      } : null
+    });
+
     const optimisticMessage: Message = {
       id: messageId,
       originalId: messageId,
@@ -222,6 +230,15 @@ export function HomeUI() {
         }
       })
     };
+
+    console.log('[HomeUI] Final optimistic message structure:', {
+      id: optimisticMessage.id,
+      originalId: optimisticMessage.originalId,
+      replyTo: optimisticMessage.replyTo ? {
+        id: optimisticMessage.replyTo.id,
+        originalId: optimisticMessage.replyTo.originalId
+      } : null
+    });
 
     addMessage(optimisticMessage);
     setReplyTo(null);
@@ -338,11 +355,23 @@ export function HomeUI() {
   // Update replyTo when a message gets its permanent ID
   useEffect(() => {
     if (replyTo && messages.length > 0) {
+      console.log('[HomeUI] Checking for replyTo updates:', {
+        currentReplyToId: replyTo.id,
+        currentReplyToOriginalId: replyTo.originalId,
+        messagesCount: messages.length
+      });
+
       const updatedMessage = messages.find(m => 
         m.id === replyTo.id || // Check permanent ID
         (m.originalId === replyTo.id && m.id !== replyTo.id) // Check if temp ID was updated
       );
+
       if (updatedMessage && updatedMessage.id !== replyTo.id) {
+        console.log('[HomeUI] Found updated message for reply:', {
+          oldId: replyTo.id,
+          newId: updatedMessage.id,
+          originalId: updatedMessage.originalId
+        });
         setReplyTo(updatedMessage);
       }
     }
