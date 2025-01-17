@@ -1,6 +1,6 @@
 // src/lib/hooks/useMessage.ts
 
-import { useCallback, useReducer, useEffect } from 'react';
+import { useCallback, useReducer, useEffect, useRef } from 'react';
 import type { Message, Reaction } from '@/types';
 import { useSocket } from '../socket/context';
 
@@ -183,62 +183,59 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
 export function useMessages() {
   const [state, dispatch] = useReducer(messageReducer, initialState);
   const { socket } = useSocket();
+  
+  // Store handlers in refs to maintain them across re-renders
+  const handlersRef = useRef({
+    handleMessage: (message: Message) => {
+      dispatch({ type: 'ADD_MESSAGE', payload: message });
+    },
+    handleMessageDeleted: (event: { messageId: string; originalId?: string }) => {
+      dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
+      if (event.originalId) {
+        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
+      }
+    },
+    handleReactionAdded: (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
+      dispatch({ type: 'ADD_REACTION', payload: event });
+    },
+    handleReactionRemoved: (event: { messageId: string; reaction: Reaction }) => {
+      dispatch({ type: 'REMOVE_REACTION', payload: { 
+        messageId: event.messageId, 
+        reactionId: event.reaction.id 
+      }});
+    },
+    handleMessageUpdated: (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+      console.log('[useMessages] Received message update:', event);
+      dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
+    }
+  });
 
   useEffect(() => {
     if (!socket) return;
 
     console.log('[useMessages] Setting up socket handlers');
 
-    const handleMessage = (message: Message) => {
-      dispatch({ type: 'ADD_MESSAGE', payload: message });
-    };
-
-    const handleMessageDeleted = (event: { messageId: string; originalId?: string }) => {
-      // Delete both the real message and any optimistic version
-      dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
-      if (event.originalId) {
-        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
-      }
-    };
-
-    const handleReactionAdded = (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
-      dispatch({ type: 'ADD_REACTION', payload: event });
-    };
-
-    const handleReactionRemoved = (event: { messageId: string; reaction: Reaction }) => {
-      dispatch({ type: 'REMOVE_REACTION', payload: { 
-        messageId: event.messageId, 
-        reactionId: event.reaction.id 
-      }});
-    };
-
-    const handleMessageUpdated = (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
-      console.log('[useMessages] Received message update:', event);
-      dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
-    };
-
-    // Register all handlers
-    socket.setMessageHandler(handleMessage);
-    socket.setMessageDeleteHandler(handleMessageDeleted);
-    socket.setReactionAddedHandler(handleReactionAdded);
-    socket.setReactionRemovedHandler(handleReactionRemoved);
-    socket.setMessageUpdateHandler(handleMessageUpdated);
+    // Register all handlers using the persistent refs
+    socket.setMessageHandler(handlersRef.current.handleMessage);
+    socket.setMessageDeleteHandler(handlersRef.current.handleMessageDeleted);
+    socket.setReactionAddedHandler(handlersRef.current.handleReactionAdded);
+    socket.setReactionRemovedHandler(handlersRef.current.handleReactionRemoved);
+    socket.setMessageUpdateHandler(handlersRef.current.handleMessageUpdated);
 
     console.log('[useMessages] Socket handlers registered');
 
-    // Cleanup function
+    // Only clean up on unmount, not on re-renders
     return () => {
-      console.log('[useMessages] Cleaning up socket handlers');
+      console.log('[useMessages] Component unmounting, cleaning up socket handlers');
       if (!socket) return;
       
-      // Use empty functions instead of null to prevent "No handler registered" errors
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
       socket.setReactionAddedHandler(() => {});
       socket.setReactionRemovedHandler(() => {});
       socket.setMessageUpdateHandler(() => {});
     };
-  }, [socket]);
+  }, [socket]); // Only re-run if socket changes
 
   const startLoading = useCallback(() => {
     dispatch({ type: 'FETCH_START' });
