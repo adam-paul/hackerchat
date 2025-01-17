@@ -177,7 +177,11 @@ export class SocketService {
         // Check both permanent and optimistic IDs
         const eventWithId = {
           ...event,
-          messageId: event.originalId || event.messageId
+          messageId: event.originalId || event.messageId,
+          reaction: {
+            ...event.reaction,
+            messageId: event.originalId || event.messageId
+          }
         };
         this.onReactionAddedHandler(eventWithId);
       }
@@ -188,7 +192,11 @@ export class SocketService {
         // Check both permanent and optimistic IDs
         const eventWithId = {
           ...event,
-          messageId: event.originalId || event.messageId
+          messageId: event.originalId || event.messageId,
+          reaction: {
+            ...event.reaction,
+            messageId: event.originalId || event.messageId
+          }
         };
         this.onReactionRemovedHandler(eventWithId);
       }

@@ -214,7 +214,7 @@ export const MessageComponent = React.memo(function MessageComponent({
       reactions: [...(message.reactions || []), optimisticReaction],
     });
     
-    socket.addReaction(message.channelId, message.id, reactionInput);
+    socket.addReaction(message.channelId, message.originalId || message.id, reactionInput);
     setIsReacting(false);
     setReactionInput('');
   }, [reactionInput, socket, userId, message, onMessageUpdate]);
@@ -227,7 +227,7 @@ export const MessageComponent = React.memo(function MessageComponent({
       reactions: (message.reactions || []).filter(r => r.id !== reactionId),
     });
     
-    socket.removeReaction(message.channelId, message.id, reactionId);
+    socket.removeReaction(message.channelId, message.originalId || message.id, reactionId);
   }, [socket, message, onMessageUpdate]);
 
   useEffect(() => {
