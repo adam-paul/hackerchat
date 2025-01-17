@@ -432,87 +432,229 @@ export function HomeUI() {
   }, [channels, selectedChannelId, handleSelectChannel, messages, updateMessage, setStoreChannels]);
 
   return (
-    <div className={`${firaCode.className} flex h-screen bg-zinc-900 text-zinc-200`}>
-      {/* Left sidebar */}
-      <div className="w-64 flex-shrink-0 border-r border-zinc-800 p-4 overflow-y-auto">
-        <ChannelList />
-      </div>
+    <div className={`${firaCode.className} flex flex-col h-screen bg-zinc-900 text-zinc-200`}>
+      {/* Header */}
+      <header className="flex items-center justify-between p-4 border-b border-zinc-800">
+        <div className="flex items-center gap-4">
+          {selectedChannelId && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-zinc-400">in</span>
+              {isDM ? (
+                <span className="text-[#00b300]">{otherParticipant?.name || 'Unknown User'}</span>
+              ) : (
+                <span className="text-[#00b300]">{getChannelPath(selectedChannelId).join(' / ')}</span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <SearchBar
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            onResultClick={handleSearchResultClick}
+            searchResults={searchResults}
+            onClear={clearSearch}
+          />
+          <Settings />
+          {isMounted && <DynamicUserButton />}
+        </div>
+      </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <div className="flex items-center gap-4">
-            {selectedChannelId && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-400">in</span>
-                {isDM ? (
-                  <span className="text-[#00b300]">{otherParticipant?.name || 'Unknown User'}</span>
-                ) : (
-                  <span className="text-[#00b300]">{getChannelPath(selectedChannelId).join(' / ')}</span>
+      {/* Sidebar */}
+      <aside className="w-64 bg-zinc-800 p-4 flex flex-col">
+        <div className="flex items-center justify-between mb-6">
+          <span className={`${firaCode.className} text-zinc-200 text-lg`}>
+            hacker_chat
+          </span>
+          <div className="flex items-center gap-2">
+            {isMounted && socketError && (
+              <span className="text-red-500 text-xs" title={socketError}>⚠️</span>
+            )}
+            {isMounted && (
+              <span className={`text-xs ${isConnected ? 'text-green-500' : 'text-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'}>
+                ●
+              </span>
+            )}
+            <DynamicUserButton 
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: 'w-8 h-8',
+                  userButtonPopoverCard: 'border border-zinc-700 shadow-xl !bg-zinc-800 !rounded',
+                  userButtonPopoverActions: 'border-t border-zinc-700',
+                  userPreviewMainIdentifier: '!text-zinc-200 font-mono',
+                  userPreviewSecondaryIdentifier: '!text-zinc-400 font-mono',
+                  userButtonPopoverActionButton: '!text-zinc-400 hover:!text-zinc-200 font-mono',
+                  userButtonPopoverActionButtonText: 'font-mono !text-zinc-200',
+                  userButtonPopoverActionButtonIcon: '!text-zinc-400',
+                  footerActionLink: '!text-zinc-400 hover:!text-zinc-200',
+                  footerActionText: '!text-zinc-200',
+                  card: '!rounded',
+                  avatarBox: '!rounded',
+                  userPreviewAvatarBox: '!rounded',
+                  userButtonAvatarImage: '!rounded',
+                  organizationSwitcherTriggerIcon: '!text-zinc-200',
+                  organizationPreviewTextContainer: '!text-zinc-200',
+                  organizationSwitcherTrigger: '!text-zinc-200',
+                  organizationSwitcherTriggerButton: '!text-zinc-200',
+                  userButtonTrigger: '!text-zinc-200 !rounded focus:!ring-2 focus:!ring-[#00b300] focus:!ring-offset-2 focus:!ring-offset-zinc-800',
+                  userButtonPopoverActionButtonArrow: '!text-zinc-200',
+                  userButtonPopoverFooter: '!text-zinc-200 border-t border-zinc-700',
+                  userPreview: 'flex items-center pb-4',
+                  userPreviewTextContainer: 'flex flex-col justify-center'
+                }
+              }}
+            />
+          </div>
+        </div>
+        
+        {/* Channel list */}
+        {isMounted ? (
+          isLoading ? (
+            <div className={`${firaCode.className} text-sm text-zinc-400`}>Loading channels...</div>
+          ) : (
+            <ChannelList
+              className="flex-1"
+            />
+          )
+        ) : null}
+
+        {/* Settings */}
+        <div className="mt-auto pt-4 border-t border-zinc-700">
+          <Settings />
+        </div>
+      </aside>
+
+      {/* Main content area */}
+      <main className="flex-1 bg-zinc-900 flex flex-col h-screen">
+        {isMounted && selectedChannelId ? (
+          <>
+            {/* Channel header */}
+            <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <h2 className={`${firaCode.className} text-zinc-200 font-normal`}>
+                  {formatChannelPath(selectedChannelId)}
+                </h2>
+                {!isConnected && (
+                  <span className="text-red-500 text-xs">
+                    Disconnected
+                  </span>
                 )}
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <SearchBar 
-              searchQuery={searchQuery}
-              onSearchChange={handleSearchChange}
-              onResultClick={handleSearchResultClick}
-              searchResults={searchResults}
-              onClear={clearSearch}
-            />
-            <DynamicUserButton />
-            <Settings />
-          </div>
-        </header>
-
-        {/* Message area */}
-        <div className="flex-1 flex min-h-0">
-          <div className="flex-1 flex flex-col overflow-y-auto p-4">
-            {messages.map((message) => (
-              <MessageComponent
-                key={message.id}
-                message={message}
-                onReply={handleReply}
-                onMessageUpdate={updateMessage}
-                onMessageFieldsUpdate={updateMessageFields}
-                onAddMessage={addMessage}
-                isHighlighted={message.id === highlightedMessage}
-                onHighlightMessage={setSelectedMessageId}
+              <SearchBar
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                onResultClick={handleSearchResultClick}
+                searchResults={searchResults}
+                onClear={clearSearch}
               />
-            ))}
-          </div>
+            </div>
+            
+            {/* Messages area */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full p-4 overflow-y-auto flex flex-col-reverse">
+                {messageStatus === 'loading' ? (
+                  <div className="flex items-center justify-center p-4">
+                    <span className={`${firaCode.className} text-sm text-zinc-400`}>
+                      Loading messages...
+                    </span>
+                  </div>
+                ) : messageStatus === 'error' ? (
+                  <div className="flex items-center justify-center p-4">
+                    <span className={`${firaCode.className} text-sm text-red-400`}>
+                      {messageError}
+                    </span>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className={`${firaCode.className} text-sm text-zinc-400`}>
+                    No messages yet
+                  </div>
+                ) : (
+                  <div key={selectedChannelId}>
+                    {messages.map(message => (
+                      <MessageComponent
+                        key={message.id}
+                        message={message}
+                        isHighlighted={Boolean(
+                          selectedMessageId === message.id || 
+                          selectedMessageId === message.originalId ||
+                          messages.some(m => 
+                            (m.id === selectedMessageId || m.originalId === selectedMessageId) && 
+                            (m.id === message.id || m.originalId === message.id || m.id === message.originalId || m.originalId === message.originalId)
+                          )
+                        )}
+                        onHighlightMessage={setSelectedMessageId}
+                        onReply={handleReply}
+                        onMessageUpdate={updateMessage}
+                        onMessageFieldsUpdate={updateMessageFields}
+                        onAddMessage={addMessage}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-          {/* Right sidebar */}
-          <div className="w-64 flex-shrink-0 border-l border-zinc-800 flex flex-col">
-            <UserListContainer 
+            {/* Replace the old message input with the new ChatInput component */}
+            <ChatInput
+              isConnected={isConnected}
+              selectedChannel={selectedChannelId}
+              replyTo={replyTo}
+              onSendMessage={handleSendMessage}
+              onCancelReply={() => setReplyTo(null)}
+              onFileSelect={handleFileSelect}
+              isUploading={isUploading}
+              inputRef={messageInputRef}
+            />
+          </>
+        ) : (
+          <div className={`${firaCode.className} text-sm flex-1 flex items-center justify-center text-zinc-500`}>
+            Select a channel to start chatting
+          </div>
+        )}
+      </main>
+
+      {/* Right Sidebar - Users and Chat */}
+      {isMounted && (
+        <aside className="bg-zinc-800 p-4 flex flex-col">
+          <div className="flex flex-col h-full">
+            <UserListContainer
               isCollapsed={isUserListCollapsed}
               onToggleCollapse={() => setIsUserListCollapsed(!isUserListCollapsed)}
+              className={`flex-1 ${!isChatSectionCollapsed ? 'max-h-[50%]' : ''}`}
             />
             <ChatSection
               isCollapsed={isChatSectionCollapsed}
               isSidebarCollapsed={isUserListCollapsed}
               onToggleCollapse={() => setIsChatSectionCollapsed(!isChatSectionCollapsed)}
-              className="mt-4"
+              className={isChatSectionCollapsed ? 'h-auto' : 'h-[50%]'}
             />
+            {isUserListCollapsed && (
+              <div className="flex flex-col items-center gap-4 mt-auto pt-4">
+                <button
+                  onClick={() => setIsUserListCollapsed(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                  aria-label="Show users"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIsUserListCollapsed(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                  aria-label="Show chat"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Input area */}
-        <div className="p-4 border-t border-zinc-800">
-          <ChatInput
-            isConnected={isConnected}
-            selectedChannel={selectedChannelId}
-            onSendMessage={handleSendMessage}
-            onFileSelect={handleFileSelect}
-            isUploading={isUploading}
-            replyTo={replyTo}
-            onCancelReply={() => setReplyTo(null)}
-            inputRef={messageInputRef}
-          />
-        </div>
-      </div>
+        </aside>
+      )}
     </div>
   );
 }
