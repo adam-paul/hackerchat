@@ -85,6 +85,7 @@ export interface ClientToServerEvents {
   'join-channel': (channelId: string) => void;
   'leave-channel': (channelId: string) => void;
   'create-channel': (data: { name: string; parentId?: string; description?: string }) => void;
+  'create-dm': (data: { participantIds: string[] }, callback: (response: { success: boolean; data?: Channel; error?: string }) => void) => void;
   'update-channel': (data: { channelId: string; name?: string; description?: string }) => void;
   'delete-channel': (data: { channelId: string }) => void;
   'send-message': (messageId: string, channelId: string, content: string) => void;

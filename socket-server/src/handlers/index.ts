@@ -8,7 +8,8 @@ import {
   handleTyping,
   handleCreateChannel,
   handleUpdateChannel,
-  handleDeleteChannel
+  handleDeleteChannel,
+  handleCreateDM
 } from './channel';
 import { handleMessage, handleMessageDelete, handleMessageUpdate } from './message';
 import { handleStatusUpdate } from './status';
@@ -62,6 +63,11 @@ export const handleConnection = (socket: SocketType): void => {
 
   socket.on(EVENTS.CREATE_CHANNEL, async (data) => {
     await handleCreateChannel(socket, data);
+  });
+
+  socket.on('create-dm', async (data, callback) => {
+    const result = await handleCreateDM(socket, data);
+    callback(result);
   });
 
   socket.on(EVENTS.UPDATE_CHANNEL, async (data) => {
