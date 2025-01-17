@@ -15,14 +15,15 @@ type MessageAction =
   | { type: 'FETCH_START' }
   | { type: 'FETCH_SUCCESS'; payload: Message[] }
   | { type: 'FETCH_ERROR'; payload: string }
-  | { type: 'SET_CHANNEL'; payload: string | null }
   | { type: 'ADD_MESSAGE'; payload: Message }
   | { type: 'UPDATE_MESSAGE'; payload: { id: string; message: Message } }
+  | { type: 'UPDATE_THREAD_METADATA'; payload: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } } }
   | { type: 'DELETE_MESSAGE'; payload: string }
   | { type: 'MESSAGE_ERROR'; payload: { error: string } }
   | { type: 'CLEAR_MESSAGES' }
   | { type: 'ADD_REACTION'; payload: { messageId: string; reaction: Reaction } }
-  | { type: 'REMOVE_REACTION'; payload: { messageId: string; reactionId: string } };
+  | { type: 'REMOVE_REACTION'; payload: { messageId: string; reactionId: string } }
+  | { type: 'SET_CHANNEL'; payload: string | null };
 
 const initialState: MessageState = {
   messages: [],
@@ -141,6 +142,21 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
           } : msg
         )
       };
+    case 'UPDATE_THREAD_METADATA':
+      return {
+        ...state,
+        status: 'success',
+        messages: state.messages.map(msg => {
+          if (msg.id === action.payload.messageId) {
+            return {
+              ...msg,
+              threadId: action.payload.threadId,
+              threadName: action.payload.threadMetadata?.title
+            };
+          }
+          return msg;
+        })
+      };
     default:
       return state;
   }
@@ -176,16 +192,22 @@ export function useMessages() {
       }});
     };
 
+    const handleMessageUpdated = (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+      dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
+    };
+
     socket.setMessageHandler(handleMessage);
     socket.setMessageDeleteHandler(handleMessageDeleted);
     socket.setReactionAddedHandler(handleReactionAdded);
     socket.setReactionRemovedHandler(handleReactionRemoved);
+    socket.setMessageUpdateHandler(handleMessageUpdated);
 
     return () => {
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
       socket.setReactionAddedHandler(() => {});
       socket.setReactionRemovedHandler(() => {});
+      socket.setMessageUpdateHandler(() => {});
     };
   }, [socket]);
 
@@ -244,6 +266,13 @@ export function useMessages() {
     });
   }, []);
 
+  const updateMessageFields = useCallback((id: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+    dispatch({
+      type: 'UPDATE_THREAD_METADATA',
+      payload: { messageId: id, ...updates }
+    });
+  }, []);
+
   const clearMessages = useCallback(() => {
     dispatch({ type: 'CLEAR_MESSAGES' });
   }, []);
@@ -264,6 +293,7 @@ export function useMessages() {
     setMessages,
     addMessage,
     updateMessage,
+    updateMessageFields,
     clearMessages,
     setError,
     setCurrentChannel
