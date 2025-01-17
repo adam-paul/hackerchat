@@ -237,6 +237,9 @@ export const handleCreateChannel = async (
           }
         };
         console.log('[THREAD_CREATE] Emitting MESSAGE_UPDATED event:', updateEvent);
+        
+        // Broadcast to all clients in the channel
+        socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
         socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
       }
     }

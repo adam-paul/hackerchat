@@ -284,8 +284,20 @@ export const handleMessageUpdate = async (
       } : undefined
     };
 
-    // Broadcast to all clients in the channel, including the sender
+    // Broadcast to all clients in the channel
     socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+
+    // Also send to the message owner directly if they're not the one updating
+    if (message.authorId !== socket.data.userId) {
+      const ownerSocket = Array.from(socket.nsp.sockets.values()).find(
+        (s: any) => s.data.userId === message.authorId
+      );
+      if (ownerSocket) {
+        ownerSocket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+      }
+    }
+
+    // Send to the updater
     socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
 
     return {
