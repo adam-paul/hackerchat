@@ -222,7 +222,8 @@ export function HomeUI() {
           author: {
             id: replyTo.author.id,
             name: replyTo.author.name
-          }
+          },
+          originalId: replyTo.originalId
         }
       })
     };

@@ -138,7 +138,8 @@ export const handleMessage = async (
             author: {
               id: dbMessage.replyTo.author.id,
               name: dbMessage.replyTo.author.name
-            }
+            },
+            originalId: dbMessage.replyTo.originalId
           }
         }),
         originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,

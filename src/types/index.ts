@@ -48,6 +48,7 @@ export interface Message {
       id: string;
       name: string;
     };
+    originalId?: string;
   };
   replyToId?: string;
   originalId?: string;
