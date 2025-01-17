@@ -291,13 +291,32 @@ export class SocketService {
     },
     replyTo?: { id: string; originalId?: string }
   ): void {
-    this.socket?.emit('message:send', {
+    if (!this.socket?.connected) throw new Error('Socket not connected');
+
+    const message = {
+      type: 'message',
       messageId,
       channelId,
-      content,
-      fileData,
-      replyTo
-    });
+      message: {
+        content,
+        fileUrl: fileData?.fileUrl,
+        fileName: fileData?.fileName,
+        fileType: fileData?.fileType,
+        fileSize: fileData?.fileSize,
+        replyTo
+      }
+    };
+
+    this.socket.emit('message', message);
+
+    // Set up timeout to clean up callbacks
+    setTimeout(() => {
+      if (this.messageCallbacks.has(messageId)) {
+        const callbacks = this.messageCallbacks.get(messageId);
+        callbacks?.onError?.(messageId, 'Message delivery timeout');
+        this.messageCallbacks.delete(messageId);
+      }
+    }, 10000); // 10 second timeout
   }
 
   setMessageHandler(handler: (message: Message) => void): void {
