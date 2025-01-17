@@ -50,7 +50,8 @@ export const handleAddReaction = async (socket: SocketType, event: ReactionEvent
     socket.to(event.channelId).emit(EVENTS.REACTION_ADDED, {
       type: 'reaction',
       channelId: event.channelId,
-      messageId: messageId, // Just pass through the ID we received
+      messageId: message.id,
+      originalId: message.originalId || (messageId.startsWith('temp_') ? messageId : undefined),
       reaction: {
         id: newReaction.id,
         content: newReaction.content,
@@ -63,7 +64,8 @@ export const handleAddReaction = async (socket: SocketType, event: ReactionEvent
     socket.emit(EVENTS.REACTION_ADDED, {
       type: 'reaction',
       channelId: event.channelId,
-      messageId: messageId, // Just pass through the ID we received
+      messageId: message.id,
+      originalId: message.originalId || (messageId.startsWith('temp_') ? messageId : undefined),
       reaction: {
         id: newReaction.id,
         content: newReaction.content,
@@ -119,7 +121,8 @@ export const handleRemoveReaction = async (socket: SocketType, event: ReactionEv
     socket.to(event.channelId).emit(EVENTS.REACTION_REMOVED, {
       type: 'reaction',
       channelId: event.channelId,
-      messageId: messageId, // Just pass through the ID we received
+      messageId: message.id,
+      originalId: message.originalId || (messageId.startsWith('temp_') ? messageId : undefined),
       reaction: {
         id: reaction.id,
         content: reaction.content,
@@ -132,7 +135,8 @@ export const handleRemoveReaction = async (socket: SocketType, event: ReactionEv
     socket.emit(EVENTS.REACTION_REMOVED, {
       type: 'reaction',
       channelId: event.channelId,
-      messageId: messageId, // Just pass through the ID we received
+      messageId: message.id,
+      originalId: message.originalId || (messageId.startsWith('temp_') ? messageId : undefined),
       reaction: {
         id: reaction.id,
         content: reaction.content,

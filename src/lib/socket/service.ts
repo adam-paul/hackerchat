@@ -174,13 +174,23 @@ export class SocketService {
     // Handle reaction events
     this.socket.on('reaction-added', (event) => {
       if (this.onReactionAddedHandler) {
-        this.onReactionAddedHandler(event);
+        // Check both permanent and optimistic IDs
+        const eventWithId = {
+          ...event,
+          messageId: event.originalId || event.messageId
+        };
+        this.onReactionAddedHandler(eventWithId);
       }
     });
 
     this.socket.on('reaction-removed', (event) => {
       if (this.onReactionRemovedHandler) {
-        this.onReactionRemovedHandler(event);
+        // Check both permanent and optimistic IDs
+        const eventWithId = {
+          ...event,
+          messageId: event.originalId || event.messageId
+        };
+        this.onReactionRemovedHandler(eventWithId);
       }
     });
 
