@@ -224,6 +224,7 @@ export class SocketService {
 
     this.socket.on('message-updated', (event) => {
       if (this.onMessageUpdateHandler) {
+        // Always process the update from the server
         this.onMessageUpdateHandler(event);
       }
     });
@@ -558,21 +559,18 @@ export class SocketService {
       return;
     }
     
-    console.log('[SocketService] Updating message locally:', { messageId, updates });
+    // Get current user ID to check if this is a local update
+    const userId = this.getCurrentUserId();
     
-    // Handle local update first
+    // Handle local update first if this is our own update
     if (this.onMessageUpdateHandler) {
-      console.log('[SocketService] Calling onMessageUpdateHandler');
       this.onMessageUpdateHandler({
         messageId,
         ...updates
       });
-    } else {
-      console.log('[SocketService] No onMessageUpdateHandler registered!');
     }
 
-    // Then emit to other clients
-    console.log('[SocketService] Emitting message-updated event');
+    // Then emit to server - server will broadcast to all clients including us
     this.socket.emit('message-updated', { messageId, ...updates });
   }
 } 
