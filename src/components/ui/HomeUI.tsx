@@ -230,7 +230,7 @@ export function HomeUI() {
 
     addMessage(optimisticMessage);
     setReplyTo(null);
-    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id);
+    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id, replyTo?.originalId, undefined);
   }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -287,7 +287,7 @@ export function HomeUI() {
         fileName,
         fileType,
         fileSize
-      }, replyTo?.id);
+      }, replyTo?.id, replyTo?.originalId, undefined);
     } catch (error) {
       console.error('Failed to upload file:', error);
       setMessageError(error instanceof Error ? error.message : 'Failed to upload file');
