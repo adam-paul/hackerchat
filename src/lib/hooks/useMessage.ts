@@ -88,7 +88,10 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       return {
         ...state,
         status: 'success',
-        messages: [...state.messages, action.payload]
+        messages: [...state.messages, {
+          ...action.payload,
+          originalId: action.payload.originalId || (action.payload.id.startsWith('temp_') ? action.payload.id : undefined)
+        }]
       };
     case 'UPDATE_MESSAGE':
       return {
