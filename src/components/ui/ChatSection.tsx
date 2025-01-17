@@ -22,10 +22,16 @@ export function ChatSection({
 }: ChatSectionProps) {
   const { userId } = useAuthContext();
   
-  // Use selector properly to prevent infinite updates
-  const dmChannels = useChannelStore(state => state.channels.filter(c => c.type === "DM"));
+  // Get raw channels from store without filtering
+  const channels = useChannelStore(state => state.channels);
   const selectedChannelId = useChannelStore(state => state.selectedChannelId);
   const selectChannel = useChannelStore(state => state.selectChannel);
+
+  // Memoize DM channel filtering
+  const dmChannels = useMemo(() => 
+    channels.filter(c => c.type === "DM"),
+    [channels]
+  );
 
   // Memoize participant name lookup
   const dmChannelsWithNames = useMemo(() => 
