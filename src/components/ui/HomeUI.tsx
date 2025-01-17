@@ -49,6 +49,7 @@ export function HomeUI() {
     selectChannel,
     channels,
     getChannelPath,
+    getChannel,
     handleChannelCreated: storeHandleChannelCreated,
     handleChannelUpdated: storeHandleChannelUpdated,
     handleChannelDeleted: storeHandleChannelDeleted,
@@ -91,6 +92,11 @@ export function HomeUI() {
 
   const [isUserListCollapsed, setIsUserListCollapsed] = useLocalStorage('userListCollapsed', false);
   const [isChatSectionCollapsed, setIsChatSectionCollapsed] = useLocalStorage('chatSectionCollapsed', false);
+
+  // Get the selected channel
+  const selectedChannel = selectedChannelId ? getChannel(selectedChannelId) : null;
+  const isDM = selectedChannel?.type === "DM";
+  const otherParticipant = isDM ? selectedChannel?.participants?.find(p => p.id !== userId) : null;
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
@@ -426,7 +432,34 @@ export function HomeUI() {
   }, [channels, selectedChannelId, handleSelectChannel, messages, updateMessage, setStoreChannels]);
 
   return (
-    <div className="min-h-screen flex">
+    <div className={`${firaCode.className} flex flex-col h-screen bg-zinc-900 text-zinc-200`}>
+      {/* Header */}
+      <header className="flex items-center justify-between p-4 border-b border-zinc-800">
+        <div className="flex items-center gap-4">
+          {selectedChannelId && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-zinc-400">in</span>
+              {isDM ? (
+                <span className="text-[#00b300]">{otherParticipant?.name || 'Unknown User'}</span>
+              ) : (
+                <span className="text-[#00b300]">{getChannelPath(selectedChannelId).join(' / ')}</span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <SearchBar
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            onResultClick={handleSearchResultClick}
+            searchResults={searchResults}
+            onClear={clearSearch}
+          />
+          <Settings />
+          {isMounted && <DynamicUserButton />}
+        </div>
+      </header>
+
       {/* Sidebar */}
       <aside className="w-64 bg-zinc-800 p-4 flex flex-col">
         <div className="flex items-center justify-between mb-6">
@@ -511,8 +544,8 @@ export function HomeUI() {
               <SearchBar
                 searchQuery={searchQuery}
                 onSearchChange={handleSearchChange}
-                searchResults={searchResults}
                 onResultClick={handleSearchResultClick}
+                searchResults={searchResults}
                 onClear={clearSearch}
               />
             </div>

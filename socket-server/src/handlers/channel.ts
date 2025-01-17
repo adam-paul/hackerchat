@@ -42,16 +42,6 @@ export const handleJoinChannel = async (
       throw new Error('Channel not found');
     }
 
-    console.log(`[CHANNEL_JOIN] User ${socket.data.userId} joining channel ${data.channelId}`);
-
-    // Leave any other channels first to prevent duplicate subscriptions
-    const currentRooms = Array.from(socket.rooms.values());
-    for (const room of currentRooms) {
-      if (room !== socket.id) { // Don't leave the socket's own room
-        await socket.leave(room);
-      }
-    }
-
     // Join the channel room
     await socket.join(data.channelId);
 
@@ -61,9 +51,6 @@ export const handleJoinChannel = async (
       userId: socket.data.userId,
       timestamp: new Date().toISOString()
     });
-
-    console.log(`[CHANNEL_JOIN] User ${socket.data.userId} successfully joined channel ${data.channelId}`);
-    console.log(`[CHANNEL_JOIN] Current rooms for socket:`, Array.from(socket.rooms.values()));
 
     return {
       success: true,
