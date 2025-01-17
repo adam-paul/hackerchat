@@ -229,9 +229,26 @@ export const handleMessageDelete = async (
       throw new Error('Unauthorized to delete this message');
     }
 
-    // Delete the message
-    await prisma.message.delete({
-      where: { id: message.id }
+    // Find messages that reply to this message before deletion
+    const replyingMessages = await prisma.message.findMany({
+      where: { replyToId: message.id },
+      select: { id: true, channelId: true }
+    });
+
+    // Delete message and update replies in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Update messages that reply to this message
+      if (replyingMessages.length > 0) {
+        await tx.message.updateMany({
+          where: { replyToId: message.id },
+          data: { replyToId: null }
+        });
+      }
+
+      // Delete the message
+      await tx.message.delete({
+        where: { id: message.id }
+      });
     });
 
     // Broadcast deletion to channel with both IDs
@@ -244,6 +261,17 @@ export const handleMessageDelete = async (
 
     socket.to(message.channelId).emit(EVENTS.MESSAGE_DELETED, deletionEvent);
     socket.emit(EVENTS.MESSAGE_DELETED, deletionEvent);
+
+    // Emit message updates to remove reply links
+    replyingMessages.forEach(replyingMessage => {
+      const updateEvent = {
+        messageId: replyingMessage.id,
+        replyToId: null,
+        replyTo: null
+      };
+      socket.to(replyingMessage.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+      socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+    });
 
     return {
       success: true,
