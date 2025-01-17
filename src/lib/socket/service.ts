@@ -177,40 +177,22 @@ export class SocketService {
         console.log('[SocketService] Received reaction-added event:', {
           messageId: event.messageId,
           originalId: event.originalId,
-          reaction: {
-            id: event.reaction.id,
-            content: event.reaction.content,
-            userId: event.reaction.user?.id
-          }
+          reaction: event.reaction
         });
 
-        // For the sender (who has the temp ID), use originalId
-        // For other clients (who have the permanent ID), use messageId
-        const isReactionSender = event.reaction.user?.id === this.getCurrentUserId();
-        const targetMessageId = isReactionSender ? (event.originalId || event.messageId) : (event.messageId || event.originalId);
-
-        const eventWithId = {
+        // Always send both IDs to let the client match either one
+        const eventWithIds = {
           ...event,
-          messageId: targetMessageId,
+          messageId: event.messageId,
+          originalId: event.originalId,
           reaction: {
             ...event.reaction,
-            messageId: targetMessageId
+            messageId: event.messageId,
+            originalId: event.originalId
           }
         };
 
-        console.log('[SocketService] Transformed reaction event:', {
-          messageId: eventWithId.messageId,
-          isReactionSender,
-          userId: this.getCurrentUserId(),
-          reaction: {
-            id: eventWithId.reaction.id,
-            content: eventWithId.reaction.content,
-            messageId: eventWithId.reaction.messageId,
-            userId: eventWithId.reaction.user?.id
-          }
-        });
-
-        this.onReactionAddedHandler(eventWithId);
+        this.onReactionAddedHandler(eventWithIds);
       }
     });
 
@@ -219,40 +201,22 @@ export class SocketService {
         console.log('[SocketService] Received reaction-removed event:', {
           messageId: event.messageId,
           originalId: event.originalId,
-          reaction: {
-            id: event.reaction.id,
-            content: event.reaction.content,
-            userId: event.reaction.user?.id
-          }
+          reaction: event.reaction
         });
 
-        // For the sender (who has the temp ID), use originalId
-        // For other clients (who have the permanent ID), use messageId
-        const isReactionSender = event.reaction.user?.id === this.getCurrentUserId();
-        const targetMessageId = isReactionSender ? (event.originalId || event.messageId) : (event.messageId || event.originalId);
-
-        const eventWithId = {
+        // Always send both IDs to let the client match either one
+        const eventWithIds = {
           ...event,
-          messageId: targetMessageId,
+          messageId: event.messageId,
+          originalId: event.originalId,
           reaction: {
             ...event.reaction,
-            messageId: targetMessageId
+            messageId: event.messageId,
+            originalId: event.originalId
           }
         };
 
-        console.log('[SocketService] Transformed reaction removal event:', {
-          messageId: eventWithId.messageId,
-          isReactionSender,
-          userId: this.getCurrentUserId(),
-          reaction: {
-            id: eventWithId.reaction.id,
-            content: eventWithId.reaction.content,
-            messageId: eventWithId.reaction.messageId,
-            userId: eventWithId.reaction.user?.id
-          }
-        });
-
-        this.onReactionRemovedHandler(eventWithId);
+        this.onReactionRemovedHandler(eventWithIds);
       }
     });
 

@@ -216,24 +216,20 @@ export const MessageComponent = React.memo(function MessageComponent({
       },
     };
 
-    console.log('[Message] Updating message with optimistic reaction:', {
-      messageId: message.id,
-      reactionId: optimisticReaction.id,
-      reactions: [...(message.reactions || []), optimisticReaction]
-    });
+    // Update both the optimistic and permanent versions of the message
+    const messageIds = [message.id];
+    if (message.originalId && message.originalId !== message.id) {
+      messageIds.push(message.originalId);
+    }
 
-    onMessageUpdate?.(message.id, {
-      ...message,
-      reactions: [...(message.reactions || []), optimisticReaction],
+    messageIds.forEach(id => {
+      onMessageUpdate?.(id, {
+        ...message,
+        reactions: [...(message.reactions || []), optimisticReaction],
+      });
     });
     
-    console.log('[Message] Sending reaction to socket:', {
-      channelId: message.channelId,
-      messageId: message.originalId || message.id,
-      content: reactionInput
-    });
-
-    socket.addReaction(message.channelId, message.originalId || message.id, reactionInput);
+    socket.addReaction(message.channelId, message.id, reactionInput);
     setIsReacting(false);
     setReactionInput('');
   }, [reactionInput, socket, userId, message, onMessageUpdate]);
