@@ -257,38 +257,12 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         }
       });
 
-      // Update the message locally first with optimistic data
-      socket.updateMessage(message.id, {
-        threadId: tempId,
-        threadMetadata: {
-          title: name,
-          createdAt: new Date().toISOString()
-        }
-      });
-    
       try {
+        // Send creation request and wait for broadcast
         await socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
-          },
-          onCreated: (channel) => {
-            // Replace optimistic update with real channel
-            store._replaceOptimisticWithReal(tempId, {
-              ...channel,
-              originalId: tempId
-            });
-    
-            // Update the source message with real thread metadata
-            if (socket) {
-              socket.updateMessage(message.id, {
-                threadId: channel.id,
-                threadMetadata: {
-                  title: name,
-                  createdAt: channel.createdAt
-                }
-              });
-            }
           },
           metadata: {
             messageId: message.id,

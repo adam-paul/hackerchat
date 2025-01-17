@@ -284,11 +284,8 @@ export const handleMessageUpdate = async (
       } : undefined
     };
 
-    // Single broadcast to the channel room - all connected clients will receive this
-    socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
-    
-    // Send back to sender for consistency
-    socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+    // Single broadcast to ALL clients in the channel, including sender
+    socket.in(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
 
     return {
       success: true,

@@ -143,15 +143,17 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         )
       };
     case 'UPDATE_THREAD_METADATA':
-      const updatedMessages = state.messages.map(msg => 
-        msg.id === action.payload.messageId
-          ? {
-              ...msg,
-              threadId: action.payload.threadId,
-              threadName: action.payload.threadMetadata?.title
-            }
-          : msg
-      );
+      const updatedMessages = state.messages.map(msg => {
+        // Handle both optimistic and real IDs
+        if (msg.id === action.payload.messageId || msg.originalId === action.payload.messageId) {
+          return {
+            ...msg,
+            threadId: action.payload.threadId,
+            threadName: action.payload.threadMetadata?.title
+          };
+        }
+        return msg;
+      });
 
       return {
         ...state,
