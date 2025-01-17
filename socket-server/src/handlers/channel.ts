@@ -361,16 +361,24 @@ export const handleDeleteChannel = async (
       throw new Error('Unauthorized to delete channel');
     }
 
+    // Find messages that reference this thread before deletion
+    const messagesWithThread = await prisma.message.findMany({
+      where: { threadId: validData.channelId },
+      select: { id: true, channelId: true }
+    });
+
     // Delete channel and all related data in a transaction
     await prisma.$transaction(async (tx) => {
-      // Clear thread references in messages that point to this channel
-      await tx.message.updateMany({
-        where: { threadId: validData.channelId },
-        data: {
-          threadId: null,
-          threadName: null
-        }
-      });
+      // Update messages that reference this thread
+      if (messagesWithThread.length > 0) {
+        await tx.message.updateMany({
+          where: { threadId: validData.channelId },
+          data: {
+            threadId: null,
+            threadName: null
+          }
+        });
+      }
 
       // Delete all messages in the channel
       await tx.message.deleteMany({
@@ -387,6 +395,17 @@ export const handleDeleteChannel = async (
     socket.broadcast.emit(EVENTS.CHANNEL_DELETED, {
       channelId: validData.channelId,
       timestamp: new Date().toISOString()
+    });
+
+    // Emit message updates to remove thread links
+    messagesWithThread.forEach(message => {
+      const updateEvent = {
+        messageId: message.id,
+        threadId: null,
+        threadMetadata: null
+      };
+      socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+      socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
     });
 
     return {
