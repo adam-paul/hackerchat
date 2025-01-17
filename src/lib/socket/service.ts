@@ -180,18 +180,21 @@ export class SocketService {
           reaction: event.reaction
         });
 
-        // Always send both IDs to let the client match either one
+        // Prioritize the temp ID if it exists
+        const targetId = event.originalId || event.messageId;
+
         const eventWithIds = {
           ...event,
-          messageId: event.messageId,
+          messageId: targetId,
           originalId: event.originalId,
           reaction: {
             ...event.reaction,
-            messageId: event.messageId,
+            messageId: targetId,
             originalId: event.originalId
           }
         };
 
+        console.log('[SocketService] Dispatching reaction with ID:', targetId);
         this.onReactionAddedHandler(eventWithIds);
       }
     });
@@ -204,18 +207,21 @@ export class SocketService {
           reaction: event.reaction
         });
 
-        // Always send both IDs to let the client match either one
+        // Prioritize the temp ID if it exists
+        const targetId = event.originalId || event.messageId;
+
         const eventWithIds = {
           ...event,
-          messageId: event.messageId,
+          messageId: targetId,
           originalId: event.originalId,
           reaction: {
             ...event.reaction,
-            messageId: event.messageId,
+            messageId: targetId,
             originalId: event.originalId
           }
         };
 
+        console.log('[SocketService] Dispatching reaction removal with ID:', targetId);
         this.onReactionRemovedHandler(eventWithIds);
       }
     });
