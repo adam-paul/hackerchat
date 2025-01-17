@@ -148,7 +148,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
            (action.payload.originalId && (msg.id === action.payload.originalId || msg.originalId === action.payload.originalId))) ? {
             ...msg,
             reactions: [
-              ...msg.reactions.filter(r => 
+              ...(msg.reactions || []).filter(r => 
                 !(r.id.startsWith('optimistic-') && r.content === action.payload.reaction.content)
               ),
               action.payload.reaction
