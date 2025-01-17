@@ -22,12 +22,10 @@ export function ChatSection({
 }: ChatSectionProps) {
   const { userId } = useAuthContext();
   
-  // Combine selectors into a single selector to prevent unnecessary re-renders
-  const { dmChannels, selectedChannelId, selectChannel } = useChannelStore(state => ({
-    dmChannels: state.getDMChannels(),
-    selectedChannelId: state.selectedChannelId,
-    selectChannel: state.selectChannel
-  }));
+  // Use selector properly to prevent infinite updates
+  const dmChannels = useChannelStore(state => state.channels.filter(c => c.type === "DM"));
+  const selectedChannelId = useChannelStore(state => state.selectedChannelId);
+  const selectChannel = useChannelStore(state => state.selectChannel);
 
   // Memoize participant name lookup
   const dmChannelsWithNames = useMemo(() => 
