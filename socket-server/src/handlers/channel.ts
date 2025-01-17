@@ -17,6 +17,14 @@ type TypingResult = {
   isTyping: boolean;
 };
 
+type ChannelWithThread = Channel & {
+  threadMessage?: {
+    id: string;
+    channelId: string;
+    originalId: string | null;
+  };
+};
+
 export const handleJoinChannel = async (
   socket: SocketType,
   channelId: string
@@ -148,7 +156,7 @@ export const handleCreateChannel = async (
           creatorId: socket.data.userId,
           originalId: validData.originalId?.startsWith('temp_') ? validData.originalId : undefined
         }
-      });
+      }) as ChannelWithThread;
 
       // If this is a thread (has threadMetadata), update the source message
       if (validData.threadMetadata) {
@@ -161,6 +169,11 @@ export const handleCreateChannel = async (
               { id: messageId },
               { originalId: messageId }
             ]
+          },
+          select: {
+            id: true,
+            channelId: true,
+            originalId: true
           }
         });
 
@@ -189,6 +202,9 @@ export const handleCreateChannel = async (
             }
           });
         }
+
+        // Store message info for later broadcast
+        channel.threadMessage = message;
       }
 
       return channel;
@@ -202,42 +218,43 @@ export const handleCreateChannel = async (
       ...result,
       createdAt: result.createdAt.toISOString(),
       updatedAt: result.updatedAt.toISOString(),
-      originalId: validData.originalId // Include originalId in response for client reconciliation
+      originalId: validData.originalId
     };
 
     // If this was a thread creation, emit message update BEFORE channel creation
-    if (validData.threadMetadata) {
-      const { messageId, title } = validData.threadMetadata;
+    if (validData.threadMetadata && result.threadMessage) {
+      const { title } = validData.threadMetadata;
+      const message = result.threadMessage;
       
-      // Find the message again to get its real ID
-      const message = await prisma.message.findFirst({
-        where: {
-          OR: [
-            { id: messageId },
-            { originalId: messageId }
-          ]
-        },
-        select: {
-          id: true,
-          channelId: true
-        }
-      });
-
-      if (message) {
-        // Emit message update first
-        const updateEvent = {
+      // Create update events for both permanent and temporary IDs
+      const updateEvents = [
+        {
           messageId: message.id,
           threadId: result.id,
           threadMetadata: {
             title,
             createdAt: result.createdAt.toISOString()
           }
-        };
-        
-        // Broadcast to all clients in the channel
-        socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
-        socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+        }
+      ];
+
+      // If there was an original/temporary ID, create an update for that too
+      if (message.originalId) {
+        updateEvents.push({
+          messageId: message.originalId,
+          threadId: result.id,
+          threadMetadata: {
+            title,
+            createdAt: result.createdAt.toISOString()
+          }
+        });
       }
+
+      // Broadcast all update events to ensure all clients get the update
+      updateEvents.forEach(event => {
+        socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, event);
+        socket.emit(EVENTS.MESSAGE_UPDATED, event);
+      });
     }
 
     // Then emit channel creation events
