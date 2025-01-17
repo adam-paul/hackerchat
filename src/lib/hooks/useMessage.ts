@@ -35,24 +35,11 @@ const initialState: MessageState = {
 function messageReducer(state: MessageState, action: MessageAction): MessageState {
   switch (action.type) {
     case 'FETCH_START':
-      return {
-        ...state,
-        status: 'loading',
-        error: undefined
-      };
+      return { ...state, status: 'loading', error: undefined };
     case 'FETCH_SUCCESS':
-      return {
-        ...state,
-        status: 'success',
-        messages: action.payload,
-        error: undefined
-      };
+      return { ...state, messages: action.payload, status: 'success', error: undefined };
     case 'FETCH_ERROR':
-      return {
-        ...state,
-        status: 'error',
-        error: action.payload
-      };
+      return { ...state, status: 'error', error: action.payload };
     case 'SET_CHANNEL':
       return {
         ...state,
@@ -66,31 +53,23 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       return {
         ...state,
         status: 'success',
-        messages: [...state.messages, action.payload]
+        messages: [...state.messages, action.payload].sort((a, b) => 
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
       };
     case 'UPDATE_MESSAGE':
       return {
         ...state,
         status: 'success',
         messages: state.messages.map(msg => {
-          // If this is the message being updated
-          if (msg.id === action.payload.id || msg.id === action.payload.message.originalId) {
-            return action.payload.message;
-          }
-          
-          // If this message replies to the updated message
-          if (msg.replyTo?.id === action.payload.id || msg.replyToId === action.payload.id) {
+          // Match by either ID or originalId
+          if (msg.id === action.payload.id || msg.originalId === action.payload.id) {
             return {
-              ...msg,
-              replyToId: action.payload.message.id,
-              replyTo: {
-                id: action.payload.message.id,
-                content: action.payload.message.content,
-                author: action.payload.message.author
-              }
+              ...action.payload.message,
+              // Preserve the original ID mapping
+              originalId: msg.originalId || msg.id
             };
           }
-
           return msg;
         })
       };
@@ -98,7 +77,9 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       return {
         ...state,
         status: 'success',
-        messages: state.messages.filter(msg => msg.id !== action.payload)
+        messages: state.messages.filter(msg => 
+          msg.id !== action.payload && msg.originalId !== action.payload
+        )
       };
     case 'MESSAGE_ERROR':
       return {
@@ -118,45 +99,40 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       return {
         ...state,
         status: 'success',
-        messages: state.messages.map(msg =>
-          msg.id === action.payload.messageId ? {
-            ...msg,
-            reactions: [
-              ...msg.reactions.filter(r => 
-                // Remove any optimistic version of this reaction
-                !(r.id.startsWith('optimistic-') && r.content === action.payload.reaction.content)
-              ),
-              action.payload.reaction
-            ]
-          } : msg
+        messages: state.messages.map(msg => 
+          msg.id === action.payload.messageId || msg.originalId === action.payload.messageId
+            ? {
+                ...msg,
+                reactions: [...(msg.reactions || []), action.payload.reaction]
+              }
+            : msg
         )
       };
     case 'REMOVE_REACTION':
       return {
         ...state,
         status: 'success',
-        messages: state.messages.map(msg =>
-          msg.id === action.payload.messageId ? {
-            ...msg,
-            reactions: msg.reactions.filter(r => r.id !== action.payload.reactionId)
-          } : msg
+        messages: state.messages.map(msg => 
+          msg.id === action.payload.messageId || msg.originalId === action.payload.messageId
+            ? {
+                ...msg,
+                reactions: (msg.reactions || []).filter(r => r.id !== action.payload.reactionId)
+              }
+            : msg
         )
       };
     case 'UPDATE_THREAD_METADATA':
-      const updatedMessages = state.messages.map(msg => 
-        msg.id === action.payload.messageId
-          ? {
-              ...msg,
-              threadId: action.payload.threadId,
-              threadName: action.payload.threadMetadata?.title
-            }
-          : msg
-      );
-
       return {
         ...state,
-        status: 'success',
-        messages: updatedMessages
+        messages: state.messages.map(msg => 
+          msg.id === action.payload.messageId || msg.originalId === action.payload.messageId
+            ? {
+                ...msg,
+                threadId: action.payload.threadId,
+                threadMetadata: action.payload.threadMetadata
+              }
+            : msg
+        )
       };
     default:
       return state;
@@ -167,30 +143,53 @@ export function useMessages() {
   const [state, dispatch] = useReducer(messageReducer, initialState);
   const { socket } = useSocket();
   
-  // Store handlers in refs to maintain them across re-renders
-  const handlersRef = useRef({
-    handleMessage: (message: Message) => {
-      console.log('[useMessages] Handling new message:', message.id);
+  // Message handlers
+  const handleMessage = useCallback((message: Message) => {
+    if (message.originalId) {
+      // This is a permanent message replacing a temporary one
+      dispatch({
+        type: 'UPDATE_MESSAGE',
+        payload: {
+          id: message.originalId,  // Find by temp ID
+          message: {
+            ...message,
+            originalId: message.originalId  // Keep the original temp ID
+          }
+        }
+      });
+    } else {
+      // This is a new message
       dispatch({ type: 'ADD_MESSAGE', payload: message });
-    },
-    handleMessageDeleted: (event: { messageId: string; originalId?: string }) => {
-      console.log('[useMessages] Handling message deletion:', event.messageId);
-      dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
-      if (event.originalId) {
-        dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
-      }
-    },
-    handleReactionAdded: (event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
-      console.log('[useMessages] Handling reaction added:', event.messageId);
-      dispatch({ type: 'ADD_REACTION', payload: event });
-    },
-    handleReactionRemoved: (event: { messageId: string; reaction: Reaction }) => {
-      console.log('[useMessages] Handling reaction removed:', event.messageId);
-      dispatch({ type: 'REMOVE_REACTION', payload: { 
-        messageId: event.messageId, 
-        reactionId: event.reaction.id 
-      }});
     }
+  }, []);
+
+  const handleMessageDeleted = useCallback((event: { messageId: string; originalId?: string }) => {
+    console.log('[useMessages] Handling message deletion:', event.messageId);
+    dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
+    if (event.originalId) {
+      dispatch({ type: 'DELETE_MESSAGE', payload: event.originalId });
+    }
+  }, []);
+
+  const handleReactionAdded = useCallback((event: { messageId: string; reaction: Reaction; optimisticId?: string }) => {
+    console.log('[useMessages] Handling reaction added:', event.messageId);
+    dispatch({ type: 'ADD_REACTION', payload: event });
+  }, []);
+
+  const handleReactionRemoved = useCallback((event: { messageId: string; reaction: Reaction }) => {
+    console.log('[useMessages] Handling reaction removed:', event.messageId);
+    dispatch({ type: 'REMOVE_REACTION', payload: { 
+      messageId: event.messageId, 
+      reactionId: event.reaction.id 
+    }});
+  }, []);
+
+  // Keep track of handlers in a ref to avoid recreating effect
+  const handlersRef = useRef({
+    handleMessage,
+    handleMessageDeleted,
+    handleReactionAdded,
+    handleReactionRemoved
   });
 
   // Simplified message update handler
@@ -294,6 +293,15 @@ export function useMessages() {
   const setCurrentChannel = useCallback((channelId: string | null) => {
     dispatch({ type: 'SET_CHANNEL', payload: channelId });
   }, []);
+
+  useEffect(() => {
+    handlersRef.current = {
+      handleMessage,
+      handleMessageDeleted,
+      handleReactionAdded,
+      handleReactionRemoved
+    };
+  }, [handleMessage, handleMessageDeleted, handleReactionAdded, handleReactionRemoved]);
 
   return {
     messages: state.messages,
