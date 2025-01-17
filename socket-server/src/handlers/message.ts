@@ -274,26 +274,23 @@ export const handleMessageUpdate = async (
       }
     });
 
-    // Broadcast the message update to all clients in the channel
-    socket.emit(EVENTS.MESSAGE_UPDATED, {
+    // Create the update event
+    const updateEvent = {
       messageId: updatedMessage.id,
       threadId: updatedMessage.threadId || undefined,
       threadMetadata: updatedMessage.threadName ? {
         title: updatedMessage.threadName,
         createdAt: new Date() // Use current date for thread creation
       } : undefined
-    });
+    };
+
+    // Broadcast to all clients in the channel, including the sender
+    socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+    socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
 
     return {
       success: true,
-      data: {
-        messageId: updatedMessage.id,
-        threadId: updatedMessage.threadId || undefined,
-        threadMetadata: updatedMessage.threadName ? {
-          title: updatedMessage.threadName,
-          createdAt: new Date() // Use current date for thread creation
-        } : undefined
-      }
+      data: updateEvent
     };
   } catch (error) {
     return handleSocketError(socket, error);
