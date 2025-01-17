@@ -123,7 +123,21 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       return {
         ...state,
         status: 'success',
-        messages: state.messages.filter(msg => msg.id !== action.payload)
+        messages: state.messages.map(msg => {
+          // If this is the message being deleted, filter it out
+          if (msg.id === action.payload) {
+            return null;
+          }
+          // If this message replies to the deleted message, remove the reply link
+          if (msg.replyTo?.id === action.payload || msg.replyToId === action.payload) {
+            return {
+              ...msg,
+              replyToId: null,
+              replyTo: null
+            };
+          }
+          return msg;
+        }).filter(Boolean) as Message[]
       };
     case 'MESSAGE_ERROR':
       return {
