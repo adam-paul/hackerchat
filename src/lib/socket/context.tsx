@@ -7,18 +7,48 @@ import { SocketService } from './service';
 import { setupSocketIntegration } from '../store/socket-integration';
 import type { Message } from '@/types';
 
+interface FileData {
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}
+
+interface ReplyToData {
+  id: string;
+  originalId?: string;
+}
+
+interface Socket {
+  connect: () => void;
+  disconnect: () => void;
+  joinChannel: (channelId: string) => void;
+  leaveChannel: (channelId: string) => void;
+  sendMessage: (
+    messageId: string, 
+    channelId: string, 
+    content: string, 
+    fileData?: FileData,
+    replyTo?: { id: string; originalId?: string }
+  ) => void;
+  deleteMessage: (messageId: string) => void;
+  addReaction: (channelId: string, messageId: string, content: string) => void;
+  removeReaction: (channelId: string, messageId: string, reactionId: string) => void;
+}
+
 interface SocketContextType {
   isConnected: boolean;
   error?: string;
   socket: SocketService | null;
   joinChannel: (channelId: string) => void;
   leaveChannel: (channelId: string) => void;
-  sendMessage: (messageId: string, channelId: string, content: string, fileData?: {
-    fileUrl: string;
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-  }, replyToId?: string) => void;
+  sendMessage: (
+    messageId: string, 
+    channelId: string, 
+    content: string, 
+    fileData?: FileData,
+    replyTo?: { id: string; originalId?: string }
+  ) => void;
   updateStatus: (status: 'online' | 'away' | 'busy' | 'offline') => void;
   onMessage?: (message: Message) => void;
   updateMessage: (messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void;
@@ -119,14 +149,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const sendMessage = (messageId: string, channelId: string, content: string, fileData?: {
-    fileUrl: string;
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-  }, replyToId?: string) => {
+  const sendMessage = (
+    messageId: string, 
+    channelId: string, 
+    content: string, 
+    fileData?: FileData,
+    replyTo?: { id: string; originalId?: string }
+  ) => {
     try {
-      socketService?.sendMessage(messageId, channelId, content, fileData, replyToId);
+      socketService?.sendMessage(messageId, channelId, content, fileData, replyTo);
     } catch (error) {
       console.error('Failed to send message:', error);
       setError(error instanceof Error ? error.message : 'Failed to send message');

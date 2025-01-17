@@ -289,39 +289,15 @@ export class SocketService {
       fileType: string;
       fileSize: number;
     },
-    replyToId?: string,
-    callbacks?: MessageCallbacks
+    replyTo?: { id: string; originalId?: string }
   ): void {
-    if (!this.socket?.connected) throw new Error('Socket not connected');
-
-    const message = {
-      type: 'message',
+    this.socket?.emit('message:send', {
       messageId,
       channelId,
-      message: {
-        content,
-        fileUrl: fileData?.fileUrl,
-        fileName: fileData?.fileName,
-        fileType: fileData?.fileType,
-        fileSize: fileData?.fileSize,
-        replyToId
-      }
-    };
-
-    if (callbacks) {
-      this.messageCallbacks.set(messageId, callbacks);
-    }
-
-    this.socket.emit('message', message);
-
-    // Set up timeout to clean up callbacks
-    setTimeout(() => {
-      if (this.messageCallbacks.has(messageId)) {
-        const callbacks = this.messageCallbacks.get(messageId);
-        callbacks?.onError?.(messageId, 'Message delivery timeout');
-        this.messageCallbacks.delete(messageId);
-      }
-    }, 10000); // 10 second timeout
+      content,
+      fileData,
+      replyTo
+    });
   }
 
   setMessageHandler(handler: (message: Message) => void): void {
