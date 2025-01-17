@@ -144,14 +144,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const updateMessage = (messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
     try {
-      if (!handlersRef.current.messageUpdate) {
-        console.log('[SOCKET_PROVIDER] Setting message update handler');
-        handlersRef.current.messageUpdate = (event) => {
-          console.log('[SOCKET_PROVIDER] Message update handler called:', event);
-          // Your message update logic here
-        };
-        socketService?.setMessageUpdateHandler(handlersRef.current.messageUpdate);
-      }
       socketService?.updateMessage(messageId, updates);
     } catch (error) {
       console.error('Failed to update message:', error);

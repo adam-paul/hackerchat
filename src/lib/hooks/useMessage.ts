@@ -143,32 +143,15 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         )
       };
     case 'UPDATE_THREAD_METADATA':
-      console.log('[MESSAGE_REDUCER] Handling UPDATE_THREAD_METADATA:', {
-        messageId: action.payload.messageId,
-        threadId: action.payload.threadId,
-        metadata: action.payload.threadMetadata
-      });
-      
-      const updatedMessages = state.messages.map(msg => {
-        if (msg.id === action.payload.messageId) {
-          console.log('[MESSAGE_REDUCER] Updating message:', {
-            messageId: msg.id,
-            oldThreadId: msg.threadId,
-            newThreadId: action.payload.threadId
-          });
-          return {
-            ...msg,
-            threadId: action.payload.threadId,
-            threadName: action.payload.threadMetadata?.title
-          };
-        }
-        return msg;
-      });
-
-      console.log('[MESSAGE_REDUCER] Messages after update:', {
-        totalMessages: updatedMessages.length,
-        updatedMessage: updatedMessages.find(m => m.id === action.payload.messageId)
-      });
+      const updatedMessages = state.messages.map(msg => 
+        msg.id === action.payload.messageId
+          ? {
+              ...msg,
+              threadId: action.payload.threadId,
+              threadName: action.payload.threadMetadata?.title
+            }
+          : msg
+      );
 
       return {
         ...state,
@@ -210,23 +193,14 @@ export function useMessages() {
     }
   });
 
-  // Keep message update handler outside ref to access latest state
+  // Simplified message update handler
   const handleMessageUpdated = useCallback((event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
-    console.log('[useMessages] Handling message update:', {
-      event,
-      currentMessages: state.messages.map(m => ({ id: m.id, threadId: m.threadId }))
-    });
     dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
-  }, [state.messages]);
+  }, []);
 
   // Register socket handlers whenever socket changes
   useEffect(() => {
-    if (!socket) {
-      console.log('[useMessages] No socket available');
-      return;
-    }
-
-    console.log('[useMessages] Setting up socket handlers');
+    if (!socket) return;
 
     // Register all handlers
     socket.setMessageHandler(handlersRef.current.handleMessage);
@@ -235,13 +209,8 @@ export function useMessages() {
     socket.setReactionRemovedHandler(handlersRef.current.handleReactionRemoved);
     socket.setMessageUpdateHandler(handleMessageUpdated);
 
-    console.log('[useMessages] Socket handlers registered');
-
     // Cleanup function
     return () => {
-      console.log('[useMessages] Cleaning up socket handlers');
-      // Don't clear handlers on unmount, let the socket provider manage them
-      // Only clear if socket is being destroyed
       if (!socket.isConnected()) {
         socket.setMessageHandler(() => {});
         socket.setMessageDeleteHandler(() => {});
@@ -250,7 +219,7 @@ export function useMessages() {
         socket.setMessageUpdateHandler(() => {});
       }
     };
-  }, [socket, handleMessageUpdated]); // Add handleMessageUpdated to dependencies
+  }, [socket, handleMessageUpdated]);
 
   const startLoading = useCallback(() => {
     dispatch({ type: 'FETCH_START' });

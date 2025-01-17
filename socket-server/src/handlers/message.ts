@@ -267,7 +267,7 @@ export const handleMessageUpdate = async (
 
     // Update the message
     const updatedMessage = await prisma.message.update({
-      where: { id: message.id }, // Use the real ID for the update
+      where: { id: message.id },
       data: {
         threadId: validatedData.threadId,
         threadName: validatedData.threadMetadata?.title
@@ -280,24 +280,14 @@ export const handleMessageUpdate = async (
       threadId: updatedMessage.threadId || undefined,
       threadMetadata: updatedMessage.threadName ? {
         title: updatedMessage.threadName,
-        createdAt: new Date() // Use current date for thread creation
+        createdAt: new Date()
       } : undefined
     };
 
-    // Broadcast to all clients in the channel
+    // Single broadcast to the channel room - all connected clients will receive this
     socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
-
-    // Also send to the message owner directly if they're not the one updating
-    if (message.authorId !== socket.data.userId) {
-      const ownerSocket = Array.from(socket.nsp.sockets.values()).find(
-        (s: any) => s.data.userId === message.authorId
-      );
-      if (ownerSocket) {
-        ownerSocket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
-      }
-    }
-
-    // Send to the updater
+    
+    // Send back to sender for consistency
     socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
 
     return {
