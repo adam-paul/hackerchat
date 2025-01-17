@@ -557,6 +557,7 @@ export class SocketService {
   }
 
   setMessageUpdateHandler(handler: (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void): void {
+    console.log('[SocketService] Registering message update handler');
     this.onMessageUpdateHandler = handler;
   }
 
@@ -571,13 +572,17 @@ export class SocketService {
     
     // Handle local update first if this is our own update
     if (this.onMessageUpdateHandler) {
+      console.log('[SocketService] Handling local message update:', { messageId, updates });
       this.onMessageUpdateHandler({
         messageId,
         ...updates
       });
+    } else {
+      console.log('[SocketService] No handler for local message update');
     }
 
     // Then emit to server - server will broadcast to all clients including us
+    console.log('[SocketService] Emitting message update to server:', { messageId, updates });
     this.socket.emit('message-updated', { messageId, ...updates });
   }
 } 

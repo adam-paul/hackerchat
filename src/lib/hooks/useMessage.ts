@@ -187,6 +187,8 @@ export function useMessages() {
   useEffect(() => {
     if (!socket) return;
 
+    console.log('[useMessages] Setting up socket handlers');
+
     const handleMessage = (message: Message) => {
       dispatch({ type: 'ADD_MESSAGE', payload: message });
     };
@@ -211,16 +213,25 @@ export function useMessages() {
     };
 
     const handleMessageUpdated = (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => {
+      console.log('[useMessages] Received message update:', event);
       dispatch({ type: 'UPDATE_THREAD_METADATA', payload: event });
     };
 
+    // Register all handlers
     socket.setMessageHandler(handleMessage);
     socket.setMessageDeleteHandler(handleMessageDeleted);
     socket.setReactionAddedHandler(handleReactionAdded);
     socket.setReactionRemovedHandler(handleReactionRemoved);
     socket.setMessageUpdateHandler(handleMessageUpdated);
 
+    console.log('[useMessages] Socket handlers registered');
+
+    // Cleanup function
     return () => {
+      console.log('[useMessages] Cleaning up socket handlers');
+      if (!socket) return;
+      
+      // Use empty functions instead of null to prevent "No handler registered" errors
       socket.setMessageHandler(() => {});
       socket.setMessageDeleteHandler(() => {});
       socket.setReactionAddedHandler(() => {});
