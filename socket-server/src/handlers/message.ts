@@ -45,12 +45,25 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
             { id: replyToId },
             { originalId: replyToId }
           ]
+        },
+        select: {
+          id: true,
+          originalId: true,
+          content: true,
+          author: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
         }
       });
 
       if (!referencedMessage) {
         throw new Error('Referenced message not found');
       }
+
+      // Use the permanent ID for the database reference
       replyToId = referencedMessage.id;
     }
 
@@ -78,6 +91,7 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         replyTo: {
           select: {
             id: true,
+            originalId: true,  // Include originalId in the reply reference
             content: true,
             author: {
               select: {
@@ -134,7 +148,7 @@ export const handleMessage = async (
         ...(dbMessage.replyTo && {
           replyTo: {
             id: dbMessage.replyTo.id,
-            originalId: dbMessage.replyTo.originalId,
+            originalId: dbMessage.replyTo.originalId,  // Include the originalId from the referenced message
             content: dbMessage.replyTo.content,
             author: {
               id: dbMessage.replyTo.author.id,
@@ -142,7 +156,7 @@ export const handleMessage = async (
             }
           }
         }),
-        originalId: dbMessage.originalId,
+        originalId: dbMessage.originalId,  // Include this message's originalId
         threadId: dbMessage.threadId,
         threadName: dbMessage.threadName
       }
