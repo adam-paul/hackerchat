@@ -225,14 +225,15 @@ export class SocketService {
     this.socket.on('message-updated', (event) => {
       console.log('[SOCKET_SERVICE] Received message-updated event:', {
         event,
-        currentUserId: this.getCurrentUserId()
+        currentUserId: this.getCurrentUserId(),
+        hasHandler: !!this.onMessageUpdateHandler
       });
       
       if (this.onMessageUpdateHandler) {
-        console.log('[SOCKET_SERVICE] Calling onMessageUpdateHandler');
+        console.log('[SOCKET_SERVICE] Calling message update handler');
         this.onMessageUpdateHandler(event);
       } else {
-        console.log('[SOCKET_SERVICE] No message update handler registered!');
+        console.warn('[SOCKET_SERVICE] No message update handler registered - this should not happen');
       }
     });
   }
@@ -557,32 +558,32 @@ export class SocketService {
   }
 
   setMessageUpdateHandler(handler: (event: { messageId: string; threadId?: string; threadMetadata?: { title: string; createdAt: string } }) => void): void {
-    console.log('[SocketService] Registering message update handler');
+    console.log('[SOCKET_SERVICE] Registering message update handler');
     this.onMessageUpdateHandler = handler;
   }
 
   updateMessage(messageId: string, updates: { threadId?: string; threadMetadata?: { title: string; createdAt: string } }): void {
     if (!this.socket) {
-      console.log('[SocketService] No socket connection for message update');
+      console.warn('[SOCKET_SERVICE] No socket connection for message update');
       return;
     }
     
-    // Get current user ID to check if this is a local update
-    const userId = this.getCurrentUserId();
+    console.log('[SOCKET_SERVICE] Updating message:', {
+      messageId,
+      updates,
+      hasHandler: !!this.onMessageUpdateHandler
+    });
+
+    // Emit to server first
+    this.socket.emit('message-updated', { messageId, ...updates });
     
-    // Handle local update first if this is our own update
+    // Then handle local update if handler exists
     if (this.onMessageUpdateHandler) {
-      console.log('[SocketService] Handling local message update:', { messageId, updates });
+      console.log('[SOCKET_SERVICE] Handling local update');
       this.onMessageUpdateHandler({
         messageId,
         ...updates
       });
-    } else {
-      console.log('[SocketService] No handler for local message update');
     }
-
-    // Then emit to server - server will broadcast to all clients including us
-    console.log('[SocketService] Emitting message update to server:', { messageId, updates });
-    this.socket.emit('message-updated', { messageId, ...updates });
   }
 } 
