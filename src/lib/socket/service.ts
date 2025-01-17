@@ -416,7 +416,7 @@ export class SocketService {
     this.onStatusChangeHandler = handler;
   }
 
-  addReaction(channelId: string, messageId: string, content: string): void {
+  addReaction(channelId: string, messageId: string, originalId: string | undefined, content: string): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
     const optimisticId = `optimistic-${Date.now()}`;
@@ -424,6 +424,7 @@ export class SocketService {
     console.log('[SocketService] Sending add-reaction:', {
       channelId,
       messageId,
+      originalId,
       reaction: {
         id: optimisticId,
         content
@@ -434,6 +435,7 @@ export class SocketService {
       type: 'reaction',
       channelId,
       messageId,
+      originalId,
       reaction: {
         id: optimisticId,
         content,
@@ -442,12 +444,13 @@ export class SocketService {
     });
   }
 
-  removeReaction(channelId: string, messageId: string, reactionId: string): void {
+  removeReaction(channelId: string, messageId: string, originalId: string | undefined, reactionId: string): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
     
     console.log('[SocketService] Sending remove-reaction:', {
       channelId,
       messageId,
+      originalId,
       reactionId
     });
 
@@ -455,6 +458,7 @@ export class SocketService {
       type: 'reaction',
       channelId,
       messageId,
+      originalId,
       reaction: {
         id: reactionId,
         user: null

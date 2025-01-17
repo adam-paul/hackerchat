@@ -141,8 +141,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         ...state,
         status: 'success',
         messages: state.messages.map(msg =>
-          // Check both IDs for matching the message
-          (msg.id === action.payload.messageId || msg.originalId === action.payload.messageId) ? {
+          msg.id === action.payload.messageId ? {
             ...msg,
             reactions: [
               ...msg.reactions.filter(r => 
@@ -159,8 +158,7 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         ...state,
         status: 'success',
         messages: state.messages.map(msg =>
-          // Check both IDs for matching the message
-          (msg.id === action.payload.messageId || msg.originalId === action.payload.messageId) ? {
+          msg.id === action.payload.messageId ? {
             ...msg,
             reactions: msg.reactions.filter(r => r.id !== action.payload.reactionId)
           } : msg

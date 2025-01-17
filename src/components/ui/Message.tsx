@@ -216,20 +216,18 @@ export const MessageComponent = React.memo(function MessageComponent({
       },
     };
 
-    // Update both the optimistic and permanent versions of the message
-    const messageIds = [message.id];
-    if (message.originalId && message.originalId !== message.id) {
-      messageIds.push(message.originalId);
-    }
-
-    messageIds.forEach(id => {
-      onMessageUpdate?.(id, {
-        ...message,
-        reactions: [...(message.reactions || []), optimisticReaction],
-      });
+    onMessageUpdate?.(message.id, {
+      ...message,
+      reactions: [...(message.reactions || []), optimisticReaction],
     });
     
-    socket.addReaction(message.channelId, message.id, reactionInput);
+    // Send both IDs to the server
+    socket.addReaction(
+      message.channelId, 
+      message.id,
+      message.originalId,
+      reactionInput
+    );
     setIsReacting(false);
     setReactionInput('');
   }, [reactionInput, socket, userId, message, onMessageUpdate]);
@@ -248,13 +246,13 @@ export const MessageComponent = React.memo(function MessageComponent({
       reactions: (message.reactions || []).filter(r => r.id !== reactionId),
     });
     
-    console.log('[Message] Sending reaction removal to socket:', {
-      channelId: message.channelId,
-      messageId: message.originalId || message.id,
+    // Send both IDs to the server
+    socket.removeReaction(
+      message.channelId, 
+      message.id,
+      message.originalId,
       reactionId
-    });
-
-    socket.removeReaction(message.channelId, message.originalId || message.id, reactionId);
+    );
   }, [socket, message, onMessageUpdate]);
 
   useEffect(() => {
