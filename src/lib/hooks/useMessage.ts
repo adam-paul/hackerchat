@@ -63,6 +63,28 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
       if (state.currentChannelId && action.payload.channelId !== state.currentChannelId) {
         return state;
       }
+      // Check if we already have this message (by either ID)
+      const existingMessage = state.messages.find(m => 
+        m.id === action.payload.id || 
+        m.originalId === action.payload.id ||
+        (action.payload.originalId && (m.id === action.payload.originalId || m.originalId === action.payload.originalId))
+      );
+
+      if (existingMessage) {
+        // Update existing message but preserve originalId
+        return {
+          ...state,
+          status: 'success',
+          messages: state.messages.map(msg => 
+            msg.id === existingMessage.id ? {
+              ...action.payload,
+              originalId: existingMessage.originalId || action.payload.originalId
+            } : msg
+          )
+        };
+      }
+
+      // Add new message
       return {
         ...state,
         status: 'success',
@@ -167,12 +189,13 @@ export function useMessages() {
   const [state, dispatch] = useReducer(messageReducer, initialState);
   const { socket } = useSocket();
   
+  const handleNewMessage = useCallback((message: Message) => {
+    console.log('[useMessages] Handling new message:', message.id);
+    dispatch({ type: 'ADD_MESSAGE', payload: message });
+  }, []);
+
   // Store handlers in refs to maintain them across re-renders
   const handlersRef = useRef({
-    handleMessage: (message: Message) => {
-      console.log('[useMessages] Handling new message:', message.id);
-      dispatch({ type: 'ADD_MESSAGE', payload: message });
-    },
     handleMessageDeleted: (event: { messageId: string; originalId?: string }) => {
       console.log('[useMessages] Handling message deletion:', event.messageId);
       dispatch({ type: 'DELETE_MESSAGE', payload: event.messageId });
@@ -203,7 +226,7 @@ export function useMessages() {
     if (!socket) return;
 
     // Register all handlers
-    socket.setMessageHandler(handlersRef.current.handleMessage);
+    socket.setMessageHandler(handleNewMessage);
     socket.setMessageDeleteHandler(handlersRef.current.handleMessageDeleted);
     socket.setReactionAddedHandler(handlersRef.current.handleReactionAdded);
     socket.setReactionRemovedHandler(handlersRef.current.handleReactionRemoved);
@@ -219,7 +242,7 @@ export function useMessages() {
         socket.setMessageUpdateHandler(() => {});
       }
     };
-  }, [socket, handleMessageUpdated]);
+  }, [socket, handleMessageUpdated, handleNewMessage]);
 
   const startLoading = useCallback(() => {
     dispatch({ type: 'FETCH_START' });

@@ -289,7 +289,8 @@ export class SocketService {
       fileType: string;
       fileSize: number;
     },
-    replyTo?: { id: string; originalId?: string }
+    replyToId?: string,
+    callbacks?: MessageCallbacks
   ): void {
     if (!this.socket?.connected) throw new Error('Socket not connected');
 
@@ -303,9 +304,13 @@ export class SocketService {
         fileName: fileData?.fileName,
         fileType: fileData?.fileType,
         fileSize: fileData?.fileSize,
-        replyTo
+        replyToId
       }
     };
+
+    if (callbacks) {
+      this.messageCallbacks.set(messageId, callbacks);
+    }
 
     this.socket.emit('message', message);
 

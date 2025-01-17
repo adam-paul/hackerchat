@@ -142,7 +142,7 @@ export const handleMessage = async (
             }
           }
         }),
-        originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,
+        originalId: dbMessage.originalId,
         threadId: dbMessage.threadId,
         threadName: dbMessage.threadName
       }

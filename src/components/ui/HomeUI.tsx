@@ -206,11 +206,6 @@ export function HomeUI() {
       } : null
     });
 
-    // Find the original message being replied to
-    const originalMessage = replyTo && messages.find(m => 
-      m.id === replyTo.id || m.originalId === replyTo.id
-    );
-
     const optimisticMessage: Message = {
       id: messageId,
       originalId: messageId,
@@ -226,7 +221,7 @@ export function HomeUI() {
       ...(replyTo && {
         replyTo: {
           id: replyTo.id,
-          originalId: originalMessage?.originalId || replyTo.originalId || replyTo.id,
+          originalId: replyTo.originalId || replyTo.id,
           content: replyTo.content,
           author: {
             id: replyTo.author.id,
@@ -247,15 +242,8 @@ export function HomeUI() {
 
     addMessage(optimisticMessage);
     setReplyTo(null);
-    
-    // Send both IDs to the server
-    const replyToData = replyTo ? {
-      id: replyTo.id,
-      originalId: originalMessage?.originalId || replyTo.originalId || replyTo.id
-    } : undefined;
-    
-    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyToData);
-  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, messages, addMessage, sendSocketMessage]);
+    sendSocketMessage(messageId, selectedChannelId, content, undefined, replyTo?.id);
+  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (!selectedChannelId || !isConnected) return;
@@ -277,11 +265,6 @@ export function HomeUI() {
       const { url, fileName, fileType, fileSize } = await uploadRes.json();
       const messageId = `temp_${Date.now()}`;
 
-      // Find the original message being replied to
-      const originalMessage = replyTo && messages.find(m => 
-        m.id === replyTo.id || m.originalId === replyTo.id
-      );
-
       const optimisticMessage: Message = {
         id: messageId,
         originalId: messageId,
@@ -301,7 +284,7 @@ export function HomeUI() {
         ...(replyTo && {
           replyTo: {
             id: replyTo.id,
-            originalId: originalMessage?.originalId || replyTo.originalId || replyTo.id,
+            originalId: replyTo.originalId || replyTo.id,
             content: replyTo.content,
             author: {
               id: replyTo.author.id,
@@ -312,26 +295,19 @@ export function HomeUI() {
       };
 
       addMessage(optimisticMessage);
-      
-      // Send both IDs to the server
-      const replyToData = replyTo ? {
-        id: replyTo.id,
-        originalId: originalMessage?.originalId || replyTo.originalId || replyTo.id
-      } : undefined;
-      
       sendSocketMessage(messageId, selectedChannelId, fileName, {
         fileUrl: url,
         fileName,
         fileType,
         fileSize
-      }, replyToData);
+      }, replyTo?.id);
     } catch (error) {
       console.error('Failed to upload file:', error);
       setMessageError(error instanceof Error ? error.message : 'Failed to upload file');
     } finally {
       setIsUploading(false);
     }
-  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, messages, addMessage, sendSocketMessage, setMessageError]);
+  }, [selectedChannelId, isConnected, userId, userName, userImageUrl, replyTo, addMessage, sendSocketMessage, setMessageError]);
 
   const handleReply = useCallback((message: Message) => {
     setReplyTo(message);
