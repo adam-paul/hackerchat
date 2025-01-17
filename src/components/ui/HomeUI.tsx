@@ -573,7 +573,10 @@ export function HomeUI() {
                         isHighlighted={Boolean(
                           selectedMessageId === message.id || 
                           selectedMessageId === message.originalId ||
-                          (message.originalId && selectedMessageId === message.originalId)
+                          messages.some(m => 
+                            (m.id === selectedMessageId || m.originalId === selectedMessageId) && 
+                            (m.id === message.id || m.originalId === message.id || m.id === message.originalId || m.originalId === message.originalId)
+                          )
                         )}
                         onHighlightMessage={setSelectedMessageId}
                         onReply={handleReply}
