@@ -143,19 +143,37 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
         )
       };
     case 'UPDATE_THREAD_METADATA':
+      console.log('[MESSAGE_REDUCER] Handling UPDATE_THREAD_METADATA:', {
+        messageId: action.payload.messageId,
+        threadId: action.payload.threadId,
+        metadata: action.payload.threadMetadata
+      });
+      
+      const updatedMessages = state.messages.map(msg => {
+        if (msg.id === action.payload.messageId) {
+          console.log('[MESSAGE_REDUCER] Updating message:', {
+            messageId: msg.id,
+            oldThreadId: msg.threadId,
+            newThreadId: action.payload.threadId
+          });
+          return {
+            ...msg,
+            threadId: action.payload.threadId,
+            threadName: action.payload.threadMetadata?.title
+          };
+        }
+        return msg;
+      });
+
+      console.log('[MESSAGE_REDUCER] Messages after update:', {
+        totalMessages: updatedMessages.length,
+        updatedMessage: updatedMessages.find(m => m.id === action.payload.messageId)
+      });
+
       return {
         ...state,
         status: 'success',
-        messages: state.messages.map(msg => {
-          if (msg.id === action.payload.messageId) {
-            return {
-              ...msg,
-              threadId: action.payload.threadId,
-              threadName: action.payload.threadMetadata?.title
-            };
-          }
-          return msg;
-        })
+        messages: updatedMessages
       };
     default:
       return state;

@@ -203,6 +203,13 @@ export const handleCreateChannel = async (
     // If this was a thread creation, emit message update
     if (validData.threadMetadata) {
       const { messageId, title } = validData.threadMetadata;
+      console.log('[THREAD_CREATE] About to emit message update', {
+        originalMessageId: messageId,
+        threadTitle: title,
+        threadId: result.id,
+        userId: socket.data.userId
+      });
+
       // Find the message again to get its real ID
       const message = await prisma.message.findFirst({
         where: {
@@ -213,16 +220,24 @@ export const handleCreateChannel = async (
         }
       });
 
+      console.log('[THREAD_CREATE] Found message to update:', {
+        messageFound: !!message,
+        messageId: message?.id,
+        originalId: message?.originalId
+      });
+
       if (message) {
         // Emit to all clients including sender
-        socket.emit(EVENTS.MESSAGE_UPDATED, {
+        const updateEvent = {
           messageId: message.id,  // Use the real message ID
           threadId: result.id,
           threadMetadata: {
             title,
             createdAt: new Date(result.createdAt)
           }
-        });
+        };
+        console.log('[THREAD_CREATE] Emitting MESSAGE_UPDATED event:', updateEvent);
+        socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
       }
     }
 

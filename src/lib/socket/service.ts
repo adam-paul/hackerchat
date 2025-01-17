@@ -223,9 +223,16 @@ export class SocketService {
     });
 
     this.socket.on('message-updated', (event) => {
+      console.log('[SOCKET_SERVICE] Received message-updated event:', {
+        event,
+        currentUserId: this.getCurrentUserId()
+      });
+      
       if (this.onMessageUpdateHandler) {
-        // Always process the update from the server
+        console.log('[SOCKET_SERVICE] Calling onMessageUpdateHandler');
         this.onMessageUpdateHandler(event);
+      } else {
+        console.log('[SOCKET_SERVICE] No message update handler registered!');
       }
     });
   }
