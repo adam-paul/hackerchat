@@ -232,7 +232,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         updatedAt: new Date().toISOString(),
         creatorId: message.author.id,
       };
-    
+
       // Create optimistic thread message
       const optimisticThreadMessage: Message = {
         id: `temp_thread_${Date.now()}`,
@@ -246,7 +246,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         fileType: message.fileType,
         fileSize: message.fileSize
       };
-    
+
       // Add optimistic update for thread channel
       store._addOptimisticChannel(optimisticThread, {
         messageId: message.id,
@@ -258,11 +258,29 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       });
 
       try {
-        // Send creation request and wait for broadcast
-        await socket.createChannel(name, parentId, message.content, {
+        // Don't update message with temporary ID - wait for real ID
+        const createPromise = socket.createChannel(name, parentId, message.content, {
           onError: (error) => {
             store._removeOptimisticChannel(tempId);
             store._setError(error);
+          },
+          onCreated: (channel) => {
+            // Replace optimistic update with real channel
+            store._replaceOptimisticWithReal(tempId, {
+              ...channel,
+              originalId: tempId
+            });
+
+            // Update the source message with real thread metadata
+            if (socket) {
+              socket.updateMessage(message.id, {
+                threadId: channel.id,
+                threadMetadata: {
+                  title: name,
+                  createdAt: channel.createdAt
+                }
+              });
+            }
           },
           metadata: {
             messageId: message.id,
@@ -273,7 +291,8 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
             }
           }
         });
-    
+
+        await createPromise;
         return optimisticThread;
       } catch (error) {
         store._removeOptimisticChannel(tempId);

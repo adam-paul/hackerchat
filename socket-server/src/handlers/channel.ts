@@ -168,8 +168,9 @@ export const handleCreateChannel = async (
           throw new Error('Source message not found');
         }
 
+        // Update the message with thread info
         await tx.message.update({
-          where: { id: message.id }, // Use the real ID for the update
+          where: { id: message.id },
           data: {
             threadId: channel.id,
             threadName: title
@@ -204,23 +205,10 @@ export const handleCreateChannel = async (
       originalId: validData.originalId // Include originalId in response for client reconciliation
     };
 
-    // Emit success to the creating client with both IDs for reconciliation
-    socket.emit(EVENTS.CHANNEL_CREATED, {
-      ...formattedChannel,
-      channelId: result.id,
-      originalId: validData.originalId
-    });
-
-    // If this was a thread creation, emit message update
+    // If this was a thread creation, emit message update BEFORE channel creation
     if (validData.threadMetadata) {
       const { messageId, title } = validData.threadMetadata;
-      console.log('[THREAD_CREATE] About to emit message update', {
-        originalMessageId: messageId,
-        threadTitle: title,
-        threadId: result.id,
-        userId: socket.data.userId
-      });
-
+      
       // Find the message again to get its real ID
       const message = await prisma.message.findFirst({
         where: {
@@ -228,32 +216,36 @@ export const handleCreateChannel = async (
             { id: messageId },
             { originalId: messageId }
           ]
+        },
+        select: {
+          id: true,
+          channelId: true
         }
       });
 
-      console.log('[THREAD_CREATE] Found message to update:', {
-        messageFound: !!message,
-        messageId: message?.id,
-        originalId: message?.originalId
-      });
-
       if (message) {
-        // Emit to all clients including sender
+        // Emit message update first
         const updateEvent = {
-          messageId: message.id,  // Use the real message ID
+          messageId: message.id,
           threadId: result.id,
           threadMetadata: {
             title,
-            createdAt: new Date(result.createdAt)
+            createdAt: result.createdAt.toISOString()
           }
         };
-        console.log('[THREAD_CREATE] Emitting MESSAGE_UPDATED event:', updateEvent);
         
         // Broadcast to all clients in the channel
         socket.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
         socket.emit(EVENTS.MESSAGE_UPDATED, updateEvent);
       }
     }
+
+    // Then emit channel creation events
+    socket.emit(EVENTS.CHANNEL_CREATED, {
+      ...formattedChannel,
+      channelId: result.id,
+      originalId: validData.originalId
+    });
 
     // Broadcast channel creation to other clients
     socket.broadcast.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
@@ -270,7 +262,6 @@ export const handleCreateChannel = async (
       stack: error instanceof Error ? error.stack : undefined
     });
 
-    // Emit error to the creating client
     socket.emit(EVENTS.ERROR, {
       error: error instanceof Error ? error.message : 'Failed to create channel',
       code: 'INTERNAL_ERROR',
