@@ -134,12 +134,12 @@ export const handleMessage = async (
         ...(dbMessage.replyTo && {
           replyTo: {
             id: dbMessage.replyTo.id,
+            originalId: dbMessage.replyTo.originalId,
             content: dbMessage.replyTo.content,
             author: {
               id: dbMessage.replyTo.author.id,
               name: dbMessage.replyTo.author.name
-            },
-            originalId: dbMessage.replyTo.originalId
+            }
           }
         }),
         originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,

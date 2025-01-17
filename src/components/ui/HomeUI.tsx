@@ -217,13 +217,13 @@ export function HomeUI() {
       reactions: [],
       ...(replyTo && {
         replyTo: {
-          id: replyTo.originalId || replyTo.id,
+          id: replyTo.id,
+          originalId: replyTo.originalId,
           content: replyTo.content,
           author: {
             id: replyTo.author.id,
             name: replyTo.author.name
-          },
-          originalId: replyTo.originalId
+          }
         }
       })
     };
@@ -270,7 +270,8 @@ export function HomeUI() {
         reactions: [],
         ...(replyTo && {
           replyTo: {
-            id: replyTo.originalId || replyTo.id,
+            id: replyTo.id,
+            originalId: replyTo.originalId,
             content: replyTo.content,
             author: {
               id: replyTo.author.id,

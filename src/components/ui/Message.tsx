@@ -122,7 +122,7 @@ export const MessageComponent = React.memo(function MessageComponent({
 
   const handleReplyPreviewClick = useCallback(() => {
     if (message.replyTo && onHighlightMessage) {
-      onHighlightMessage(message.replyTo.id);
+      onHighlightMessage(message.replyTo.originalId || message.replyTo.id);
       const replyElement = document.getElementById(`message-${message.replyTo.id}`) || 
                           document.getElementById(`message-${message.replyTo.originalId}`);
       if (replyElement) {
