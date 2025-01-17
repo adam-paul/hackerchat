@@ -174,22 +174,12 @@ export class SocketService {
     // Handle reaction events
     this.socket.on('reaction-added', (event) => {
       if (this.onReactionAddedHandler) {
-        // Skip if this is our own reaction (we already handled it optimistically)
-        const userId = (this.socket?.auth as { userId?: string })?.userId;
-        if (event.reaction?.user?.id === userId) {
-          return;
-        }
         this.onReactionAddedHandler(event);
       }
     });
 
     this.socket.on('reaction-removed', (event) => {
       if (this.onReactionRemovedHandler) {
-        // Skip if this is our own reaction (we already handled it optimistically)
-        const userId = (this.socket?.auth as { userId?: string })?.userId;
-        if (event.reaction?.user?.id === userId) {
-          return;
-        }
         this.onReactionRemovedHandler(event);
       }
     });
