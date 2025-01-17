@@ -184,18 +184,24 @@ export class SocketService {
           }
         });
 
-        // Check both permanent and optimistic IDs
+        // For the sender (who has the temp ID), use originalId
+        // For other clients (who have the permanent ID), use messageId
+        const isReactionSender = event.reaction.user?.id === this.getCurrentUserId();
+        const targetMessageId = isReactionSender ? (event.originalId || event.messageId) : (event.messageId || event.originalId);
+
         const eventWithId = {
           ...event,
-          messageId: event.originalId || event.messageId,
+          messageId: targetMessageId,
           reaction: {
             ...event.reaction,
-            messageId: event.originalId || event.messageId
+            messageId: targetMessageId
           }
         };
 
         console.log('[SocketService] Transformed reaction event:', {
           messageId: eventWithId.messageId,
+          isReactionSender,
+          userId: this.getCurrentUserId(),
           reaction: {
             id: eventWithId.reaction.id,
             content: eventWithId.reaction.content,
@@ -220,18 +226,24 @@ export class SocketService {
           }
         });
 
-        // Check both permanent and optimistic IDs
+        // For the sender (who has the temp ID), use originalId
+        // For other clients (who have the permanent ID), use messageId
+        const isReactionSender = event.reaction.user?.id === this.getCurrentUserId();
+        const targetMessageId = isReactionSender ? (event.originalId || event.messageId) : (event.messageId || event.originalId);
+
         const eventWithId = {
           ...event,
-          messageId: event.originalId || event.messageId,
+          messageId: targetMessageId,
           reaction: {
             ...event.reaction,
-            messageId: event.originalId || event.messageId
+            messageId: targetMessageId
           }
         };
 
         console.log('[SocketService] Transformed reaction removal event:', {
           messageId: eventWithId.messageId,
+          isReactionSender,
+          userId: this.getCurrentUserId(),
           reaction: {
             id: eventWithId.reaction.id,
             content: eventWithId.reaction.content,
