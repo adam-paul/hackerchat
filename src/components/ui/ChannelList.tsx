@@ -65,9 +65,10 @@ export function ChannelList({ className = '' }: ChannelListProps) {
   const createRootChannel = useChannelStore(state => state.createRootChannel);
   const createSubchannel = useChannelStore(state => state.createSubchannel);
   const deleteChannel = useChannelStore(state => state.deleteChannel);
+  const dmChannels = useChannelStore(state => state.getDMChannels());
 
   // Memoize channel tree
-  const channelTree = useMemo(() => buildChannelTree(channels), [channels]);
+  const channelTree = useMemo(() => buildChannelTree(channels.filter(c => c.type === "DEFAULT")), [channels]);
 
   // Memoize handlers
   const handleCreateChannel = useCallback(async () => {
@@ -254,6 +255,35 @@ export function ChannelList({ className = '' }: ChannelListProps) {
           renderChannelNode(node, 0, index === channelTree.length - 1)
         )}
       </div>
+
+      {/* DM Channels Section */}
+      {dmChannels.length > 0 && (
+        <>
+          <div className="flex items-center justify-between mt-6 mb-2 text-zinc-400 text-sm">
+            <span>direct messages</span>
+          </div>
+          
+          <div className="border-b border-zinc-700 mb-2" />
+          
+          <div className="space-y-1 text-sm">
+            {dmChannels.map((channel: Channel, index: number) => (
+              <div key={channel.id} className="group flex items-center text-zinc-400">
+                <span className="mr-2 whitespace-pre">
+                  {index === dmChannels.length - 1 ? '└──' : '├──'}
+                </span>
+                <button
+                  onClick={() => selectChannel(channel.id)}
+                  className={`hover:text-zinc-200 transition-colors ${
+                    selectedChannelId === channel.id ? 'text-zinc-200' : ''
+                  }`}
+                >
+                  {channel.name}
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

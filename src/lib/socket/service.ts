@@ -619,4 +619,32 @@ export class SocketService {
       });
     }
   }
+
+  async createDM(participantId: string, callbacks?: ChannelCallbacks): Promise<Channel> {
+    if (!this.socket) throw new Error('Socket not connected');
+
+    return new Promise((resolve, reject) => {
+      const attemptOperation = async () => {
+        try {
+          this.socket!.emit('create-dm', {
+            participantIds: [participantId]
+          }, (response: { success: boolean; data?: Channel; error?: string }) => {
+            if (response.success && response.data) {
+              callbacks?.onCreated?.(response.data);
+              resolve(response.data);
+            } else {
+              const error = response.error || 'Failed to create DM';
+              callbacks?.onError?.(error);
+              reject(new Error(error));
+            }
+          });
+        } catch (error) {
+          callbacks?.onError?.(error instanceof Error ? error.message : 'Failed to create DM');
+          reject(error);
+        }
+      };
+
+      attemptOperation();
+    });
+  }
 } 

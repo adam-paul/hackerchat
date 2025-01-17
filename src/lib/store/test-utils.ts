@@ -5,6 +5,7 @@ export const createMockChannel = (
 ): Channel => ({
   id: `channel_${Date.now()}`,
   name: 'test-channel',
+  type: "DEFAULT",
   description: null,
   parentId: null,
   createdAt: new Date().toISOString(),
