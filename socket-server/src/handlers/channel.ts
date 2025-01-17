@@ -214,7 +214,8 @@ export const handleCreateChannel = async (
       });
 
       if (message) {
-        socket.broadcast.emit(EVENTS.MESSAGE_UPDATED, {
+        // Emit to all clients including sender
+        socket.emit(EVENTS.MESSAGE_UPDATED, {
           messageId: message.id,  // Use the real message ID
           threadId: result.id,
           threadMetadata: {
