@@ -363,6 +363,15 @@ export const handleDeleteChannel = async (
 
     // Delete channel and all related data in a transaction
     await prisma.$transaction(async (tx) => {
+      // Clear thread references in messages that point to this channel
+      await tx.message.updateMany({
+        where: { threadId: validData.channelId },
+        data: {
+          threadId: null,
+          threadName: null
+        }
+      });
+
       // Delete all messages in the channel
       await tx.message.deleteMany({
         where: { channelId: validData.channelId }
