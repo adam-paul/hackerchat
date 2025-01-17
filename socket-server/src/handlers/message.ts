@@ -284,8 +284,8 @@ export const handleMessageUpdate = async (
       } : undefined
     };
 
-    // Single broadcast to ALL clients in the channel, including sender
-    socket.in(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
+    // Broadcast to ALL clients in the channel, including sender
+    socket.nsp.to(message.channelId).emit(EVENTS.MESSAGE_UPDATED, updateEvent);
 
     return {
       success: true,
