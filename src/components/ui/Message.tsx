@@ -126,13 +126,6 @@ export const MessageComponent = React.memo(function MessageComponent({
 
   const handleReplyPreviewClick = useCallback(() => {
     if (message.replyTo) {
-      console.log('[Message] Reply preview clicked:', {
-        messageId: message.id,
-        messageOriginalId: message.originalId,
-        replyToId: message.replyTo.id,
-        replyToOriginalId: message.replyTo.originalId,
-        highlightingId: message.replyTo.originalId || message.replyTo.id
-      });
       // Try both IDs when highlighting, prioritizing the original ID
       onHighlightMessage?.(message.replyTo.originalId || message.replyTo.id);
     }
@@ -239,11 +232,6 @@ export const MessageComponent = React.memo(function MessageComponent({
 
   useEffect(() => {
     if (isHighlighted && messageRef.current) {
-      console.log('[Message] Highlighting message:', {
-        messageId: message.id,
-        originalId: message.originalId,
-        isHighlighted
-      });
       messageRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [isHighlighted, message.id, message.originalId]);
