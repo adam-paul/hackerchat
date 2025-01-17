@@ -15,13 +15,26 @@ type MessageResult = {
 
 const persistMessage = async (data: MessagePayload, userId: string, retryCount = 0): Promise<any> => {
   try {
-    // Verify channel exists
+    // Verify channel exists and check type
     const channel = await prisma.channel.findUnique({
-      where: { id: data.channelId }
+      where: { id: data.channelId },
+      include: {
+        participants: {
+          select: { id: true }
+        }
+      }
     });
 
     if (!channel) {
       throw new Error('Channel not found');
+    }
+
+    // For DM channels, verify the user is a participant
+    if (channel.type === "DM") {
+      const isParticipant = channel.participants.some(p => p.id === userId);
+      if (!isParticipant) {
+        throw new Error('Not authorized to send messages in this DM');
+      }
     }
 
     // Verify user exists
