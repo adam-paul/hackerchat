@@ -113,6 +113,7 @@ export function HomeUI() {
   };
 
   const handleSearchResultClick = (messageId: string) => {
+    console.log('Search result clicked:', messageId);
     setSelectedMessageId(messageId);
   };
 
@@ -551,14 +552,23 @@ export function HomeUI() {
                       <MessageComponent
                         key={message.id}
                         message={message}
-                        isHighlighted={Boolean(
-                          selectedMessageId === message.id || 
-                          selectedMessageId === message.originalId ||
-                          messages.some(m => 
-                            (m.id === selectedMessageId || m.originalId === selectedMessageId) && 
-                            (m.id === message.id || m.originalId === message.id || m.id === message.originalId || m.originalId === message.originalId)
-                          )
-                        )}
+                        isHighlighted={(() => {
+                          const highlighted = Boolean(
+                            selectedMessageId === message.id || 
+                            selectedMessageId === message.originalId ||
+                            messages.some(m => 
+                              (m.id === selectedMessageId || m.originalId === selectedMessageId) && 
+                              (m.id === message.id || m.originalId === message.id || m.id === message.originalId || m.originalId === message.originalId)
+                            )
+                          );
+                          if (selectedMessageId === message.id) {
+                            console.log('Message matches selectedMessageId directly:', message.id);
+                          }
+                          if (selectedMessageId === message.originalId) {
+                            console.log('Message matches selectedMessageId via originalId:', message.originalId);
+                          }
+                          return highlighted;
+                        })()}
                         onHighlightMessage={setSelectedMessageId}
                         onReply={handleReply}
                         onMessageUpdate={updateMessage}
