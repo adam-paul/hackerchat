@@ -188,35 +188,27 @@ class AskResponse(BaseModel):
 # 6. FastAPI Routes and Startup
 # -------------------------------------------
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """Initialize the vector store on startup."""
     global vectorstore, is_initialized, initialization_lock
     from asyncio import Lock
-    import asyncio
     
     # Create the lock
     initialization_lock = Lock()
     
-    # Run initialization in the background
-    async def initialize():
-        async with initialization_lock:
-            global vectorstore, is_initialized
-            try:
-                print("Initializing vector store...")
-                rows = fetch_messages_from_db()
-                documents = create_documents_from_messages(rows)
-                chunked_docs = split_documents(documents)
-                vectorstore = create_or_load_vectorstore(chunked_docs)
-                is_initialized = True
-                print("Vector store initialization complete")
-            except Exception as e:
-                print(f"Failed to initialize vector store: {e}")
-                raise
-    
-    # Create event loop and run initialization
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(initialize())
+    # Run initialization
+    async with initialization_lock:
+        try:
+            print("Initializing vector store...")
+            rows = fetch_messages_from_db()
+            documents = create_documents_from_messages(rows)
+            chunked_docs = split_documents(documents)
+            vectorstore = create_or_load_vectorstore(chunked_docs)
+            is_initialized = True
+            print("Vector store initialization complete")
+        except Exception as e:
+            print(f"Failed to initialize vector store: {e}")
+            raise
 
 @app.post("/ask", response_model=AskResponse)
 async def ask_endpoint(req_body: AskRequest):
