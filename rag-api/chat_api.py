@@ -279,6 +279,60 @@ def fetch_messages_from_db():
         if 'conn' in locals():
             conn.close()
 
+def join_existing_dm_channels():
+    """Join all DM channels where the bot is a participant."""
+    try:
+        print("[INIT] Joining existing DM channels...")
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        # Find all DM channels where bot is a participant
+        query = """
+            SELECT c.id, c.name 
+            FROM "Channel" c
+            JOIN "_ChannelToUser" cu ON c.id = cu."A"
+            WHERE cu."B" = %s AND c.type = 'DM'
+        """
+        cursor.execute(query, (bot_id,))
+        channels = cursor.fetchall()
+        
+        print(f"[INIT] Found {len(channels)} existing DM channels")
+        
+        # Join each channel
+        for channel_id, channel_name in channels:
+            print(f"[SOCKET] Joining existing DM channel: {channel_id} ({channel_name})")
+            sio.emit('join-channel', channel_id)
+            
+            # Send a reconnection message
+            message_id = f"msg_{uuid4()}"
+            message_event = {
+                'type': 'message',
+                'channelId': channel_id,
+                'messageId': message_id,
+                'message': {
+                    'id': message_id,
+                    'content': "Mr. Robot has reconnected to the channel.",
+                    'channelId': channel_id,
+                    'createdAt': datetime.utcnow().isoformat(),
+                    'author': {
+                        'id': bot_id,
+                        'name': "Mr. Robot",
+                        'imageUrl': None
+                    },
+                    'reactions': []
+                }
+            }
+            sio.emit('message', message_event)
+        
+        return True
+    except Exception as e:
+        print(f"[ERROR] Could not join existing channels: {e}")
+        print(traceback.format_exc())
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
 # -------------------------------------------
 # 2. Convert DB rows into LangChain Documents
 # -------------------------------------------
@@ -408,6 +462,9 @@ def main():
             transports=['websocket'],
             wait_timeout=10
         )
+        
+        # Join existing DM channels
+        join_existing_dm_channels()
         
         is_initialized = True
         print("[INIT] Initialization complete")
