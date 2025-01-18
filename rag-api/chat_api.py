@@ -36,6 +36,7 @@ os.environ["LANGCHAIN_PROJECT"] = LANGCHAIN_PROJECT
 # Global variables
 sio = socketio.Client(logger=False, engineio_logger=False)
 bot_id = "bot_mr_robot"
+bot_name = "mr_robot"
 vectorstore = None
 retriever = None
 llm = None
@@ -203,7 +204,7 @@ def handle_incoming_message(data):
                 "id": temp_message_id,
                 "author": {
                     "id": bot_id,
-                    "name": "Mr. Robot"
+                    "name": bot_name
                 },
                 "createdAt": datetime.datetime.now().isoformat()
             }
@@ -305,7 +306,7 @@ def main():
         # After connection, register our bot ID
         sio.emit("register-bot", {
             "botId": bot_id,
-            "name": "mr_robot",
+            "name": bot_name,
             "status": "online"
         })
         print(f"[SOCKET] Registered bot with ID {bot_id}")

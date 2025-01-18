@@ -23,12 +23,19 @@ export const authMiddleware = async (
     // Handle webhook authentication
     if (authType === 'webhook') {
       if (token !== process.env.SOCKET_WEBHOOK_SECRET) {
-        return next(new Error('Invalid webhook token'));
+        next(new Error('Invalid webhook token'));
+        return;
       }
-      
-      socket.data.userId = 'webhook';
-      socket.data.userName = 'System';
-      return next();
+
+      // Set webhook socket data
+      socket.data = {
+        userId: 'bot_mr_robot',  // Use consistent bot ID
+        userName: 'mr_robot',    // Use consistent bot name
+        imageUrl: null          // Bots don't have images
+      };
+
+      next();
+      return;
     }
 
     // Regular user authentication
