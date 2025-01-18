@@ -1,35 +1,28 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import psycopg2
-from dotenv import load_dotenv
 import socketio
-from uuid import uuid4
-from datetime import datetime
 import traceback
+import time
+import datetime
 
-# LangChain & Pinecone imports
+from dotenv import load_dotenv
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_pinecone import PineconeVectorStore
 from langchain.prompts.prompt import PromptTemplate
 
-# Initialize Socket.IO client
-sio = socketio.Client(logger=True, engineio_logger=True)
-
 # -------------------------------------------
 # 0. Load environment variables
 # -------------------------------------------
 load_dotenv()
 
-# Required environment variables - will raise error if not set
+# Required environment variables
 PINECONE_API_KEY = os.environ["PINECONE_API_KEY"]
 LANGCHAIN_API_KEY = os.environ["LANGCHAIN_API_KEY"]
 PINECONE_INDEX = os.environ["PINECONE_INDEX"]
 DATABASE_URL = os.environ["DATABASE_URL"]
-SOCKET_WEBHOOK_SECRET = os.environ["SOCKET_WEBHOOK_SECRET"]
 
 # Optional environment variables with defaults
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")
@@ -41,83 +34,22 @@ os.environ["LANGCHAIN_TRACING_V2"] = LANGCHAIN_TRACING_V2
 os.environ["LANGCHAIN_PROJECT"] = LANGCHAIN_PROJECT
 
 # Global variables
+sio = socketio.Client(logger=False, engineio_logger=False)
+bot_id = "bot_mr_robot"
 vectorstore = None
-is_initialized = False
-initialization_lock = None
-bot_id = "bot_mr_robot"  # This should match what was created by create_robot.py
+retriever = None
+llm = None
 
-# Socket.IO event handlers
-@sio.event
-def connect():
-    print("[SOCKET] Connected to socket server")
-    print(f"[SOCKET] Bot {bot_id} ready for DM connections")
-
-@sio.event
-def disconnect():
-    print("[SOCKET] Disconnected from socket server")
-    # Try to reconnect
-    try:
-        print("[SOCKET] Attempting to reconnect...")
-        socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
-        sio.connect(socket_url, 
-                   auth={
-                       "token": SOCKET_WEBHOOK_SECRET,
-                       "type": "webhook",
-                       "userId": bot_id,
-                       "userName": "Mr. Robot"
-                   },
-                   transports=['websocket'],
-                   wait_timeout=10)
-    except Exception as e:
-        print(f"[SOCKET] Reconnection failed: {e}")
-
-@sio.event
-def connect_error(data):
-    print(f"[SOCKET] Connection error: {data}")
-    print("[SOCKET] Current socket state:", {
-        "connected": sio.connected,
-        "transport": sio.transport(),
-        "sid": sio.sid
-    })
-
-@sio.event
-def channel_created(data):
-    """Handle new channel creation - join if we're a participant."""
-    print(f"[SOCKET] Channel created event received: {data}")
-    # Temporarily disabled bot chat functionality
-    return
-
-@sio.event
-def message(data):
-    """Handle incoming messages."""
-    print(f"[SOCKET] Received message event: {data}")
-    # Temporarily disabled bot chat functionality
-    return
-
-@sio.event
-def message_delivered(data):
-    print(f"[SOCKET] Message delivered: {data}")
-
-@sio.event
-def message_error(data):
-    print(f"[SOCKET] Message error: {data}")
-
-# -------------------------------------------
-# 1. Fetch messages from the Postgres database
-# -------------------------------------------
 def fetch_messages_from_db():
-    """
-    Fetch messages from the database using the Prisma schema structure.
-    Returns a list of (content, channel_name, author_name, timestamp).
-    """
     try:
-        print(f"Attempting to connect to database...")
+        print("[INIT] Connecting to database for messages...")
         conn = psycopg2.connect(DATABASE_URL)
-        print("Successfully connected to database")
-        
         cursor = conn.cursor()
-        
-        # Join with channels and users to get the readable names
+        cursor.execute('SELECT current_database(), current_user;')
+        db, user = cursor.fetchone()
+        print(f"[INIT] Connected: DB={db}, USER={user}")
+
+        # Retrieve messages from the database
         query = """
             SELECT 
                 COALESCE(m.content, '') as content,
@@ -135,75 +67,55 @@ def fetch_messages_from_db():
         """
         cursor.execute(query)
         rows = cursor.fetchall()
-        print(f"Retrieved {len(rows)} messages from database")
+        print(f"[INIT] Retrieved {len(rows)} messages from database")
         return rows
-
     except Exception as e:
         print(f"[ERROR] Could not fetch messages: {e}")
-        raise
+        print(traceback.format_exc())
+        sys.exit(1)
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
 
-def join_existing_dm_channels():
-    """Join all DM channels where the bot is a participant."""
-    print("[INIT] Joining existing DM channels temporarily disabled")
-    return True
-
-# -------------------------------------------
-# 2. Convert DB rows into LangChain Documents
-# -------------------------------------------
 def create_documents_from_messages(rows):
-    """Convert each message row into a LangChain Document object."""
-    print(f"Converting {len(rows)} messages to documents")
+    print("[INIT] Converting messages to LangChain Documents...")
     documents = []
     for (content, channel_name, author_name, created_at, thread_id, thread_name, file_url, file_name) in rows:
         text_content = content if content else ""
         if not text_content.strip() and not file_url:
             continue
-        
-        # Clean metadata to avoid null values
         meta = {
-            "channel": channel_name or "",
-            "author": author_name or "",
-            "timestamp": created_at.isoformat() if created_at else "",
-            "thread_id": thread_id or "",
-            "thread_name": thread_name or "",
-            "file_url": file_url or "",
-            "file_name": file_name or ""
+            "channel": channel_name,
+            "author": author_name,
+            "timestamp": created_at.isoformat() if created_at else None,
+            "thread_id": thread_id,
+            "thread_name": thread_name,
+            "file_url": file_url,
+            "file_name": file_name
         }
-        
         if file_url:
             text_content += f"\n[Attached file: {file_name or 'unnamed file'}]"
-            
         documents.append(Document(page_content=text_content, metadata=meta))
+    print(f"[INIT] Created {len(documents)} documents")
     return documents
 
-# -------------------------------------------
-# 3. Split documents into chunks
-# -------------------------------------------
 def split_documents(documents, chunk_size=1000, chunk_overlap=100):
-    print(f"Splitting {len(documents)} documents into chunks")
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap
-    )
-    return text_splitter.split_documents(documents)
+    print("[INIT] Splitting documents into chunks...")
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    chunked = splitter.split_documents(documents)
+    print(f"[INIT] Split into {len(chunked)} chunks")
+    return chunked
 
-# -------------------------------------------
-# 4. Create or load Pinecone vector store
-# -------------------------------------------
 def create_or_load_vectorstore(documents):
-    """Initialize Pinecone and create vector store."""
     from pinecone import Pinecone, ServerlessSpec
     import time
 
+    print("[INIT] Building embeddings and Pinecone vector store...")
     embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
     pc = Pinecone(api_key=PINECONE_API_KEY)
 
-    # Delete and recreate index
     if PINECONE_INDEX in pc.list_indexes().names():
-        print(f"Deleting existing index {PINECONE_INDEX}...")
+        print(f"[INIT] Deleting existing Pinecone index '{PINECONE_INDEX}'...")
         pc.delete_index(PINECONE_INDEX)
         while True:
             try:
@@ -212,91 +124,136 @@ def create_or_load_vectorstore(documents):
             except Exception as e:
                 if "not found" in str(e).lower():
                     break
-                raise e
+                else:
+                    raise
 
-    print(f"Creating new index {PINECONE_INDEX}...")
+    print(f"[INIT] Creating new Pinecone index '{PINECONE_INDEX}'...")
     pc.create_index(
         name=PINECONE_INDEX,
         dimension=3072,
         metric='cosine',
-        spec=ServerlessSpec(
-            cloud='aws',
-            region='us-east-1'
-        )
+        spec=ServerlessSpec(cloud='aws', region='us-east-1')
     )
-
-    print(f"Creating Pinecone vectorstore...")
-    return PineconeVectorStore.from_documents(
+    print("[INIT] Index created. Uploading documents...")
+    store = PineconeVectorStore.from_documents(
         documents=documents,
         embedding=embeddings,
         index_name=PINECONE_INDEX
     )
+    print("[INIT] Vector store ready.")
+    return store
 
-# -------------------------------------------
-# Main initialization and startup
-# -------------------------------------------
+def handle_incoming_message(data):
+    # We can decide how to filter messages; for a DM to mr_robot, we do RAG
+    channel_id = data.get("channelId")
+    message_text = data.get("message", {}).get("content", "")
+    author_id = data.get("message", {}).get("authorId")
+
+    # We don't want to answer ourselves or empty content
+    if not message_text.strip():
+        return
+
+    # Retrieve context
+    docs = retriever.invoke(message_text)
+
+    # Prepare the prompt
+    template = PromptTemplate(
+        template="{query} Context: {context}",
+        input_variables=["query", "context"]
+    )
+    prompt_with_context = template.invoke({
+        "query": message_text,
+        "context": docs
+    })
+
+    # Query the LLM
+    results = llm.invoke(prompt_with_context)
+    answer = results.content.strip()
+
+    # Generate a temporary message ID
+    temp_message_id = f"temp_{int(time.time() * 1000)}"
+
+    # Emit the response back via socket as a new message
+    response_payload = {
+        "type": "message",
+        "channelId": channel_id,
+        "messageId": temp_message_id,
+        "message": {
+            "content": answer,
+            "channelId": channel_id,
+            "id": temp_message_id,
+            "author": {
+                "id": bot_id,
+                "name": "Mr. Robot"
+            },
+            "createdAt": datetime.datetime.now().isoformat()
+        }
+    }
+    sio.emit("message", response_payload)
+    print(f"[BOT] Replied with: {answer}")
+
+@sio.event
+def connect():
+    print("[SOCKET] Connected to server as mr_robot")
+
+@sio.event
+def disconnect():
+    print("[SOCKET] Disconnected from server")
+
+@sio.on("message")
+def on_message(data):
+    # data is the inbound message payload. We'll handle here.
+    # Basic check: do we want to respond to every message or only DMs to its channel containing the bot?
+    # For simplicity, let's just call handle_incoming_message for all inbound messages.
+    handle_incoming_message(data)
+
 def main():
-    """Initialize the vector store and socket connection."""
-    global vectorstore, is_initialized
-    
+    global vectorstore, retriever, llm
+
+    # 1) Fetch data from DB
+    rows = fetch_messages_from_db()
+    # 2) Convert to Documents
+    documents = create_documents_from_messages(rows)
+    # 3) Split if desired
+    chunked_docs = split_documents(documents)
+    # 4) Create vector store
+    vectorstore = create_or_load_vectorstore(chunked_docs)
+    retriever = vectorstore.as_retriever()
+    # 5) Initialize LLM
+    llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini")
+
+    # 6) Connect to Socket.IO
+    socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
+    secret = os.getenv("SOCKET_WEBHOOK_SECRET", "")
     try:
-        print("[INIT] Starting initialization...")
-        print("[INIT] Environment check:")
-        required_vars = [
-            "PINECONE_API_KEY",
-            "LANGCHAIN_API_KEY",
-            "PINECONE_INDEX",
-            "DATABASE_URL",
-            "SOCKET_WEBHOOK_SECRET"
-        ]
-        for var in required_vars:
-            print(f"[INIT] Checking {var}... {'✓' if os.getenv(var) else '✗'}")
-        
-        # Temporarily disabled message fetching and vectorstore initialization
-        print("[INIT] Message processing temporarily disabled")
-        
-        # Connect to socket server
-        socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
-        print(f"[SOCKET] Attempting connection to socket server at {socket_url}...")
-        
+        print(f"[INIT] Connecting to socket server at {socket_url} as {bot_id}...")
         sio.connect(
             socket_url,
             auth={
-                "token": SOCKET_WEBHOOK_SECRET,
+                "token": secret,
                 "type": "webhook",
                 "userId": bot_id,
                 "userName": "Mr. Robot"
             },
-            transports=['websocket'],
+            transports=["websocket"],
             wait_timeout=10
         )
-        
-        is_initialized = True
-        print("[INIT] Initialization complete")
-        
-        # Keep the main thread running
-        import signal
-        def signal_handler(sig, frame):
-            print("[SHUTDOWN] Received shutdown signal")
-            if sio.connected:
-                print("[SHUTDOWN] Disconnecting socket")
-                sio.disconnect()
-            sys.exit(0)
-        
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-        
-        print("[INIT] Signal handlers registered, entering main loop")
-        signal.pause()
-        
     except Exception as e:
-        print(f"[INIT] Failed to initialize: {str(e)}")
-        print("[INIT] Error traceback:")
-        traceback.print_exc()
-        if sio.connected:
-            sio.disconnect()
+        print(f"[ERROR] Could not connect to socket server: {e}")
         sys.exit(1)
 
+    print("[INIT] Ready and listening for DMs...")
+    import signal
+    def signal_handler(sig, frame):
+        print("[SHUTDOWN] Received kill signal, shutting down.")
+        if sio.connected:
+            sio.disconnect()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.pause()
+
 if __name__ == "__main__":
-    print("[STARTUP] Script starting...")
     main()
+    
