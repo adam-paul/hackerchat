@@ -34,23 +34,31 @@ export function ChatSection({
 
   // Memoize DM channels and available bot users
   const { dmChannels, availableBots } = useMemo(() => {
-    // Get DM channels
-    const dmChannels = channels.filter(c => c.type === "DM").map(channel => {
-      const otherParticipant = channel.participants?.find(p => p.id !== userId);
-      return {
-        ...channel,
-        displayName: otherParticipant?.name || 'Unknown User',
-        isBot: otherParticipant?.id.startsWith('bot_')
-      };
-    });
+    // Get only DM channels where the current user is a participant
+    const dmChannels = channels
+      .filter(c => 
+        c.type === "DM" && 
+        c.participants?.some(p => p.id === userId)
+      )
+      .map(channel => {
+        const otherParticipant = channel.participants?.find(p => p.id !== userId);
+        return {
+          ...channel,
+          displayName: otherParticipant?.name || 'Unknown User',
+          isBot: otherParticipant?.id.startsWith('bot_')
+        };
+      });
 
-    // Get bot users that don't have DM channels yet
-    const existingDmUserIds = new Set(dmChannels.flatMap(c => 
-      c.participants?.map(p => p.id) || []
-    ));
+    // Get bots that the current user doesn't have a DM with yet
+    const myExistingDmBotIds = new Set(
+      dmChannels
+        .filter(c => c.isBot)
+        .map(c => c.participants?.find(p => p.id !== userId)?.id)
+        .filter(Boolean)
+    );
     
     const bots = users.filter(user => 
-      user.id.startsWith('bot_') && !existingDmUserIds.has(user.id)
+      user.id.startsWith('bot_') && !myExistingDmBotIds.has(user.id)
     );
 
     return { dmChannels, availableBots: bots };
