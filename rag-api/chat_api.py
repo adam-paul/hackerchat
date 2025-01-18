@@ -118,33 +118,27 @@ def split_documents(documents, chunk_size=1000, chunk_overlap=100):
 
 def create_or_load_vectorstore(documents):
     from pinecone import Pinecone, ServerlessSpec
-    import time
 
     print("[INIT] Building embeddings and Pinecone vector store...")
     embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
     pc = Pinecone(api_key=PINECONE_API_KEY)
 
-    if PINECONE_INDEX in pc.list_indexes().names():
-        print(f"[INIT] Deleting existing Pinecone index '{PINECONE_INDEX}'...")
-        pc.delete_index(PINECONE_INDEX)
-        while True:
-            try:
-                pc.describe_index(PINECONE_INDEX)
-                time.sleep(1)
-            except Exception as e:
-                if "not found" in str(e).lower():
-                    break
-                else:
-                    raise
+    # Check if index exists
+    if PINECONE_INDEX not in pc.list_indexes().names():
+        print(f"[INIT] Creating new Pinecone index '{PINECONE_INDEX}'...")
+        pc.create_index(
+            name=PINECONE_INDEX,
+            dimension=3072,
+            metric='cosine',
+            spec=ServerlessSpec(cloud='aws', region='us-east-1')
+        )
+        print("[INIT] Index created.")
+    else:
+        print(f"[INIT] Using existing Pinecone index '{PINECONE_INDEX}'")
+        # Optionally clear existing vectors if needed
+        # pc.Index(PINECONE_INDEX).delete(deleteAll=True)
 
-    print(f"[INIT] Creating new Pinecone index '{PINECONE_INDEX}'...")
-    pc.create_index(
-        name=PINECONE_INDEX,
-        dimension=3072,
-        metric='cosine',
-        spec=ServerlessSpec(cloud='aws', region='us-east-1')
-    )
-    print("[INIT] Index created. Uploading documents...")
+    print("[INIT] Uploading documents...")
     store = PineconeVectorStore.from_documents(
         documents=documents,
         embedding=embeddings,
