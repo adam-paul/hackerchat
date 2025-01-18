@@ -245,14 +245,21 @@ def on_channel_created(data):
         print(f"[ERROR] Failed to process channel creation: {e}")
         traceback.print_exc()
 
+@sio.on("join-channel")
+def on_join_channel(data):
+    """Handle channel join confirmation."""
+    print(f"[SOCKET] Successfully joined channel: {data}")
+
+@sio.on("error")
+def on_error(data):
+    """Handle socket errors."""
+    print(f"[SOCKET] Received error: {data}")
+
 @sio.on("*")
 def catch_all(event, *args):
-    """Debug handler to catch all events.
-    In Socket.IO, catch-all receives:
-    - event: the event name
-    - *args: variable number of data arguments passed with the event
-    """
-    print(f"[SOCKET] Caught event {event} with args: {args}")
+    """Debug handler to catch all events."""
+    if event not in ['status-changed', 'connected-users']:  # Filter out noisy events
+        print(f"[SOCKET] Caught event {event} with args: {args}")
 
 @sio.on("message")
 def on_message(data):
@@ -284,13 +291,18 @@ def main():
             socket_url,
             auth={
                 "token": secret,
-                "type": "webhook",
                 "userId": bot_id,
-                "userName": "Mr. Robot"
+                "userName": "mr_robot",
+                "status": "online"  # Add status to match regular clients
             },
             transports=["websocket"],
             wait_timeout=10
         )
+        
+        # After connection, explicitly join our user room
+        sio.emit("join-user", bot_id)
+        print(f"[SOCKET] Joined user room {bot_id}")
+        
     except Exception as e:
         print(f"[ERROR] Could not connect to socket server: {e}")
         sys.exit(1)
