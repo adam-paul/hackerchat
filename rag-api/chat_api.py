@@ -84,162 +84,15 @@ def connect_error(data):
 def channel_created(data):
     """Handle new channel creation - join if we're a participant."""
     print(f"[SOCKET] Channel created event received: {data}")
-    try:
-        channel = data.get('channel', {})
-        channel_id = channel.get('id')
-        channel_type = channel.get('type')
-        participants = channel.get('participants', [])
-        
-        print(f"[SOCKET] Processing channel: id={channel_id}, type={channel_type}")
-        
-        # For DM channels, check if we're a participant
-        if channel_type == 'DM':
-            is_participant = any(p.get('id') == bot_id for p in participants)
-            print(f"[SOCKET] DM channel check - Bot {bot_id} is participant: {is_participant}")
-            
-            if is_participant:
-                print(f"[SOCKET] Joining DM channel: {channel_id}")
-                # Join the channel room
-                sio.emit('join-channel', channel_id)
-                print(f"[SOCKET] Join request sent for channel: {channel_id}")
-                
-                # Also emit a ready message to the channel
-                welcome_msg = {
-                    'type': 'message',
-                    'channelId': channel_id,
-                    'messageId': f"msg_{uuid4()}",
-                    'message': {
-                        'id': f"msg_{uuid4()}",
-                        'content': "Hello! I'm Mr. Robot, your AI assistant. How can I help you today?",
-                        'channelId': channel_id,
-                        'createdAt': datetime.utcnow().isoformat(),
-                        'author': {
-                            'id': bot_id,
-                            'name': "Mr. Robot",
-                            'imageUrl': None
-                        },
-                        'reactions': []
-                    }
-                }
-                sio.emit('message', welcome_msg)
-                print(f"[SOCKET] Welcome message sent to channel: {channel_id}")
-    except Exception as e:
-        print(f"[SOCKET] Error handling channel creation: {str(e)}")
-        print("[SOCKET] Error traceback:")
-        traceback.print_exc()
+    # Temporarily disabled bot chat functionality
+    return
 
 @sio.event
 def message(data):
     """Handle incoming messages."""
     print(f"[SOCKET] Received message event: {data}")
-    
-    try:
-        # Extract message data - handle both direct messages and message events
-        message = data.get('message', data)
-        
-        # Validate message structure
-        if not isinstance(message, dict):
-            print(f"[SOCKET] Invalid message format: {message}")
-            return
-            
-        channel_id = message.get('channelId')
-        content = message.get('content', '')
-        author = message.get('author', {})
-        author_id = author.get('id', '')
-        
-        print(f"[SOCKET] Processing message: channel={channel_id}, author={author_id}, content={content}")
-        
-        # Only respond to user messages, not our own
-        if author_id and author_id != bot_id and vectorstore:
-            print(f"[SOCKET] Valid user message received, generating response...")
-            # Generate response using the RAG system
-            try:
-                print(f"[SOCKET] Using vectorstore to get context for: {content}")
-                # Use the existing vectorstore to get context and generate response
-                retriever = vectorstore.as_retriever()
-                docs = retriever.invoke(content)
-                print(f"[SOCKET] Retrieved {len(docs)} relevant documents")
-                
-                template = PromptTemplate(
-                    template="""You are Mr. Robot, a mysterious and knowledgeable AI assistant who has fought in the cybertrenches as a neuromancer for millennia. 
-                    You have access to a database of chat history. Your hacking skills are second to none.
-                    Use the following chat history context to inform your response, but maintain your unique persona.
-                    If the context is relevant, incorporate it naturally into your response.
-                    If the context isn't relevant, you can still respond based on your general knowledge.
-
-                    Question: {query}
-                    
-                    Context from chat history: {context}
-                    
-                    Response (as Mr. Robot):""",
-                    input_variables=["query", "context"]
-                )
-                
-                # Format context from retrieved documents
-                context_text = "\n".join([
-                    f"From {doc.metadata.get('author', 'unknown')} in {doc.metadata.get('channel', 'unknown')}: {doc.page_content}"
-                    for doc in docs
-                ])
-                print(f"[SOCKET] Generated context from {len(docs)} documents")
-                
-                prompt_with_context = template.invoke({
-                    "query": content,
-                    "context": context_text
-                })
-                
-                print("[SOCKET] Calling LLM for response...")
-                llm = ChatOpenAI(temperature=0.7, model_name="gpt-4-mini")
-                llm_response = llm.invoke(prompt_with_context)
-                print("[SOCKET] Received LLM response")
-                
-                # Send response through socket
-                message_id = f"msg_{uuid4()}"
-                now = datetime.utcnow().isoformat()
-                
-                # Format message according to the MessageEvent type
-                message_event = {
-                    'type': 'message',
-                    'channelId': channel_id,
-                    'messageId': message_id,
-                    'message': {
-                        'id': message_id,
-                        'content': llm_response.content,
-                        'channelId': channel_id,
-                        'createdAt': now,
-                        'author': {
-                            'id': bot_id,
-                            'name': "Mr. Robot",
-                            'imageUrl': None
-                        },
-                        'reactions': []
-                    }
-                }
-                
-                print(f"[SOCKET] Sending response to channel {channel_id}")
-                sio.emit('message', message_event)
-                print("[SOCKET] Response sent successfully")
-                
-            except Exception as e:
-                print(f"[SOCKET] Error generating/sending response: {e}")
-                print(f"[SOCKET] Error details:", {
-                    'error': str(e),
-                    'type': type(e).__name__,
-                    'trace': traceback.format_exc()
-                })
-        else:
-            if author_id == bot_id:
-                print("[SOCKET] Ignoring own message")
-            elif not author_id:
-                print("[SOCKET] Message missing author ID")
-            elif not vectorstore:
-                print("[SOCKET] Vectorstore not initialized")
-    except Exception as e:
-        print(f"[SOCKET] Error processing message: {e}")
-        print(f"[SOCKET] Error details:", {
-            'error': str(e),
-            'type': type(e).__name__,
-            'trace': traceback.format_exc()
-        })
+    # Temporarily disabled bot chat functionality
+    return
 
 @sio.event
 def message_delivered(data):
@@ -294,58 +147,8 @@ def fetch_messages_from_db():
 
 def join_existing_dm_channels():
     """Join all DM channels where the bot is a participant."""
-    try:
-        print("[INIT] Joining existing DM channels...")
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-        
-        # Find all DM channels where bot is a participant
-        query = """
-            SELECT c.id, c.name 
-            FROM "Channel" c
-            JOIN "_ParticipantsToChannel" pc ON c.id = pc."B"
-            WHERE pc."A" = %s AND c.type = 'DM'
-        """
-        cursor.execute(query, (bot_id,))
-        channels = cursor.fetchall()
-        
-        print(f"[INIT] Found {len(channels)} existing DM channels")
-        
-        # Join each channel
-        for channel_id, channel_name in channels:
-            print(f"[SOCKET] Joining existing DM channel: {channel_id} ({channel_name})")
-            sio.emit('join-channel', channel_id)
-            
-            # Send a reconnection message
-            message_id = f"msg_{uuid4()}"
-            message_event = {
-                'type': 'message',
-                'channelId': channel_id,
-                'messageId': message_id,
-                'message': {
-                    'id': message_id,
-                    'content': "Mr. Robot has reconnected to the channel.",
-                    'channelId': channel_id,
-                    'createdAt': datetime.utcnow().isoformat(),
-                    'author': {
-                        'id': bot_id,
-                        'name': "Mr. Robot",
-                        'imageUrl': None
-                    },
-                    'reactions': []
-                }
-            }
-            sio.emit('message', message_event)
-            print(f"[SOCKET] Sent reconnection message to channel: {channel_id}")
-        
-        return True
-    except Exception as e:
-        print(f"[ERROR] Could not join existing channels: {e}")
-        print(traceback.format_exc())
-        return False
-    finally:
-        if 'conn' in locals():
-            conn.close()
+    print("[INIT] Joining existing DM channels temporarily disabled")
+    return True
 
 # -------------------------------------------
 # 2. Convert DB rows into LangChain Documents
@@ -449,17 +252,8 @@ def main():
         for var in required_vars:
             print(f"[INIT] Checking {var}... {'✓' if os.getenv(var) else '✗'}")
         
-        rows = fetch_messages_from_db()
-        print(f"[INIT] Fetched {len(rows)} messages from database")
-        
-        documents = create_documents_from_messages(rows)
-        print(f"[INIT] Created {len(documents)} documents")
-        
-        chunked_docs = split_documents(documents)
-        print(f"[INIT] Split into {len(chunked_docs)} chunks")
-        
-        vectorstore = create_or_load_vectorstore(chunked_docs)
-        print("[INIT] Vector store initialized")
+        # Temporarily disabled message fetching and vectorstore initialization
+        print("[INIT] Message processing temporarily disabled")
         
         # Connect to socket server
         socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
@@ -476,9 +270,6 @@ def main():
             transports=['websocket'],
             wait_timeout=10
         )
-        
-        # Join existing DM channels
-        join_existing_dm_channels()
         
         is_initialized = True
         print("[INIT] Initialization complete")
