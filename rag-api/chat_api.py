@@ -9,6 +9,8 @@ from uuid import uuid4
 from datetime import datetime
 import traceback
 
+print("[STARTUP] Script starting...")
+
 # LangChain & Pinecone imports
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -16,12 +18,15 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_pinecone import PineconeVectorStore
 from langchain.prompts.prompt import PromptTemplate
 
+print("[STARTUP] Imports completed")
+
 # Initialize Socket.IO client
 sio = socketio.Client(logger=True, engineio_logger=True)
 
 # -------------------------------------------
 # 0. Load environment variables
 # -------------------------------------------
+print("[STARTUP] Loading environment variables...")
 load_dotenv()
 
 # Required environment variables - will raise error if not set
@@ -382,5 +387,7 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    print("[STARTUP] __main__ block reached")
     main()
+    print("[STARTUP] main() completed")
 
