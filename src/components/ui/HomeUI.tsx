@@ -39,7 +39,6 @@ export function HomeUI() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [highlightedMessage, setHighlightedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   
@@ -115,8 +114,6 @@ export function HomeUI() {
 
   const handleSearchResultClick = (messageId: string) => {
     setSelectedMessageId(messageId);
-    setHighlightedMessage(messageId);
-    setTimeout(() => setHighlightedMessage(null), 2000);
   };
 
   // Socket event handlers
@@ -369,8 +366,7 @@ export function HomeUI() {
   };
 
   const handleMessageHighlight = useCallback((m: Message) => {
-    setHighlightedMessage(m.id);
-    setTimeout(() => setHighlightedMessage(null), 2000);
+    setSelectedMessageId(m.id);
   }, []);
 
   const handleChannelCreated = useCallback((newChannel: Channel) => {
