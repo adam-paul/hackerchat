@@ -50,17 +50,30 @@ bot_id = "bot_mr_robot"  # This should match what was created by create_robot.py
 # Socket.IO event handlers
 @sio.event
 def connect():
-    print("Connected to socket server")
+    print("[SOCKET] Connected to socket server")
     # Join the bot's channels
     sio.emit('join-channel', bot_id)
+    print(f"[SOCKET] Bot {bot_id} joined its channel")
 
 @sio.event
 def disconnect():
-    print("Disconnected from socket server")
+    print("[SOCKET] Disconnected from socket server")
 
 @sio.event
 def connect_error(data):
-    print(f"Connection error: {data}")
+    print(f"[SOCKET] Connection error: {data}")
+
+@sio.event
+def message(data):
+    print(f"[SOCKET] Received message: {data}")
+
+@sio.event
+def message_delivered(data):
+    print(f"[SOCKET] Message delivered: {data}")
+
+@sio.event
+def message_error(data):
+    print(f"[SOCKET] Message error: {data}")
 
 # -------------------------------------------
 # 1. Fetch messages from the Postgres database
@@ -219,7 +232,7 @@ async def startup_event():
     # Run initialization
     async with initialization_lock:
         try:
-            print("Initializing vector store...")
+            print("[INIT] Starting initialization...")
             rows = fetch_messages_from_db()
             documents = create_documents_from_messages(rows)
             chunked_docs = split_documents(documents)
@@ -228,20 +241,21 @@ async def startup_event():
             # Connect to socket server
             try:
                 socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
-                print(f"Connecting to socket server at {socket_url}...")
+                print(f"[SOCKET] Attempting connection to socket server at {socket_url}...")
                 sio.connect(socket_url, auth={
                     "userId": bot_id,
                     "userName": "Mr. Robot",
                     "imageUrl": None
                 })
+                print("[SOCKET] Successfully connected to socket server")
             except Exception as e:
-                print(f"Failed to connect to socket server: {e}")
+                print(f"[SOCKET] Failed to connect to socket server: {e}")
                 # Don't raise here - we can still function without real-time updates
             
             is_initialized = True
-            print("Initialization complete")
+            print("[INIT] Initialization complete")
         except Exception as e:
-            print(f"Failed to initialize: {e}")
+            print(f"[INIT] Failed to initialize: {e}")
             raise
 
 @app.on_event("shutdown")
@@ -284,19 +298,27 @@ async def ask_endpoint(req_body: AskRequest):
     # 4) If we're connected to the socket server, send the response in real-time
     if sio.connected:
         message_id = f"msg_{uuid4()}"
-        sio.emit('message', {
+        now = datetime.utcnow().isoformat()
+        print(f"[SOCKET] Sending message {message_id}")
+        
+        message_event = {
             'type': 'message',
             'messageId': message_id,
             'channelId': req_body.channelId,
             'message': {
+                'id': message_id,
                 'content': llm_response.content,
+                'channelId': req_body.channelId,
+                'createdAt': now,
                 'author': {
                     'id': bot_id,
                     'name': "Mr. Robot",
                     'imageUrl': None
                 }
             }
-        })
+        }
+        print(f"[SOCKET] Message event: {message_event}")
+        sio.emit('message', message_event)
 
     # 5) Return response
     return AskResponse(
