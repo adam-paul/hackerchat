@@ -40,34 +40,6 @@ vectorstore = None
 retriever = None
 llm = None
 
-def join_bot_channels():
-    """Query and join all DM channels that the bot is a participant in."""
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-        
-        # Query for all DM channels where bot is a participant
-        cursor.execute("""
-            SELECT c.id 
-            FROM "Channel" c
-            JOIN "_ChannelToUser" cu ON c.id = cu."channelId"
-            WHERE cu."userId" = %s AND c.type = 'DM'
-        """, (bot_id,))
-        
-        channels = cursor.fetchall()
-        print(f"[SOCKET] Found {len(channels)} DM channels to join")
-        
-        for (channel_id,) in channels:
-            print(f"[SOCKET] Joining channel {channel_id}")
-            sio.emit('join-channel', channel_id)
-            
-    except Exception as e:
-        print(f"[ERROR] Failed to join channels: {e}")
-        traceback.print_exc()
-    finally:
-        if 'conn' in locals():
-            conn.close()
-
 def fetch_messages_from_db():
     try:
         print("[INIT] Connecting to database for messages...")
@@ -247,19 +219,33 @@ def handle_incoming_message(data):
 
 @sio.event
 def connect():
-    """Handle socket connection and join bot channels."""
+    """Handle socket connection."""
     print("[SOCKET] Connected to server as mr_robot")
-    join_bot_channels()
-    print("[SOCKET] Finished joining channels")
 
 @sio.event
 def disconnect():
     print("[SOCKET] Disconnected from server")
 
+@sio.on("channel-created")
+def on_channel_created(data):
+    """Handle new channel creation."""
+    try:
+        channel_id = data.get("id")
+        channel_type = data.get("type")
+        participants = data.get("participants", [])
+        
+        # Only join DM channels where we're a participant
+        if channel_type == "DM" and any(p.get("id") == bot_id for p in participants):
+            print(f"[SOCKET] Joining new DM channel {channel_id}")
+            sio.emit("join-channel", channel_id)
+    except Exception as e:
+        print(f"[ERROR] Failed to process channel creation: {e}")
+        traceback.print_exc()
+
 @sio.on("message")
 def on_message(data):
     """Handle incoming message events."""
-    print(f"[SOCKET] Received message event")
+    print(f"[SOCKET] Received message event: {data}")
     handle_incoming_message(data)
 
 def main():
