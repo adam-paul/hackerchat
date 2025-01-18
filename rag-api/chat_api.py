@@ -148,14 +148,17 @@ def create_or_load_vectorstore(documents):
     return store
 
 def handle_incoming_message(data):
-    # We can decide how to filter messages; for a DM to mr_robot, we do RAG
     channel_id = data.get("channelId")
     message_text = data.get("message", {}).get("content", "")
     author_id = data.get("message", {}).get("authorId")
-
-    # We don't want to answer ourselves or empty content
-    if not message_text.strip():
+    channel_type = data.get("channelType")  # Should be 'dm' for direct messages
+    
+    # Only process DMs and don't respond to our own messages
+    if channel_type != "dm" or author_id == bot_id or not message_text.strip():
         return
+
+    # Get the other participant in the DM (the user)
+    user_id = author_id
 
     # Retrieve context
     docs = retriever.invoke(message_text)
@@ -178,6 +181,7 @@ def handle_incoming_message(data):
     temp_message_id = f"temp_{int(time.time() * 1000)}"
 
     # Emit the response back via socket as a new message
+    # Use 'to' to send only to the specific user's socket
     response_payload = {
         "type": "message",
         "channelId": channel_id,
@@ -193,12 +197,15 @@ def handle_incoming_message(data):
             "createdAt": datetime.datetime.now().isoformat()
         }
     }
-    sio.emit("message", response_payload)
-    print(f"[BOT] Replied with: {answer}")
+    # Only emit to the specific user's socket
+    sio.emit("message", response_payload, room=user_id)
+    print(f"[BOT] Replied to user {user_id} with: {answer}")
 
 @sio.event
 def connect():
     print("[SOCKET] Connected to server as mr_robot")
+    # Join a room with the bot's ID to receive DMs
+    sio.emit("join", {"userId": bot_id})
 
 @sio.event
 def disconnect():
@@ -206,9 +213,6 @@ def disconnect():
 
 @sio.on("message")
 def on_message(data):
-    # data is the inbound message payload. We'll handle here.
-    # Basic check: do we want to respond to every message or only DMs to its channel containing the bot?
-    # For simplicity, let's just call handle_incoming_message for all inbound messages.
     handle_incoming_message(data)
 
 def main():
