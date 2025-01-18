@@ -338,10 +338,28 @@ def main():
     
     try:
         print("[INIT] Starting initialization...")
+        print("[INIT] Environment check:")
+        required_vars = [
+            "PINECONE_API_KEY",
+            "LANGCHAIN_API_KEY",
+            "PINECONE_INDEX",
+            "DATABASE_URL",
+            "SOCKET_WEBHOOK_SECRET"
+        ]
+        for var in required_vars:
+            print(f"[INIT] Checking {var}... {'✓' if os.getenv(var) else '✗'}")
+        
         rows = fetch_messages_from_db()
+        print(f"[INIT] Fetched {len(rows)} messages from database")
+        
         documents = create_documents_from_messages(rows)
+        print(f"[INIT] Created {len(documents)} documents")
+        
         chunked_docs = split_documents(documents)
+        print(f"[INIT] Split into {len(chunked_docs)} chunks")
+        
         vectorstore = create_or_load_vectorstore(chunked_docs)
+        print("[INIT] Vector store initialized")
         
         # Connect to socket server
         socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
@@ -365,22 +383,26 @@ def main():
         # Keep the main thread running
         import signal
         def signal_handler(sig, frame):
+            print("[SHUTDOWN] Received shutdown signal")
             if sio.connected:
+                print("[SHUTDOWN] Disconnecting socket")
                 sio.disconnect()
             sys.exit(0)
         
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
         
-        # Block main thread
+        print("[INIT] Signal handlers registered, entering main loop")
         signal.pause()
         
     except Exception as e:
-        print(f"[INIT] Failed to initialize: {e}")
+        print(f"[INIT] Failed to initialize: {str(e)}")
+        print("[INIT] Error traceback:")
+        traceback.print_exc()
         if sio.connected:
             sio.disconnect()
         sys.exit(1)
 
 if __name__ == "__main__":
+    print("[STARTUP] Script starting...")
     main()
-
