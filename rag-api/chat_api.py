@@ -369,13 +369,21 @@ def process_message_queue():
             if not response:
                 continue
                 
-            # Emit response back through socket
+            # Format response for socket server
             response_data = {
                 "channelId": channel_id,
                 "content": response,
-                "messageId": f"msg_{uuid4()}"
+                "messageId": f"msg_{uuid4()}",
+                "authorId": bot_id,
+                "author": {
+                    "id": bot_id,
+                    "name": "Mr. Robot",
+                    "imageUrl": None  # Bot avatar could be added here
+                },
+                "createdAt": datetime.utcnow().isoformat()
             }
             
+            print(f"[BOT] Sending response: {response_data}")
             sio.emit("message", response_data)
             
         except Exception as e:
@@ -408,8 +416,15 @@ def main():
         for var in required_vars:
             print(f"[INIT] Checking {var}... {'✓' if os.getenv(var) else '✗'}")
         
-        # Temporarily disabled message fetching and vectorstore initialization
-        print("[INIT] Message processing temporarily disabled")
+        # Initialize vectorstore
+        print("[INIT] Fetching messages from database...")
+        rows = fetch_messages_from_db()
+        
+        print("[INIT] Creating documents...")
+        documents = create_documents_from_messages(rows)
+        
+        print("[INIT] Creating vectorstore...")
+        vectorstore = create_or_load_vectorstore(documents)
         
         # Connect to socket server
         socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
