@@ -15,7 +15,12 @@ type MessageResult = {
 
 const persistMessage = async (data: MessagePayload, userId: string, retryCount = 0): Promise<any> => {
   try {
-    // Verify channel exists and check type
+    // Generate a unique message ID
+    const messageId = data.messageId?.startsWith('temp_') ? 
+      `msg_${createId()}` : 
+      data.messageId || `msg_${createId()}`;
+
+    // Get channel to check if it's a bot DM
     const channel = await prisma.channel.findUnique({
       where: { id: data.channelId },
       include: {
@@ -29,57 +34,32 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
       throw new Error('Channel not found');
     }
 
-    // For DM channels, verify the user is a participant
-    if (channel.type === "DM") {
-      const isParticipant = channel.participants.some(p => p.id === userId);
-      if (!isParticipant) {
-        throw new Error('Not authorized to send messages in this DM');
-      }
-    }
+    // Check if this is a DM with a bot
+    const botParticipant = channel.participants?.find(p => p.id.startsWith('bot_'));
+    const isUserMessage = userId !== botParticipant?.id;
 
-    // Verify user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
+    // If this is a user message to a bot, we'll need to get a response
+    let botResponse: any = null;
+    if (botParticipant && isUserMessage) {
+      try {
+        // Make request to RAG API
+        const response = await fetch('https://hackerchat-production.up.railway.app/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: data.content })
+        });
 
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // Generate a new unique ID for the message using cuid
-    const messageId = `msg_${createId()}`;
-
-    // If this message is replying to another message, find the permanent ID
-    let replyToId = data.replyToId;
-    if (replyToId) {
-      const referencedMessage = await prisma.message.findFirst({
-        where: {
-          OR: [
-            { id: replyToId },
-            { originalId: replyToId }
-          ]
-        },
-        select: {
-          id: true,
-          originalId: true,
-          content: true,
-          author: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
+        if (!response.ok) {
+          throw new Error('Failed to get bot response');
         }
-      });
 
-      if (!referencedMessage) {
-        throw new Error('Referenced message not found');
+        botResponse = await response.json();
+      } catch (error) {
+        console.error('Error getting bot response:', error);
       }
-
-      // Use the permanent ID for the database reference
-      replyToId = referencedMessage.id;
     }
 
+    // Create the user's message
     const result = await prisma.message.create({
       data: {
         id: messageId,
@@ -90,8 +70,8 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         fileSize: data.fileSize,
         channelId: data.channelId,
         authorId: userId,
-        originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,
-        replyToId
+        originalId: data.messageId?.startsWith('temp_') ? data.messageId : undefined,
+        replyToId: data.replyToId
       },
       include: {
         author: {
@@ -104,7 +84,7 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         replyTo: {
           select: {
             id: true,
-            originalId: true,  // Include originalId in the reply reference
+            originalId: true,
             content: true,
             author: {
               select: {
@@ -116,6 +96,34 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         }
       }
     });
+
+    // If we got a bot response and have a bot participant, create the bot's message
+    if (botResponse && botParticipant) {
+      const botMessageId = `msg_${createId()}`;
+      const botMessage = await prisma.message.create({
+        data: {
+          id: botMessageId,
+          content: botResponse.answer,
+          channelId: data.channelId,
+          authorId: botParticipant.id
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true
+            }
+          }
+        }
+      });
+
+      // Return both messages
+      return {
+        userMessage: result,
+        botMessage
+      };
+    }
 
     return result;
   } catch (error) {

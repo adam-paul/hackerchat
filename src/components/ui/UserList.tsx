@@ -39,8 +39,10 @@ export const UserList = React.memo(function UserList({ className = '', isCollaps
   const { onlineUsers, offlineUsers } = useMemo(() => {
     const sortByName = (a: User, b: User) => (a.name || '').localeCompare(b.name || '');
     
-    const online = users.filter(user => user.status !== 'offline').sort(sortByName);
-    const offline = users.filter(user => user.status === 'offline').sort(sortByName);
+    // Filter out bot users and separate by status
+    const nonBotUsers = users.filter(user => !user.id.startsWith('bot_'));
+    const online = nonBotUsers.filter(user => user.status !== 'offline').sort(sortByName);
+    const offline = nonBotUsers.filter(user => user.status === 'offline').sort(sortByName);
     
     return { onlineUsers: online, offlineUsers: offline };
   }, [users]);
