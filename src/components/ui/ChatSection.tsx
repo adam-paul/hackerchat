@@ -90,9 +90,11 @@ export function ChatSection({
           }))].map(item => (
             <button
               key={item.id}
-              onClick={() => {
+              onClick={async () => {
                 if ('isAvailable' in item && socket) {
-                  socket.createDM(item.id);
+                  // Create DM and then select it
+                  const channel = await socket.createDM(item.id);
+                  selectChannel(channel.id);
                 } else {
                   selectChannel(item.id);
                 }
