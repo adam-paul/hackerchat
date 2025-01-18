@@ -19,7 +19,7 @@ from langchain.prompts.prompt import PromptTemplate
 
 # Initialize FastAPI app and Socket.IO client
 app = FastAPI(title="HackerChat RAG API")
-sio = socketio.Client()
+sio = socketio.Client(logger=True, engineio_logger=True)  # Enable logging
 
 # -------------------------------------------
 # 0. Load environment variables
@@ -58,10 +58,29 @@ def connect():
 @sio.event
 def disconnect():
     print("[SOCKET] Disconnected from socket server")
+    # Try to reconnect
+    try:
+        print("[SOCKET] Attempting to reconnect...")
+        socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
+        sio.connect(socket_url, 
+                   auth={
+                       "userId": bot_id,
+                       "userName": "Mr. Robot",
+                       "imageUrl": None
+                   },
+                   transports=['websocket'],
+                   wait_timeout=10)
+    except Exception as e:
+        print(f"[SOCKET] Reconnection failed: {e}")
 
 @sio.event
 def connect_error(data):
     print(f"[SOCKET] Connection error: {data}")
+    print("[SOCKET] Current socket state:", {
+        "connected": sio.connected,
+        "transport": sio.transport(),
+        "sid": sio.sid
+    })
 
 @sio.event
 def message(data):
@@ -242,14 +261,30 @@ async def startup_event():
             try:
                 socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
                 print(f"[SOCKET] Attempting connection to socket server at {socket_url}...")
-                sio.connect(socket_url, auth={
-                    "userId": bot_id,
-                    "userName": "Mr. Robot",
-                    "imageUrl": None
-                })
+                
+                # Configure socket connection
+                sio.connect(
+                    socket_url,
+                    auth={
+                        "userId": bot_id,
+                        "userName": "Mr. Robot",
+                        "imageUrl": None
+                    },
+                    transports=['websocket'],  # Force websocket transport
+                    wait_timeout=10,  # Increase timeout
+                    wait=True  # Wait for connection to be established
+                )
                 print("[SOCKET] Successfully connected to socket server")
+                print("[SOCKET] Connection details:", {
+                    "transport": sio.transport(),
+                    "sid": sio.sid
+                })
             except Exception as e:
                 print(f"[SOCKET] Failed to connect to socket server: {e}")
+                print("[SOCKET] Connection state:", {
+                    "connected": sio.connected,
+                    "transport": sio.transport() if sio.connected else None
+                })
                 # Don't raise here - we can still function without real-time updates
             
             is_initialized = True
