@@ -64,15 +64,9 @@ export function SearchBar({
     };
   }, [clearSearch]);
 
-  useEffect(() => {
-    if (prevSelectedMessageIdRef.current && !selectedMessageId) {
-      clearSearch();
-    }
-    prevSelectedMessageIdRef.current = selectedMessageId;
-  }, [selectedMessageId, clearSearch]);
-
   const handleResultClick = (messageId: string) => {
     onResultClick(messageId);
+    clearSearch();
   };
 
   return (
