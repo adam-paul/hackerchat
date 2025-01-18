@@ -34,31 +34,6 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
       throw new Error('Channel not found');
     }
 
-    // Check if this is a DM with a bot
-    const botParticipant = channel.participants?.find(p => p.id.startsWith('bot_'));
-    const isUserMessage = userId !== botParticipant?.id;
-
-    // If this is a user message to a bot, we'll need to get a response
-    let botResponse: any = null;
-    if (botParticipant && isUserMessage) {
-      try {
-        // Make request to RAG API
-        const response = await fetch('https://hackerchat-production.up.railway.app/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: data.content })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to get bot response');
-        }
-
-        botResponse = await response.json();
-      } catch (error) {
-        console.error('Error getting bot response:', error);
-      }
-    }
-
     // Create the user's message
     const result = await prisma.message.create({
       data: {
@@ -96,34 +71,6 @@ const persistMessage = async (data: MessagePayload, userId: string, retryCount =
         }
       }
     });
-
-    // If we got a bot response and have a bot participant, create the bot's message
-    if (botResponse && botParticipant) {
-      const botMessageId = `msg_${createId()}`;
-      const botMessage = await prisma.message.create({
-        data: {
-          id: botMessageId,
-          content: botResponse.answer,
-          channelId: data.channelId,
-          authorId: botParticipant.id
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              name: true,
-              imageUrl: true
-            }
-          }
-        }
-      });
-
-      // Return both messages
-      return {
-        userMessage: result,
-        botMessage
-      };
-    }
 
     return result;
   } catch (error) {

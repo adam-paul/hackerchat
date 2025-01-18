@@ -1,8 +1,6 @@
 services:
   rag_api:
     build: .
-    ports:
-      - "8000:8000"
     environment:
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}

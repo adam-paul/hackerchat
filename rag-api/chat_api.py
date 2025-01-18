@@ -4,8 +4,6 @@ import os
 import sys
 import psycopg2
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException
-from pydantic import BaseModel
 import socketio
 from uuid import uuid4
 from datetime import datetime
@@ -18,9 +16,8 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_pinecone import PineconeVectorStore
 from langchain.prompts.prompt import PromptTemplate
 
-# Initialize FastAPI app and Socket.IO client
-app = FastAPI(title="HackerChat RAG API")
-sio = socketio.Client(logger=True, engineio_logger=True)  # Enable logging
+# Initialize Socket.IO client
+sio = socketio.Client(logger=True, engineio_logger=True)
 
 # -------------------------------------------
 # 0. Load environment variables
@@ -53,7 +50,6 @@ bot_id = "bot_mr_robot"  # This should match what was created by create_robot.py
 @sio.event
 def connect():
     print("[SOCKET] Connected to socket server")
-    # Don't try to join a channel - bots wait for DM creation
     print(f"[SOCKET] Bot {bot_id} ready for DM connections")
 
 @sio.event
@@ -85,9 +81,25 @@ def connect_error(data):
     })
 
 @sio.event
+def channel_created(data):
+    """Handle new channel creation - join if we're a participant."""
+    print(f"[SOCKET] Channel created: {data}")
+    try:
+        channel = data.get('channel', {})
+        if channel.get('type') == 'DM':
+            participants = channel.get('participants', [])
+            # Check if we're a participant
+            if any(p.get('id') == bot_id for p in participants):
+                channel_id = channel.get('id')
+                print(f"[SOCKET] Joining DM channel: {channel_id}")
+                sio.emit('join-channel', channel_id)
+    except Exception as e:
+        print(f"[SOCKET] Error handling channel creation: {e}")
+
+@sio.event
 def message(data):
     """Handle incoming messages."""
-    print(f"[SOCKET] Received message: {data}")
+    print(f"[SOCKET] Received message event: {data}")
     
     try:
         # Extract message data - handle both direct messages and message events
@@ -103,10 +115,13 @@ def message(data):
         author = message.get('author', {})
         author_id = author.get('id', '')
         
+        print(f"[SOCKET] Processing message: channel={channel_id}, author={author_id}, content={content}")
+        
         # Only respond to user messages, not our own
         if author_id and author_id != bot_id:
             # Generate response using the RAG system
             try:
+                print(f"[SOCKET] Generating response for message: {content}")
                 # Use the existing vectorstore to get context and generate response
                 retriever = vectorstore.as_retriever()
                 docs = retriever.invoke(content)
@@ -298,163 +313,57 @@ def create_or_load_vectorstore(documents):
     )
 
 # -------------------------------------------
-# 5. API Models
+# Main initialization and startup
 # -------------------------------------------
-class AskRequest(BaseModel):
-    question: str
-    channelId: str  # Add channelId field
-
-class DocumentInfo(BaseModel):
-    channel: 'str | None'
-    author: 'str | None'
-    timestamp: 'str | None'
-    thread_id: 'str | None' = None
-    thread_name: 'str | None' = None
-
-class AskResponse(BaseModel):
-    answer: str
-    retrieved_docs: 'list[DocumentInfo]'
-
-# -------------------------------------------
-# 6. FastAPI Routes and Startup
-# -------------------------------------------
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the vector store and socket connection on startup."""
-    global vectorstore, is_initialized, initialization_lock
-    from asyncio import Lock
+def main():
+    """Initialize the vector store and socket connection."""
+    global vectorstore, is_initialized
     
-    # Create the lock
-    initialization_lock = Lock()
-    
-    # Run initialization
-    async with initialization_lock:
-        try:
-            print("[INIT] Starting initialization...")
-            rows = fetch_messages_from_db()
-            documents = create_documents_from_messages(rows)
-            chunked_docs = split_documents(documents)
-            vectorstore = create_or_load_vectorstore(chunked_docs)
-            
-            # Connect to socket server
-            try:
-                socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
-                print(f"[SOCKET] Attempting connection to socket server at {socket_url}...")
-                
-                # Configure socket connection with webhook auth
-                sio.connect(
-                    socket_url,
-                    auth={
-                        "token": SOCKET_WEBHOOK_SECRET,
-                        "type": "webhook",
-                        "userId": bot_id,
-                        "userName": "Mr. Robot"
-                    },
-                    transports=['websocket'],
-                    wait_timeout=10,
-                    wait=True
-                )
-                print("[SOCKET] Successfully connected to socket server")
-                print("[SOCKET] Connection details:", {
-                    "transport": sio.transport(),
-                    "sid": sio.sid
-                })
-            except Exception as e:
-                print(f"[SOCKET] Failed to connect to socket server: {e}")
-                print("[SOCKET] Connection state:", {
-                    "connected": sio.connected,
-                    "transport": sio.transport() if sio.connected else None
-                })
-                # Don't raise here - we can still function without real-time updates
-            
-            is_initialized = True
-            print("[INIT] Initialization complete")
-        except Exception as e:
-            print(f"[INIT] Failed to initialize: {e}")
-            raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown."""
-    if sio.connected:
-        sio.disconnect()
-
-@app.post("/ask", response_model=AskResponse)
-async def ask_endpoint(req_body: AskRequest):
-    """Handle questions about chat history."""
-    global vectorstore, is_initialized, initialization_lock
-    
-    if not is_initialized:
-        if initialization_lock:
-            async with initialization_lock:
-                if not is_initialized:
-                    raise HTTPException(status_code=503, detail="Server is still initializing")
-        else:
-            raise HTTPException(status_code=503, detail="Server initialization failed")
-    
-    # 1) Retrieve from vector store
-    retriever = vectorstore.as_retriever()
-    docs = retriever.invoke(req_body.question)
-
-    # 2) Format prompt with retrieved context
-    template = PromptTemplate(
-        template="{query} Context: {context}",
-        input_variables=["query", "context"]
-    )
-    prompt_with_context = template.invoke({
-        "query": req_body.question,
-        "context": docs
-    })
-
-    # 3) Get LLM response
-    llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini")
-    llm_response = llm.invoke(prompt_with_context)
-    
-    # 4) If we're connected to the socket server, send the response in real-time
-    if sio.connected:
-        message_id = f"msg_{uuid4()}"
-        now = datetime.utcnow().isoformat()
-        print(f"[SOCKET] Sending message {message_id}")
+    try:
+        print("[INIT] Starting initialization...")
+        rows = fetch_messages_from_db()
+        documents = create_documents_from_messages(rows)
+        chunked_docs = split_documents(documents)
+        vectorstore = create_or_load_vectorstore(chunked_docs)
         
-        message_event = {
-            'type': 'message',
-            'messageId': message_id,
-            'channelId': req_body.channelId,
-            'message': {
-                'id': message_id,
-                'content': llm_response.content,
-                'channelId': req_body.channelId,
-                'createdAt': now,
-                'author': {
-                    'id': bot_id,
-                    'name': "Mr. Robot",
-                    'imageUrl': None
-                }
-            }
-        }
-        print(f"[SOCKET] Message event: {message_event}")
-        sio.emit('message', message_event)
+        # Connect to socket server
+        socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
+        print(f"[SOCKET] Attempting connection to socket server at {socket_url}...")
+        
+        sio.connect(
+            socket_url,
+            auth={
+                "token": SOCKET_WEBHOOK_SECRET,
+                "type": "webhook",
+                "userId": bot_id,
+                "userName": "Mr. Robot"
+            },
+            transports=['websocket'],
+            wait_timeout=10
+        )
+        
+        is_initialized = True
+        print("[INIT] Initialization complete")
+        
+        # Keep the main thread running
+        import signal
+        def signal_handler(sig, frame):
+            if sio.connected:
+                sio.disconnect()
+            sys.exit(0)
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        # Block main thread
+        signal.pause()
+        
+    except Exception as e:
+        print(f"[INIT] Failed to initialize: {e}")
+        if sio.connected:
+            sio.disconnect()
+        sys.exit(1)
 
-    # 5) Return response
-    return AskResponse(
-        answer=llm_response.content,
-        retrieved_docs=[
-            DocumentInfo(
-                channel=d.metadata.get("channel"),
-                author=d.metadata.get("author"),
-                timestamp=d.metadata.get("timestamp"),
-                thread_id=d.metadata.get("thread_id"),
-                thread_name=d.metadata.get("thread_name")
-            ) for d in docs
-        ]
-    )
-
-@app.get("/health")
-async def health_check():
-    """Simple health check endpoint that also reports initialization status."""
-    return {
-        "status": "healthy",
-        "initialized": is_initialized,
-        "socket_connected": sio.connected
-    }
+if __name__ == "__main__":
+    main()
 

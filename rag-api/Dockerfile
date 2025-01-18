@@ -16,8 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Expose port 8000 for FastAPI
-EXPOSE 8000
-
-# Run the FastAPI server
-CMD ["uvicorn", "chat_api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the Python script directly
+CMD ["python", "chat_api.py"]
