@@ -109,12 +109,16 @@ def channel_created(data):
                     'channelId': channel_id,
                     'messageId': f"msg_{uuid4()}",
                     'message': {
+                        'id': f"msg_{uuid4()}",
                         'content': "Hello! I'm Mr. Robot, your AI assistant. How can I help you today?",
                         'channelId': channel_id,
+                        'createdAt': datetime.utcnow().isoformat(),
                         'author': {
                             'id': bot_id,
-                            'name': "Mr. Robot"
-                        }
+                            'name': "Mr. Robot",
+                            'imageUrl': None
+                        },
+                        'reactions': []
                     }
                 }
                 sio.emit('message', welcome_msg)
@@ -202,7 +206,7 @@ def message(data):
                             'name': "Mr. Robot",
                             'imageUrl': None
                         },
-                        'reactions': []  # Required by Message type
+                        'reactions': []
                     }
                 }
                 

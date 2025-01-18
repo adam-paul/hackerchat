@@ -451,8 +451,9 @@ export const handleCreateDM = async (
         updatedAt: existingDM.updatedAt.toISOString()
       };
 
-      // Emit to sender only since this is just a fetch
+      // Emit to both participants
       socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+      socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
       return {
         success: true,
@@ -495,10 +496,8 @@ export const handleCreateDM = async (
       updatedAt: channel.updatedAt.toISOString()
     };
 
-    // Emit to sender
+    // Emit to both participants
     socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-
-    // Broadcast to the other participant
     socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
     return {
