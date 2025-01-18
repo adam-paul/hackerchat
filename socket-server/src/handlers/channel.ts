@@ -421,20 +421,29 @@ export const handleCreateDM = async (
 
     const isBot = participant.id.startsWith('bot_');
 
-    // For bot DMs, check for existing channel with this specific user
-    // For regular DMs, check for any channel between the two users
+    // For bot DMs, check for existing channel with exactly these two participants
     const existingDM = await prisma.channel.findFirst({
-      where: isBot ? {
-        type: 'DM',
-        creatorId: socket.data.userId,
-        participants: {
-          some: { id: participant.id }
-        }
-      } : {
+      where: {
         type: 'DM',
         AND: [
-          { participants: { some: { id: socket.data.userId } } },
-          { participants: { some: { id: participant.id } } }
+          {
+            participants: {
+              every: {
+                id: {
+                  in: [socket.data.userId, participant.id]
+                }
+              }
+            }
+          },
+          {
+            participants: {
+              none: {
+                id: {
+                  notIn: [socket.data.userId, participant.id]
+                }
+              }
+            }
+          }
         ]
       },
       include: {
@@ -478,7 +487,8 @@ export const handleCreateDM = async (
     // Create new DM channel
     const channel = await prisma.channel.create({
       data: {
-        name: participant.name || 'Unknown User',
+        // For bot DMs, always use the bot's name
+        name: isBot ? (participant.name || 'Bot') : `DM with ${participant.name || 'Unknown User'}`,
         type: 'DM',
         creatorId: socket.data.userId,
         participants: {

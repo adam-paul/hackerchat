@@ -1,3 +1,4 @@
+// src/components/ui/ChatSection.tsx
 'use client';
 
 import React, { useMemo } from 'react';
