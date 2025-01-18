@@ -461,9 +461,9 @@ export const handleCreateDM = async (
       updatedAt: channel.updatedAt.toISOString()
     };
 
-    // Always emit to both participants, even for bot DMs
+    // For bot DMs, broadcast to all sockets to ensure the bot receives it
     socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-    socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+    socket.broadcast.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
     return {
       success: true,
