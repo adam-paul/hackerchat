@@ -83,18 +83,46 @@ def connect_error(data):
 @sio.event
 def channel_created(data):
     """Handle new channel creation - join if we're a participant."""
-    print(f"[SOCKET] Channel created: {data}")
+    print(f"[SOCKET] Channel created event received: {data}")
     try:
         channel = data.get('channel', {})
-        if channel.get('type') == 'DM':
-            participants = channel.get('participants', [])
-            # Check if we're a participant
-            if any(p.get('id') == bot_id for p in participants):
-                channel_id = channel.get('id')
+        channel_id = channel.get('id')
+        channel_type = channel.get('type')
+        participants = channel.get('participants', [])
+        
+        print(f"[SOCKET] Processing channel: id={channel_id}, type={channel_type}")
+        
+        # For DM channels, check if we're a participant
+        if channel_type == 'DM':
+            is_participant = any(p.get('id') == bot_id for p in participants)
+            print(f"[SOCKET] DM channel check - Bot {bot_id} is participant: {is_participant}")
+            
+            if is_participant:
                 print(f"[SOCKET] Joining DM channel: {channel_id}")
+                # Join the channel room
                 sio.emit('join-channel', channel_id)
+                print(f"[SOCKET] Join request sent for channel: {channel_id}")
+                
+                # Also emit a ready message to the channel
+                welcome_msg = {
+                    'type': 'message',
+                    'channelId': channel_id,
+                    'messageId': f"msg_{uuid4()}",
+                    'message': {
+                        'content': "Hello! I'm Mr. Robot, your AI assistant. How can I help you today?",
+                        'channelId': channel_id,
+                        'author': {
+                            'id': bot_id,
+                            'name': "Mr. Robot"
+                        }
+                    }
+                }
+                sio.emit('message', welcome_msg)
+                print(f"[SOCKET] Welcome message sent to channel: {channel_id}")
     except Exception as e:
-        print(f"[SOCKET] Error handling channel creation: {e}")
+        print(f"[SOCKET] Error handling channel creation: {str(e)}")
+        print("[SOCKET] Error traceback:")
+        traceback.print_exc()
 
 @sio.event
 def message(data):
