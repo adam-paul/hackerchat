@@ -48,7 +48,7 @@ export function SearchBar({
 
   const handleResultClick = (messageId: string) => {
     onResultClick(messageId);
-    onClear();
+    setTimeout(() => onClear(), 2000);
   };
 
   return (

@@ -270,7 +270,7 @@ export const MessageComponent = React.memo(function MessageComponent({
     <div
       ref={messageRef}
       className={`mb-4 transition-colors duration-300 rounded-lg p-2 hover:bg-zinc-700/10 ${
-        isHighlighted ? 'bg-red-500' : ''
+        isHighlighted ? 'bg-zinc-700/30' : ''
       }`}
       onContextMenu={handleContextMenu}
     >
