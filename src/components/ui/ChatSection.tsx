@@ -31,17 +31,15 @@ export function ChatSection({
   const selectedChannelId = useChannelStore(state => state.selectedChannelId);
   const selectChannel = useChannelStore(state => state.selectChannel);
 
-  // Memoize DM channel filtering and bot users
-  const { dmChannelsWithNames, botUsers } = useMemo(() => {
+  // Memoize DM channels and available bot users
+  const { dmChannels, availableBots } = useMemo(() => {
     // Get DM channels
-    const dmChannels = channels.filter(c => c.type === "DM");
-    const dmWithNames = dmChannels.map(channel => {
+    const dmChannels = channels.filter(c => c.type === "DM").map(channel => {
       const otherParticipant = channel.participants?.find(p => p.id !== userId);
-      const isBot = otherParticipant?.id.startsWith('bot_');
-      
       return {
         ...channel,
-        displayName: isBot ? channel.name : (otherParticipant?.name || 'Unknown User')
+        displayName: otherParticipant?.name || 'Unknown User',
+        isBot: otherParticipant?.id.startsWith('bot_')
       };
     });
 
@@ -54,10 +52,7 @@ export function ChatSection({
       user.id.startsWith('bot_') && !existingDmUserIds.has(user.id)
     );
 
-    return { 
-      dmChannelsWithNames: dmWithNames,
-      botUsers: bots
-    };
+    return { dmChannels, availableBots: bots };
   }, [channels, users, userId]);
 
   if (isSidebarCollapsed) return null;
@@ -85,42 +80,44 @@ export function ChatSection({
 
       {!isCollapsed && (
         <div className="space-y-1 text-sm overflow-y-auto overflow-x-hidden">
-          {/* Bot Users */}
-          {botUsers.map(bot => (
+          {/* Bot Users (both existing DMs and available bots) */}
+          {[...dmChannels.filter(c => c.isBot), ...availableBots.map(bot => ({
+            id: bot.id,
+            displayName: bot.name,
+            isBot: true,
+            isAvailable: true
+          }))].map(item => (
             <button
-              key={bot.id}
+              key={item.id}
               onClick={() => {
-                if (socket) {
-                  socket.createDM(bot.id);
+                if ('isAvailable' in item && socket) {
+                  socket.createDM(item.id);
+                } else {
+                  selectChannel(item.id);
                 }
               }}
-              className="w-full text-left px-2 py-1 hover:text-zinc-200 transition-colors text-zinc-400 flex items-center gap-2"
+              className={`w-full text-left px-2 py-1 hover:text-zinc-200 transition-colors flex items-center gap-2 ${
+                selectedChannelId === item.id ? 'text-zinc-200' : 'text-zinc-400'
+              }`}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2" />
                 <path d="M8 11.5v1a3.5 3.5 0 0 0 7 0v-1" />
                 <path d="M7 10h.01M17 10h.01" />
               </svg>
-              {bot.name}
+              {item.displayName}
             </button>
           ))}
 
-          {/* Existing DM Channels */}
-          {dmChannelsWithNames.map(channel => (
+          {/* Regular DM Channels */}
+          {dmChannels.filter(c => !c.isBot).map(channel => (
             <button
               key={channel.id}
               onClick={() => selectChannel(channel.id)}
-              className={`w-full text-left px-2 py-1 hover:text-zinc-200 transition-colors flex items-center gap-2 ${
+              className={`w-full text-left px-2 py-1 hover:text-zinc-200 transition-colors ${
                 selectedChannelId === channel.id ? 'text-zinc-200' : 'text-zinc-400'
               }`}
             >
-              {channel.participants?.some(p => p.id.startsWith('bot_')) && (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2" />
-                  <path d="M8 11.5v1a3.5 3.5 0 0 0 7 0v-1" />
-                  <path d="M7 10h.01M17 10h.01" />
-                </svg>
-              )}
               {channel.displayName}
             </button>
           ))}

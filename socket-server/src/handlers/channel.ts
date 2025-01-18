@@ -419,17 +419,9 @@ export const handleCreateDM = async (
       throw new Error('Participant not found');
     }
 
-    const isBot = participant.id.startsWith('bot_');
-
-    // For bot DMs, create a unique channel for each user
+    // Check if a DM channel already exists between these users
     const existingDM = await prisma.channel.findFirst({
-      where: isBot ? {
-        type: 'DM',
-        creatorId: socket.data.userId,
-        participants: {
-          some: { id: participant.id }
-        }
-      } : {
+      where: {
         type: 'DM',
         AND: [
           { participants: { some: { id: socket.data.userId } } },
@@ -459,14 +451,9 @@ export const handleCreateDM = async (
         updatedAt: existingDM.updatedAt.toISOString()
       };
 
-      // For bot DMs, only emit to the user
-      if (isBot) {
-        socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-      } else {
-        // For regular DMs, emit to both participants
-        socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-        socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-      }
+      // Emit to both participants
+      socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+      socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
       return {
         success: true,
@@ -475,11 +462,9 @@ export const handleCreateDM = async (
     }
 
     // Create new DM channel
-    const channelName = isBot ? (participant.name || 'Bot') : `DM with ${participant.name || 'User'}`;
-
     const channel = await prisma.channel.create({
       data: {
-        name: channelName,
+        name: participant.name || 'Unknown User',
         type: 'DM',
         creatorId: socket.data.userId,
         participants: {
@@ -511,14 +496,9 @@ export const handleCreateDM = async (
       updatedAt: channel.updatedAt.toISOString()
     };
 
-    // For bot DMs, only emit to the user
-    if (isBot) {
-      socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-    } else {
-      // For regular DMs, emit to both participants
-      socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-      socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-    }
+    // Emit to both participants
+    socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+    socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
     return {
       success: true,
