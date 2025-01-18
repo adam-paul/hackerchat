@@ -35,10 +35,15 @@ export function ChatSection({
   const { dmChannelsWithNames, botUsers } = useMemo(() => {
     // Get DM channels
     const dmChannels = channels.filter(c => c.type === "DM");
-    const dmWithNames = dmChannels.map(channel => ({
-      ...channel,
-      displayName: channel.participants?.find(p => p.id !== userId)?.name || 'Unknown User'
-    }));
+    const dmWithNames = dmChannels.map(channel => {
+      const otherParticipant = channel.participants?.find(p => p.id !== userId);
+      const isBot = otherParticipant?.id.startsWith('bot_');
+      
+      return {
+        ...channel,
+        displayName: isBot ? channel.name : (otherParticipant?.name || 'Unknown User')
+      };
+    });
 
     // Get bot users that don't have DM channels yet
     const existingDmUserIds = new Set(dmChannels.flatMap(c => 

@@ -462,9 +462,12 @@ export const handleCreateDM = async (
     }
 
     // Create new DM channel
+    const isBot = participant.id.startsWith('bot_');
+    const channelName = isBot ? (participant.name || 'Bot') : `DM with ${participant.name || 'User'}`;
+
     const channel = await prisma.channel.create({
       data: {
-        name: `DM with ${participant.name || 'User'}`,
+        name: channelName,
         type: 'DM',
         creatorId: socket.data.userId,
         participants: {
