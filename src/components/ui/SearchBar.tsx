@@ -21,6 +21,7 @@ export function SearchBar({
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevSelectedMessageIdRef = useRef<string | null>(selectedMessageId);
 
   const clearSearch = useCallback(() => {
     setSearchQuery('');
@@ -64,10 +65,11 @@ export function SearchBar({
   }, [clearSearch]);
 
   useEffect(() => {
-    if (!selectedMessageId && searchQuery) {
+    if (prevSelectedMessageIdRef.current && !selectedMessageId) {
       clearSearch();
     }
-  }, [selectedMessageId, searchQuery, clearSearch]);
+    prevSelectedMessageIdRef.current = selectedMessageId;
+  }, [selectedMessageId, clearSearch]);
 
   const handleResultClick = (messageId: string) => {
     onResultClick(messageId);
