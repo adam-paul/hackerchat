@@ -115,6 +115,8 @@ export function HomeUI() {
 
   const handleSearchResultClick = (messageId: string) => {
     setSelectedMessageId(messageId);
+    setHighlightedMessage(messageId);
+    setTimeout(() => setHighlightedMessage(null), 2000);
   };
 
   // Socket event handlers
