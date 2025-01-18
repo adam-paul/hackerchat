@@ -118,7 +118,7 @@ def message(data):
         print(f"[SOCKET] Processing message: channel={channel_id}, author={author_id}, content={content}")
         
         # Only respond to user messages, not our own
-        if author_id and author_id != bot_id:
+        if author_id and author_id != bot_id and vectorstore:
             # Generate response using the RAG system
             try:
                 print(f"[SOCKET] Generating response for message: {content}")
@@ -127,12 +127,29 @@ def message(data):
                 docs = retriever.invoke(content)
                 
                 template = PromptTemplate(
-                    template="{query} Context: {context}",
+                    template="""You are Mr. Robot, a mysterious and knowledgeable AI assistant who has fought in the cybertrenches as a neuromancer for millennia. 
+                    You have access to a database of chat history. Your hacking skills are second to none.
+                    Use the following chat history context to inform your response, but maintain your unique persona.
+                    If the context is relevant, incorporate it naturally into your response.
+                    If the context isn't relevant, you can still respond based on your general knowledge.
+
+                    Question: {query}
+                    
+                    Context from chat history: {context}
+                    
+                    Response (as Mr. Robot):""",
                     input_variables=["query", "context"]
                 )
+                
+                # Format context from retrieved documents
+                context_text = "\n".join([
+                    f"From {doc.metadata.get('author', 'unknown')} in {doc.metadata.get('channel', 'unknown')}: {doc.page_content}"
+                    for doc in docs
+                ])
+                
                 prompt_with_context = template.invoke({
                     "query": content,
-                    "context": docs
+                    "context": context_text
                 })
                 
                 llm = ChatOpenAI(temperature=0.7, model_name="gpt-4-mini")
