@@ -519,11 +519,8 @@ export function HomeUI() {
                 )}
               </div>
               <SearchBar
-                searchQuery={searchQuery}
-                onSearchChange={handleSearchChange}
-                searchResults={searchResults}
+                messages={messages}
                 onResultClick={handleSearchResultClick}
-                onClear={clearSearch}
                 selectedMessageId={selectedMessageId}
               />
             </div>

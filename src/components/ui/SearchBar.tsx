@@ -1,41 +1,56 @@
 // src/components/ui/SearchBar.tsx
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Message } from '@/types';
 import { Fira_Code } from 'next/font/google';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 interface SearchBarProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  searchResults: Message[];
+  messages: Message[];
   onResultClick: (messageId: string) => void;
-  onClear: () => void;
   selectedMessageId: string | null;
 }
 
 export function SearchBar({ 
-  searchQuery, 
-  onSearchChange, 
-  searchResults, 
+  messages,
   onResultClick,
-  onClear,
   selectedMessageId
 }: SearchBarProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+  }, []);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const results = messages.filter(message => 
+      message.content.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    setSearchResults(results.slice(0, 3));
+  }, [messages]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        onClear();
+        clearSearch();
       }
     }
 
     function handleEscKey(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        onClear();
+        clearSearch();
         inputRef.current?.blur();
       }
     }
@@ -46,13 +61,13 @@ export function SearchBar({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscKey);
     };
-  }, [onClear]);
+  }, [clearSearch]);
 
   useEffect(() => {
     if (!selectedMessageId && searchQuery) {
-      onClear();
+      clearSearch();
     }
-  }, [selectedMessageId, searchQuery, onClear]);
+  }, [selectedMessageId, searchQuery, clearSearch]);
 
   const handleResultClick = (messageId: string) => {
     onResultClick(messageId);
@@ -65,7 +80,7 @@ export function SearchBar({
           ref={inputRef}
           type="text"
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search messages..."
           className={`${firaCode.className} w-48 px-3 py-2 text-sm bg-zinc-800 text-zinc-200 rounded focus:outline-none focus:ring-2 focus:ring-[#00b300]`}
         />

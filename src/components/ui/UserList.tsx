@@ -34,11 +34,6 @@ const UserItem = React.memo(({ user }: { user: User }) => {
 
 export const UserList = React.memo(function UserList({ className = '', isCollapsed, onToggleCollapse }: UserListProps) {
   const { users } = useUsers();
-  console.log('UserList rendering with users:', users);
-
-  useEffect(() => {
-    console.log('UserList received updated users:', users);
-  }, [users]);
 
   // Separate and sort users by online status
   const { onlineUsers, offlineUsers } = useMemo(() => {
@@ -47,9 +42,23 @@ export const UserList = React.memo(function UserList({ className = '', isCollaps
     const online = users.filter(user => user.status !== 'offline').sort(sortByName);
     const offline = users.filter(user => user.status === 'offline').sort(sortByName);
     
-    console.log('UserList categorized users:', { online, offline });
     return { onlineUsers: online, offlineUsers: offline };
   }, [users]);
+
+  if (isCollapsed) {
+    return (
+      <button
+        onClick={onToggleCollapse}
+        className={`text-zinc-400 hover:text-zinc-200 transition-colors ${className}`}
+        aria-label="Show users"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </button>
+    );
+  }
 
   return (
     <div className={`${firaCode.className} ${className} flex flex-col transition-all duration-300 overflow-x-hidden`} style={{ width: isCollapsed ? '24px' : '256px' }}>
