@@ -6,6 +6,9 @@ import psycopg2
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
+import socketio
+from uuid import uuid4
+from datetime import datetime
 
 # LangChain & Pinecone imports
 from langchain.schema import Document
@@ -14,8 +17,9 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_pinecone import PineconeVectorStore
 from langchain.prompts.prompt import PromptTemplate
 
-# Initialize FastAPI app
+# Initialize FastAPI app and Socket.IO client
 app = FastAPI(title="HackerChat RAG API")
+sio = socketio.Client()
 
 # -------------------------------------------
 # 0. Load environment variables
@@ -37,10 +41,26 @@ PINECONE_ENV = os.getenv("PINECONE_ENV", "us-west1-gcp")
 os.environ["LANGCHAIN_TRACING_V2"] = LANGCHAIN_TRACING_V2
 os.environ["LANGCHAIN_PROJECT"] = LANGCHAIN_PROJECT
 
-# Global vectorstore instance and initialization flag
+# Global variables
 vectorstore = None
 is_initialized = False
-initialization_lock = None  # Will be used to coordinate initialization
+initialization_lock = None
+bot_id = "bot_mr_robot"  # This should match what was created by create_robot.py
+
+# Socket.IO event handlers
+@sio.event
+def connect():
+    print("Connected to socket server")
+    # Join the bot's channels
+    sio.emit('join-channel', bot_id)
+
+@sio.event
+def disconnect():
+    print("Disconnected from socket server")
+
+@sio.event
+def connect_error(data):
+    print(f"Connection error: {data}")
 
 # -------------------------------------------
 # 1. Fetch messages from the Postgres database
@@ -189,7 +209,7 @@ class AskResponse(BaseModel):
 # -------------------------------------------
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the vector store on startup."""
+    """Initialize the vector store and socket connection on startup."""
     global vectorstore, is_initialized, initialization_lock
     from asyncio import Lock
     
@@ -204,11 +224,31 @@ async def startup_event():
             documents = create_documents_from_messages(rows)
             chunked_docs = split_documents(documents)
             vectorstore = create_or_load_vectorstore(chunked_docs)
+            
+            # Connect to socket server
+            try:
+                socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
+                print(f"Connecting to socket server at {socket_url}...")
+                sio.connect(socket_url, auth={
+                    "userId": bot_id,
+                    "userName": "Mr. Robot",
+                    "imageUrl": None
+                })
+            except Exception as e:
+                print(f"Failed to connect to socket server: {e}")
+                # Don't raise here - we can still function without real-time updates
+            
             is_initialized = True
-            print("Vector store initialization complete")
+            print("Initialization complete")
         except Exception as e:
-            print(f"Failed to initialize vector store: {e}")
+            print(f"Failed to initialize: {e}")
             raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    if sio.connected:
+        sio.disconnect()
 
 @app.post("/ask", response_model=AskResponse)
 async def ask_endpoint(req_body: AskRequest):
@@ -240,8 +280,25 @@ async def ask_endpoint(req_body: AskRequest):
     # 3) Get LLM response
     llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini")
     llm_response = llm.invoke(prompt_with_context)
+    
+    # 4) If we're connected to the socket server, send the response in real-time
+    if sio.connected:
+        message_id = f"msg_{uuid4()}"
+        sio.emit('message', {
+            'type': 'message',
+            'messageId': message_id,
+            'channelId': req_body.channelId,
+            'message': {
+                'content': llm_response.content,
+                'author': {
+                    'id': bot_id,
+                    'name': "Mr. Robot",
+                    'imageUrl': None
+                }
+            }
+        })
 
-    # 4) Format and return response
+    # 5) Return response
     return AskResponse(
         answer=llm_response.content,
         retrieved_docs=[
@@ -260,6 +317,7 @@ async def health_check():
     """Simple health check endpoint that also reports initialization status."""
     return {
         "status": "healthy",
-        "initialized": is_initialized
+        "initialized": is_initialized,
+        "socket_connected": sio.connected
     }
 
