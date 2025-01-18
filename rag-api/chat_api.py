@@ -8,10 +8,6 @@ import socketio
 from uuid import uuid4
 from datetime import datetime
 import traceback
-import queue
-import time
-from threading import Lock, Thread
-from typing import Dict, Optional
 
 # LangChain & Pinecone imports
 from langchain.schema import Document
@@ -22,12 +18,6 @@ from langchain.prompts.prompt import PromptTemplate
 
 # Initialize Socket.IO client
 sio = socketio.Client(logger=True, engineio_logger=True)
-
-# Message queue and rate limiting
-message_queue = queue.Queue()
-rate_limit_lock = Lock()
-last_message_time: Dict[str, float] = {}  # channel_id -> timestamp
-MIN_MESSAGE_DELAY = 1.0  # Minimum seconds between messages per channel
 
 # -------------------------------------------
 # 0. Load environment variables
@@ -61,7 +51,6 @@ bot_id = "bot_mr_robot"  # This should match what was created by create_robot.py
 def connect():
     print("[SOCKET] Connected to socket server")
     print(f"[SOCKET] Bot {bot_id} ready for DM connections")
-    join_existing_dm_channels()
 
 @sio.event
 def disconnect():
@@ -94,35 +83,16 @@ def connect_error(data):
 @sio.event
 def channel_created(data):
     """Handle new channel creation - join if we're a participant."""
-    try:
-        print(f"[SOCKET] Channel created event received: {data}")
-        channel_id = data.get("channelId")
-        participants = data.get("participants", [])
-        
-        # Join if bot is a participant
-        if bot_id in [p.get("id") for p in participants]:
-            print(f"[SOCKET] Joining channel {channel_id}")
-            sio.emit("join_channel", {"channelId": channel_id})
-    except Exception as e:
-        print(f"[ERROR] Failed to handle channel creation: {str(e)}")
-        traceback.print_exc()
+    print(f"[SOCKET] Channel created event received: {data}")
+    # Temporarily disabled bot chat functionality
+    return
 
 @sio.event
 def message(data):
-    """Handle incoming messages by adding them to the processing queue."""
-    try:
-        print(f"[SOCKET] Received message event: {data}")
-        
-        # Ignore messages from the bot itself
-        if data.get("authorId") == bot_id:
-            return
-            
-        # Add message to processing queue
-        message_queue.put(data)
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to handle message: {str(e)}")
-        traceback.print_exc()
+    """Handle incoming messages."""
+    print(f"[SOCKET] Received message event: {data}")
+    # Temporarily disabled bot chat functionality
+    return
 
 @sio.event
 def message_delivered(data):
@@ -177,33 +147,8 @@ def fetch_messages_from_db():
 
 def join_existing_dm_channels():
     """Join all DM channels where the bot is a participant."""
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-        
-        # Find all channels where bot is a participant
-        query = """
-            SELECT c.id 
-            FROM "Channel" c
-            JOIN "_ChannelToUser" cu ON c.id = cu."A"
-            WHERE cu."B" = %s
-        """
-        cursor.execute(query, (bot_id,))
-        channels = cursor.fetchall()
-        
-        # Join each channel
-        for (channel_id,) in channels:
-            print(f"[INIT] Joining existing channel {channel_id}")
-            sio.emit("join_channel", {"channelId": channel_id})
-            
-        return True
-    except Exception as e:
-        print(f"[ERROR] Failed to join existing channels: {str(e)}")
-        traceback.print_exc()
-        return False
-    finally:
-        if 'conn' in locals():
-            conn.close()
+    print("[INIT] Joining existing DM channels temporarily disabled")
+    return True
 
 # -------------------------------------------
 # 2. Convert DB rows into LangChain Documents
@@ -288,115 +233,6 @@ def create_or_load_vectorstore(documents):
     )
 
 # -------------------------------------------
-# 5. RAG Response Generation
-# -------------------------------------------
-def generate_rag_response(query: str, channel_id: str) -> Optional[str]:
-    """Generate a response using RAG with rate limiting."""
-    global vectorstore
-    
-    try:
-        # Check rate limiting
-        with rate_limit_lock:
-            current_time = time.time()
-            if channel_id in last_message_time:
-                time_since_last = current_time - last_message_time[channel_id]
-                if time_since_last < MIN_MESSAGE_DELAY:
-                    time.sleep(MIN_MESSAGE_DELAY - time_since_last)
-            last_message_time[channel_id] = time.time()
-        
-        if not vectorstore:
-            return "I'm still initializing my knowledge base. Please try again in a moment."
-            
-        # Get relevant documents
-        docs = vectorstore.similarity_search(query, k=3)
-        
-        if not docs:
-            return "I couldn't find any relevant information to help answer your question."
-            
-        # Construct context from documents
-        context = "\n\n".join([
-            f"Context {i+1}:\n{doc.page_content}" 
-            for i, doc in enumerate(docs)
-        ])
-        
-        # Create chat completion
-        llm = ChatOpenAI(
-            model="gpt-4-turbo-preview",
-            temperature=0.7,
-            api_key=LANGCHAIN_API_KEY
-        )
-        
-        prompt = PromptTemplate(
-            template="""You are Mr. Robot, a helpful and knowledgeable AI assistant.
-            Use the following context to answer the question. If you cannot answer
-            based on the context, say so.
-            
-            {context}
-            
-            Question: {query}
-            
-            Answer as Mr. Robot:""",
-            input_variables=["context", "query"]
-        )
-        
-        # Generate response
-        response = llm.invoke(prompt.format(context=context, query=query))
-        return response.content
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to generate response: {str(e)}")
-        traceback.print_exc()
-        return "I encountered an error while processing your message. Please try again."
-
-def process_message_queue():
-    """Background worker to process messages from the queue."""
-    while True:
-        try:
-            # Get message from queue
-            message_data = message_queue.get()
-            if not message_data:
-                continue
-                
-            channel_id = message_data.get("channelId")
-            content = message_data.get("content", "").strip()
-            message_id = message_data.get("messageId", f"msg_{uuid4()}")
-            
-            if not content or not channel_id:
-                continue
-            
-            # Generate response
-            response = generate_rag_response(content, channel_id)
-            if not response:
-                continue
-                
-            # Format response for socket server
-            response_data = {
-                "channelId": channel_id,
-                "content": response,
-                "messageId": f"msg_{uuid4()}",
-                "authorId": bot_id,
-                "author": {
-                    "id": bot_id,
-                    "name": "Mr. Robot",
-                    "imageUrl": None  # Bot avatar could be added here
-                },
-                "createdAt": datetime.utcnow().isoformat()
-            }
-            
-            print(f"[BOT] Sending response: {response_data}")
-            sio.emit("message", response_data)
-            
-        except Exception as e:
-            print(f"[ERROR] Message processing error: {str(e)}")
-            traceback.print_exc()
-        finally:
-            message_queue.task_done()
-
-# Start message processing thread
-message_processor = Thread(target=process_message_queue, daemon=True)
-message_processor.start()
-
-# -------------------------------------------
 # Main initialization and startup
 # -------------------------------------------
 def main():
@@ -416,15 +252,8 @@ def main():
         for var in required_vars:
             print(f"[INIT] Checking {var}... {'✓' if os.getenv(var) else '✗'}")
         
-        # Initialize vectorstore
-        print("[INIT] Fetching messages from database...")
-        rows = fetch_messages_from_db()
-        
-        print("[INIT] Creating documents...")
-        documents = create_documents_from_messages(rows)
-        
-        print("[INIT] Creating vectorstore...")
-        vectorstore = create_or_load_vectorstore(documents)
+        # Temporarily disabled message fetching and vectorstore initialization
+        print("[INIT] Message processing temporarily disabled")
         
         # Connect to socket server
         socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
