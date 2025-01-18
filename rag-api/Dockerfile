@@ -16,8 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Make script executable
-RUN chmod +x chat_api.py
-
 # Run the Python script directly
-CMD ["./chat_api.py"]
+CMD ["python", "chat_api.py"]
