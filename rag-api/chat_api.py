@@ -151,12 +151,14 @@ def message(data):
         
         # Only respond to user messages, not our own
         if author_id and author_id != bot_id and vectorstore:
+            print(f"[SOCKET] Valid user message received, generating response...")
             # Generate response using the RAG system
             try:
-                print(f"[SOCKET] Generating response for message: {content}")
+                print(f"[SOCKET] Using vectorstore to get context for: {content}")
                 # Use the existing vectorstore to get context and generate response
                 retriever = vectorstore.as_retriever()
                 docs = retriever.invoke(content)
+                print(f"[SOCKET] Retrieved {len(docs)} relevant documents")
                 
                 template = PromptTemplate(
                     template="""You are Mr. Robot, a mysterious and knowledgeable AI assistant who has fought in the cybertrenches as a neuromancer for millennia. 
@@ -178,14 +180,17 @@ def message(data):
                     f"From {doc.metadata.get('author', 'unknown')} in {doc.metadata.get('channel', 'unknown')}: {doc.page_content}"
                     for doc in docs
                 ])
+                print(f"[SOCKET] Generated context from {len(docs)} documents")
                 
                 prompt_with_context = template.invoke({
                     "query": content,
                     "context": context_text
                 })
                 
+                print("[SOCKET] Calling LLM for response...")
                 llm = ChatOpenAI(temperature=0.7, model_name="gpt-4-mini")
                 llm_response = llm.invoke(prompt_with_context)
+                print("[SOCKET] Received LLM response")
                 
                 # Send response through socket
                 message_id = f"msg_{uuid4()}"
@@ -210,8 +215,9 @@ def message(data):
                     }
                 }
                 
-                print(f"[SOCKET] Sending response: {message_event}")
+                print(f"[SOCKET] Sending response to channel {channel_id}")
                 sio.emit('message', message_event)
+                print("[SOCKET] Response sent successfully")
                 
             except Exception as e:
                 print(f"[SOCKET] Error generating/sending response: {e}")
@@ -220,6 +226,13 @@ def message(data):
                     'type': type(e).__name__,
                     'trace': traceback.format_exc()
                 })
+        else:
+            if author_id == bot_id:
+                print("[SOCKET] Ignoring own message")
+            elif not author_id:
+                print("[SOCKET] Message missing author ID")
+            elif not vectorstore:
+                print("[SOCKET] Vectorstore not initialized")
     except Exception as e:
         print(f"[SOCKET] Error processing message: {e}")
         print(f"[SOCKET] Error details:", {
@@ -290,8 +303,8 @@ def join_existing_dm_channels():
         query = """
             SELECT c.id, c.name 
             FROM "Channel" c
-            JOIN "_ChannelToUser" cu ON c.id = cu."A"
-            WHERE cu."B" = %s AND c.type = 'DM'
+            JOIN "_ParticipantsToChannel" pc ON c.id = pc."B"
+            WHERE pc."A" = %s AND c.type = 'DM'
         """
         cursor.execute(query, (bot_id,))
         channels = cursor.fetchall()
@@ -323,6 +336,7 @@ def join_existing_dm_channels():
                 }
             }
             sio.emit('message', message_event)
+            print(f"[SOCKET] Sent reconnection message to channel: {channel_id}")
         
         return True
     except Exception as e:
