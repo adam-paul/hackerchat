@@ -66,7 +66,10 @@ export const EVENTS = {
   
   // Typing events
   TYPING_START: 'typing-start' as const,
-  TYPING_STOP: 'typing-stop' as const
+  TYPING_STOP: 'typing-stop' as const,
+  
+  // Bot events
+  REGISTER_BOT: 'register-bot' as const,
 } as const;
 
 export type SocketEvents = typeof EVENTS[keyof typeof EVENTS];

@@ -280,7 +280,7 @@ def main():
     vectorstore = create_or_load_vectorstore(chunked_docs)
     retriever = vectorstore.as_retriever()
     # 5) Initialize LLM
-    llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini")
+    llm = ChatOpenAI(temperature=0.7, model_name="gpt-4o-mini") # DO NOT CHANGE THIS
 
     # 6) Connect to Socket.IO
     socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
@@ -291,17 +291,19 @@ def main():
             socket_url,
             auth={
                 "token": secret,
-                "userId": bot_id,
-                "userName": "mr_robot",
-                "status": "online"  # Add status to match regular clients
+                "type": "webhook"  # This is required for webhook authentication
             },
             transports=["websocket"],
             wait_timeout=10
         )
         
-        # After connection, explicitly join our user room
-        sio.emit("join-user", bot_id)
-        print(f"[SOCKET] Joined user room {bot_id}")
+        # After connection, register our bot ID
+        sio.emit("register-bot", {
+            "botId": bot_id,
+            "name": "Mr. Robot",
+            "status": "online"
+        })
+        print(f"[SOCKET] Registered bot with ID {bot_id}")
         
     except Exception as e:
         print(f"[ERROR] Could not connect to socket server: {e}")

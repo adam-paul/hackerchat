@@ -106,6 +106,45 @@ export const handleConnection = (socket: SocketType): void => {
     await handleStatusUpdate(socket, status);
   });
 
+  // Bot registration event
+  socket.on(EVENTS.REGISTER_BOT, async (data: { botId: string, name: string, status: string }) => {
+    try {
+      // Update or create bot user
+      const bot = await prisma.user.upsert({
+        where: { id: data.botId },
+        update: { 
+          name: data.name,
+          status: data.status as 'online' | 'away' | 'busy' | 'offline'
+        },
+        create: {
+          id: data.botId,
+          name: data.name,
+          status: data.status as 'online' | 'away' | 'busy' | 'offline'
+        }
+      });
+
+      // Broadcast bot's status to all clients
+      socket.broadcast.emit('status-changed', {
+        userId: bot.id,
+        status: bot.status,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`[BOT_REGISTERED] Bot ${bot.name} (${bot.id}) registered with status ${bot.status}`);
+    } catch (error) {
+      console.error('[BOT_REGISTER_ERROR]', {
+        error,
+        botData: data,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      socket.emit(EVENTS.ERROR, {
+        error: error instanceof Error ? error.message : 'Failed to register bot',
+        code: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   // Typing events
   socket.on(EVENTS.TYPING_START, async (channelId: string) => {
     await handleTyping(socket, { channelId, isTyping: true });
