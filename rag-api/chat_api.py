@@ -95,15 +95,17 @@ def create_documents_from_messages(rows):
         if not text_content.strip() and not file_url:
             continue
         
+        # Clean metadata to avoid null values
         meta = {
-            "channel": channel_name,
-            "author": author_name,
-            "timestamp": created_at.isoformat() if created_at else None,
-            "thread_id": thread_id,
-            "thread_name": thread_name,
-            "file_url": file_url,
-            "file_name": file_name
+            "channel": channel_name or "",
+            "author": author_name or "",
+            "timestamp": created_at.isoformat() if created_at else "",
+            "thread_id": thread_id or "",
+            "thread_name": thread_name or "",
+            "file_url": file_url or "",
+            "file_name": file_name or ""
         }
+        
         if file_url:
             text_content += f"\n[Attached file: {file_name or 'unnamed file'}]"
             
