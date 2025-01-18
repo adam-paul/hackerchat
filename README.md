@@ -42,6 +42,10 @@ A modern real-time chat application built with Next.js 14+.
 
 ## Project Structure
 
+This project uses a multi-service architecture, with the main app at the root directory
+`/`, a websocket service hosted on Railway at in `socket-service/`, and a RAG chatbot 
+API also on Railway in `rag-api`.
+
 ```
 chatgenius/
 ├── src/
