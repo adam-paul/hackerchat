@@ -461,14 +461,9 @@ export const handleCreateDM = async (
       updatedAt: channel.updatedAt.toISOString()
     };
 
-    // For bot DMs, only emit to the user
-    if (isBot) {
-      socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-    } else {
-      // For regular DMs, emit to both participants
-      socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-      socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-    }
+    // Always emit to both participants, even for bot DMs
+    socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
+    socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
 
     return {
       success: true,

@@ -221,6 +221,7 @@ def handle_incoming_message(data):
 def connect():
     """Handle socket connection."""
     print("[SOCKET] Connected to server as mr_robot")
+    print("[SOCKET] Registered event handlers:", sio.handlers)
 
 @sio.event
 def disconnect():
@@ -230,6 +231,7 @@ def disconnect():
 def on_channel_created(data):
     """Handle new channel creation."""
     try:
+        print(f"[SOCKET] Received channel-created event: {data}")
         channel_id = data.get("id")
         channel_type = data.get("type")
         participants = data.get("participants", [])
@@ -238,9 +240,15 @@ def on_channel_created(data):
         if channel_type == "DM" and any(p.get("id") == bot_id for p in participants):
             print(f"[SOCKET] Joining new DM channel {channel_id}")
             sio.emit("join-channel", channel_id)
+            print(f"[SOCKET] Emitted join-channel for {channel_id}")
     except Exception as e:
         print(f"[ERROR] Failed to process channel creation: {e}")
         traceback.print_exc()
+
+@sio.on("*")
+def catch_all(event, data):
+    """Debug handler to catch all events."""
+    print(f"[SOCKET] Caught event {event}: {data}")
 
 @sio.on("message")
 def on_message(data):
