@@ -279,6 +279,7 @@ def create_or_load_vectorstore(documents):
 # -------------------------------------------
 class AskRequest(BaseModel):
     question: str
+    channelId: str  # Add channelId field
 
 class DocumentInfo(BaseModel):
     channel: 'str | None'
