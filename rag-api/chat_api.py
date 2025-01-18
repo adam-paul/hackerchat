@@ -181,11 +181,12 @@ def handle_incoming_message(data):
     temp_message_id = f"temp_{int(time.time() * 1000)}"
 
     # Emit the response back via socket as a new message
-    # Use 'to' to send only to the specific user's socket
     response_payload = {
         "type": "message",
         "channelId": channel_id,
         "messageId": temp_message_id,
+        "isDM": True,  # Mark this as a DM message
+        "recipientId": user_id,  # Specify the recipient
         "message": {
             "content": answer,
             "channelId": channel_id,

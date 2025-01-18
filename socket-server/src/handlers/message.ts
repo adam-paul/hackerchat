@@ -91,6 +91,22 @@ export const handleMessage = async (
     // Validate message data
     const data = await validateEvent(messageSchema, messageData);
 
+    // Get channel type and participants
+    const channel = await prisma.channel.findUnique({
+      where: { id: data.channelId },
+      include: {
+        participants: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
     // Persist message to database with retries
     const dbMessage = await persistMessage(data, socket.data.userId);
 
@@ -116,7 +132,7 @@ export const handleMessage = async (
         ...(dbMessage.replyTo && {
           replyTo: {
             id: dbMessage.replyTo.id,
-            originalId: dbMessage.replyTo.originalId,  // Include the originalId from the referenced message
+            originalId: dbMessage.replyTo.originalId,
             content: dbMessage.replyTo.content,
             author: {
               id: dbMessage.replyTo.author.id,
@@ -124,14 +140,22 @@ export const handleMessage = async (
             }
           }
         }),
-        originalId: dbMessage.originalId,  // Include this message's originalId
+        originalId: dbMessage.originalId,
         threadId: dbMessage.threadId,
         threadName: dbMessage.threadName
       }
     };
 
-    // Broadcast message to channel
-    socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
+    if (channel.type === 'DM') {
+      // For DMs, only emit to the other participant
+      const otherParticipant = channel.participants.find(p => p.id !== socket.data.userId);
+      if (otherParticipant) {
+        socket.to(otherParticipant.id).emit(EVENTS.MESSAGE, messageEvent);
+      }
+    } else {
+      // For regular channels, broadcast to all participants
+      socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
+    }
 
     // Send delivery confirmation to sender with complete message data
     socket.emit(EVENTS.MESSAGE_DELIVERED, {
