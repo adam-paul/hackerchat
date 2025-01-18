@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import socketio
 from uuid import uuid4
 from datetime import datetime
+import traceback
 
 # LangChain & Pinecone imports
 from langchain.schema import Document
@@ -88,17 +89,23 @@ def message(data):
     """Handle incoming messages."""
     print(f"[SOCKET] Received message: {data}")
     
-    # Extract message data
-    if isinstance(data, dict) and 'message' in data:
-        message = data['message']
+    try:
+        # Extract message data - handle both direct messages and message events
+        message = data.get('message', data)
+        
+        # Validate message structure
+        if not isinstance(message, dict):
+            print(f"[SOCKET] Invalid message format: {message}")
+            return
+            
         channel_id = message.get('channelId')
         content = message.get('content', '')
         author = message.get('author', {})
         author_id = author.get('id', '')
         
         # Only respond to user messages, not our own
-        if author_id != bot_id:
-            # Generate response using the ask endpoint logic
+        if author_id and author_id != bot_id:
+            # Generate response using the RAG system
             try:
                 # Use the existing vectorstore to get context and generate response
                 retriever = vectorstore.as_retriever()
@@ -120,10 +127,11 @@ def message(data):
                 message_id = f"msg_{uuid4()}"
                 now = datetime.utcnow().isoformat()
                 
+                # Format message according to the MessageEvent type
                 message_event = {
                     'type': 'message',
-                    'messageId': message_id,
                     'channelId': channel_id,
+                    'messageId': message_id,
                     'message': {
                         'id': message_id,
                         'content': llm_response.content,
@@ -133,13 +141,28 @@ def message(data):
                             'id': bot_id,
                             'name': "Mr. Robot",
                             'imageUrl': None
-                        }
+                        },
+                        'reactions': []  # Required by Message type
                     }
                 }
+                
                 print(f"[SOCKET] Sending response: {message_event}")
                 sio.emit('message', message_event)
+                
             except Exception as e:
                 print(f"[SOCKET] Error generating/sending response: {e}")
+                print(f"[SOCKET] Error details:", {
+                    'error': str(e),
+                    'type': type(e).__name__,
+                    'trace': traceback.format_exc()
+                })
+    except Exception as e:
+        print(f"[SOCKET] Error processing message: {e}")
+        print(f"[SOCKET] Error details:", {
+            'error': str(e),
+            'type': type(e).__name__,
+            'trace': traceback.format_exc()
+        })
 
 @sio.event
 def message_delivered(data):
