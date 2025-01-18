@@ -18,6 +18,14 @@ export async function GET() {
       include: {
         _count: {
           select: { messages: true }
+        },
+        participants: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+            status: true
+          }
         }
       },
       orderBy: {
