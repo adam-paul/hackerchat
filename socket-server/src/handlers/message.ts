@@ -147,16 +147,9 @@ export const handleMessage = async (
       }
     };
 
-    if (isBot) {
-      // For bot DMs, only emit to the specific user in this channel
-      const userParticipant = channel.participants.find(p => p.id === socket.data.userId);
-      if (userParticipant) {
-        socket.to(userParticipant.id).emit(EVENTS.MESSAGE, messageEvent);
-      }
-    } else {
-      // For regular channels/DMs, broadcast to all in the channel
-      socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
-    }
+    // For both bot and non-bot DMs, broadcast to the channel room
+    // This works because each user has their own unique DM channel with the bot
+    socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
 
     // Send delivery confirmation to sender
     socket.emit(EVENTS.MESSAGE_DELIVERED, {
