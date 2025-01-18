@@ -40,6 +40,7 @@ os.environ["LANGCHAIN_PROJECT"] = LANGCHAIN_PROJECT
 # Global vectorstore instance and initialization flag
 vectorstore = None
 is_initialized = False
+initialization_lock = None  # Will be used to coordinate initialization
 
 # -------------------------------------------
 # 1. Fetch messages from the Postgres database
@@ -187,28 +188,48 @@ class AskResponse(BaseModel):
 # 6. FastAPI Routes and Startup
 # -------------------------------------------
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     """Initialize the vector store on startup."""
-    global vectorstore, is_initialized
-    try:
-        print("Initializing vector store...")
-        rows = fetch_messages_from_db()
-        documents = create_documents_from_messages(rows)
-        chunked_docs = split_documents(documents)
-        vectorstore = create_or_load_vectorstore(chunked_docs)
-        is_initialized = True
-        print("Vector store initialization complete")
-    except Exception as e:
-        print(f"Failed to initialize vector store: {e}")
-        raise
+    global vectorstore, is_initialized, initialization_lock
+    from asyncio import Lock
+    import asyncio
+    
+    # Create the lock
+    initialization_lock = Lock()
+    
+    # Run initialization in the background
+    async def initialize():
+        async with initialization_lock:
+            global vectorstore, is_initialized
+            try:
+                print("Initializing vector store...")
+                rows = fetch_messages_from_db()
+                documents = create_documents_from_messages(rows)
+                chunked_docs = split_documents(documents)
+                vectorstore = create_or_load_vectorstore(chunked_docs)
+                is_initialized = True
+                print("Vector store initialization complete")
+            except Exception as e:
+                print(f"Failed to initialize vector store: {e}")
+                raise
+    
+    # Create event loop and run initialization
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(initialize())
 
 @app.post("/ask", response_model=AskResponse)
 async def ask_endpoint(req_body: AskRequest):
     """Handle questions about chat history."""
-    global vectorstore, is_initialized
+    global vectorstore, is_initialized, initialization_lock
     
     if not is_initialized:
-        raise HTTPException(status_code=503, detail="Server is still initializing")
+        if initialization_lock:
+            async with initialization_lock:
+                if not is_initialized:
+                    raise HTTPException(status_code=503, detail="Server is still initializing")
+        else:
+            raise HTTPException(status_code=503, detail="Server initialization failed")
     
     # 1) Retrieve from vector store
     retriever = vectorstore.as_retriever()
