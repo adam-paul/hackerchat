@@ -228,9 +228,11 @@ def disconnect():
     print("[SOCKET] Disconnected from server")
 
 @sio.on("channel-created")
-def on_channel_created(data):
+def on_channel_created(*args):
     """Handle new channel creation."""
     try:
+        # The first argument is the data object
+        data = args[0] if args else {}
         print(f"[SOCKET] Received channel-created event: {data}")
         channel_id = data.get("id")
         channel_type = data.get("type")
@@ -246,13 +248,15 @@ def on_channel_created(data):
         traceback.print_exc()
 
 @sio.on("join-channel")
-def on_join_channel(data):
+def on_join_channel(*args):
     """Handle channel join confirmation."""
+    data = args[0] if args else {}
     print(f"[SOCKET] Successfully joined channel: {data}")
 
 @sio.on("error")
-def on_error(data):
+def on_error(*args):
     """Handle socket errors."""
+    data = args[0] if args else {}
     print(f"[SOCKET] Received error: {data}")
 
 @sio.on("*")
@@ -262,8 +266,9 @@ def catch_all(event, *args):
         print(f"[SOCKET] Caught event {event} with args: {args}")
 
 @sio.on("message")
-def on_message(data):
+def on_message(*args):
     """Handle incoming message events."""
+    data = args[0] if args else {}
     print(f"[SOCKET] Received message event: {data}")
     handle_incoming_message(data)
 
@@ -300,7 +305,7 @@ def main():
         # After connection, register our bot ID
         sio.emit("register-bot", {
             "botId": bot_id,
-            "name": "Mr. Robot",
+            "name": "mr_robot",
             "status": "online"
         })
         print(f"[SOCKET] Registered bot with ID {bot_id}")
