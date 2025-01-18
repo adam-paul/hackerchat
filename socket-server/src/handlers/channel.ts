@@ -421,74 +421,15 @@ export const handleCreateDM = async (
 
     const isBot = participant.id.startsWith('bot_');
 
-    // For bot DMs, check for existing channel with exactly these two participants
-    const existingDM = await prisma.channel.findFirst({
-      where: {
-        type: 'DM',
-        AND: [
-          {
-            participants: {
-              every: {
-                id: {
-                  in: [socket.data.userId, participant.id]
-                }
-              }
-            }
-          },
-          {
-            participants: {
-              none: {
-                id: {
-                  notIn: [socket.data.userId, participant.id]
-                }
-              }
-            }
-          }
-        ]
-      },
-      include: {
-        participants: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true,
-            status: true
-          }
-        }
-      }
-    });
-
-    if (existingDM) {
-      // Join the channel room
-      await socket.join(existingDM.id);
-      
-      // Format dates for socket emission
-      const formattedChannel = {
-        ...existingDM,
-        createdAt: existingDM.createdAt.toISOString(),
-        updatedAt: existingDM.updatedAt.toISOString()
-      };
-
-      // For bot DMs, only emit to the user
-      if (isBot) {
-        socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-      } else {
-        // For regular DMs, emit to both participants
-        socket.emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-        socket.to(participant.id).emit(EVENTS.CHANNEL_CREATED, formattedChannel);
-      }
-
-      return {
-        success: true,
-        data: existingDM
-      };
-    }
+    // For bot DMs, create a unique channel name that includes the user's ID
+    const channelName = isBot 
+      ? `${participant.name || 'Bot'}_${socket.data.userId}`  // Include user ID for bot DMs
+      : `DM with ${participant.name || 'Unknown User'}`;
 
     // Create new DM channel
     const channel = await prisma.channel.create({
       data: {
-        // For bot DMs, always use the bot's name
-        name: isBot ? (participant.name || 'Bot') : `DM with ${participant.name || 'Unknown User'}`,
+        name: channelName,
         type: 'DM',
         creatorId: socket.data.userId,
         participants: {

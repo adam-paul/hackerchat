@@ -94,7 +94,24 @@ export const handleMessage = async (
     // Persist message to database with retries
     const dbMessage = await persistMessage(data, socket.data.userId);
 
-    // Create the message event
+    // Get channel to check if it's a bot DM
+    const channel = await prisma.channel.findUnique({
+      where: { id: data.channelId },
+      include: {
+        participants: {
+          select: { id: true }
+        }
+      }
+    });
+
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    // Check if this is a bot DM by looking for a bot participant
+    const isBot = channel.participants.some(p => p.id.startsWith('bot_'));
+
+    // Create message event
     const messageEvent: MessageEvent = {
       type: 'message',
       channelId: data.channelId,
@@ -116,7 +133,7 @@ export const handleMessage = async (
         ...(dbMessage.replyTo && {
           replyTo: {
             id: dbMessage.replyTo.id,
-            originalId: dbMessage.replyTo.originalId,  // Include the originalId from the referenced message
+            originalId: dbMessage.replyTo.originalId,
             content: dbMessage.replyTo.content,
             author: {
               id: dbMessage.replyTo.author.id,
@@ -124,16 +141,24 @@ export const handleMessage = async (
             }
           }
         }),
-        originalId: dbMessage.originalId,  // Include this message's originalId
+        originalId: dbMessage.originalId,
         threadId: dbMessage.threadId,
         threadName: dbMessage.threadName
       }
     };
 
-    // Broadcast message to channel
-    socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
+    if (isBot) {
+      // For bot DMs, only emit to the specific user in this channel
+      const userParticipant = channel.participants.find(p => p.id === socket.data.userId);
+      if (userParticipant) {
+        socket.to(userParticipant.id).emit(EVENTS.MESSAGE, messageEvent);
+      }
+    } else {
+      // For regular channels/DMs, broadcast to all in the channel
+      socket.to(data.channelId).emit(EVENTS.MESSAGE, messageEvent);
+    }
 
-    // Send delivery confirmation to sender with complete message data
+    // Send delivery confirmation to sender
     socket.emit(EVENTS.MESSAGE_DELIVERED, {
       messageId: dbMessage.id,
       originalId: data.messageId.startsWith('temp_') ? data.messageId : undefined,
