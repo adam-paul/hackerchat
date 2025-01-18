@@ -52,9 +52,8 @@ bot_id = "bot_mr_robot"  # This should match what was created by create_robot.py
 @sio.event
 def connect():
     print("[SOCKET] Connected to socket server")
-    # Join the bot's channels
-    sio.emit('join-channel', bot_id)
-    print(f"[SOCKET] Bot {bot_id} joined its channel")
+    # Don't try to join a channel - bots wait for DM creation
+    print(f"[SOCKET] Bot {bot_id} ready for DM connections")
 
 @sio.event
 def disconnect():
@@ -65,9 +64,10 @@ def disconnect():
         socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
         sio.connect(socket_url, 
                    auth={
+                       "token": SOCKET_WEBHOOK_SECRET,
+                       "type": "webhook",
                        "userId": bot_id,
-                       "userName": "Mr. Robot",
-                       "imageUrl": None
+                       "userName": "Mr. Robot"
                    },
                    transports=['websocket'],
                    wait_timeout=10)
@@ -85,7 +85,61 @@ def connect_error(data):
 
 @sio.event
 def message(data):
+    """Handle incoming messages."""
     print(f"[SOCKET] Received message: {data}")
+    
+    # Extract message data
+    if isinstance(data, dict) and 'message' in data:
+        message = data['message']
+        channel_id = message.get('channelId')
+        content = message.get('content', '')
+        author = message.get('author', {})
+        author_id = author.get('id', '')
+        
+        # Only respond to user messages, not our own
+        if author_id != bot_id:
+            # Generate response using the ask endpoint logic
+            try:
+                # Use the existing vectorstore to get context and generate response
+                retriever = vectorstore.as_retriever()
+                docs = retriever.invoke(content)
+                
+                template = PromptTemplate(
+                    template="{query} Context: {context}",
+                    input_variables=["query", "context"]
+                )
+                prompt_with_context = template.invoke({
+                    "query": content,
+                    "context": docs
+                })
+                
+                llm = ChatOpenAI(temperature=0.7, model_name="gpt-4-mini")
+                llm_response = llm.invoke(prompt_with_context)
+                
+                # Send response through socket
+                message_id = f"msg_{uuid4()}"
+                now = datetime.utcnow().isoformat()
+                
+                message_event = {
+                    'type': 'message',
+                    'messageId': message_id,
+                    'channelId': channel_id,
+                    'message': {
+                        'id': message_id,
+                        'content': llm_response.content,
+                        'channelId': channel_id,
+                        'createdAt': now,
+                        'author': {
+                            'id': bot_id,
+                            'name': "Mr. Robot",
+                            'imageUrl': None
+                        }
+                    }
+                }
+                print(f"[SOCKET] Sending response: {message_event}")
+                sio.emit('message', message_event)
+            except Exception as e:
+                print(f"[SOCKET] Error generating/sending response: {e}")
 
 @sio.event
 def message_delivered(data):
