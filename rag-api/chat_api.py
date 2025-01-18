@@ -4,7 +4,7 @@ import os
 import sys
 import psycopg2
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 
 # LangChain & Pinecone imports
@@ -37,8 +37,9 @@ PINECONE_ENV = os.getenv("PINECONE_ENV", "us-west1-gcp")
 os.environ["LANGCHAIN_TRACING_V2"] = LANGCHAIN_TRACING_V2
 os.environ["LANGCHAIN_PROJECT"] = LANGCHAIN_PROJECT
 
-# Global vectorstore instance
+# Global vectorstore instance and initialization flag
 vectorstore = None
+is_initialized = False
 
 # -------------------------------------------
 # 1. Fetch messages from the Postgres database
@@ -188,13 +189,14 @@ class AskResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the vector store on startup."""
-    global vectorstore
+    global vectorstore, is_initialized
     try:
         print("Initializing vector store...")
         rows = fetch_messages_from_db()
         documents = create_documents_from_messages(rows)
         chunked_docs = split_documents(documents)
         vectorstore = create_or_load_vectorstore(chunked_docs)
+        is_initialized = True
         print("Vector store initialization complete")
     except Exception as e:
         print(f"Failed to initialize vector store: {e}")
@@ -203,7 +205,10 @@ async def startup_event():
 @app.post("/ask", response_model=AskResponse)
 async def ask_endpoint(req_body: AskRequest):
     """Handle questions about chat history."""
-    global vectorstore
+    global vectorstore, is_initialized
+    
+    if not is_initialized:
+        raise HTTPException(status_code=503, detail="Server is still initializing")
     
     # 1) Retrieve from vector store
     retriever = vectorstore.as_retriever()
@@ -239,6 +244,9 @@ async def ask_endpoint(req_body: AskRequest):
 
 @app.get("/health")
 async def health_check():
-    """Simple health check endpoint."""
-    return {"status": "healthy"}
+    """Simple health check endpoint that also reports initialization status."""
+    return {
+        "status": "healthy",
+        "initialized": is_initialized
+    }
 
