@@ -84,17 +84,27 @@ def create_documents_from_messages(rows):
         text_content = content if content else ""
         if not text_content.strip() and not file_url:
             continue
+            
+        # Clean metadata by removing None values
         meta = {
             "channel": channel_name,
             "author": author_name,
-            "timestamp": created_at.isoformat() if created_at else None,
-            "thread_id": thread_id,
-            "thread_name": thread_name,
-            "file_url": file_url,
-            "file_name": file_name
+            "timestamp": created_at.isoformat() if created_at else "",
         }
+        
+        # Only add optional fields if they have values
+        if thread_id:
+            meta["thread_id"] = thread_id
+        if thread_name:
+            meta["thread_name"] = thread_name
+        if file_url:
+            meta["file_url"] = file_url
+        if file_name:
+            meta["file_name"] = file_name
+            
         if file_url:
             text_content += f"\n[Attached file: {file_name or 'unnamed file'}]"
+            
         documents.append(Document(page_content=text_content, metadata=meta))
     print(f"[INIT] Created {len(documents)} documents")
     return documents
