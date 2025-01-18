@@ -12,6 +12,7 @@ interface SearchBarProps {
   searchResults: Message[];
   onResultClick: (messageId: string) => void;
   onClear: () => void;
+  selectedMessageId: string | null;
 }
 
 export function SearchBar({ 
@@ -19,7 +20,8 @@ export function SearchBar({
   onSearchChange, 
   searchResults, 
   onResultClick,
-  onClear 
+  onClear,
+  selectedMessageId
 }: SearchBarProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,9 +48,14 @@ export function SearchBar({
     };
   }, [onClear]);
 
+  useEffect(() => {
+    if (!selectedMessageId && searchQuery) {
+      onClear();
+    }
+  }, [selectedMessageId, searchQuery, onClear]);
+
   const handleResultClick = (messageId: string) => {
     onResultClick(messageId);
-    setTimeout(() => onClear(), 2000);
   };
 
   return (
