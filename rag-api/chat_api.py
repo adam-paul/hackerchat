@@ -31,6 +31,7 @@ PINECONE_API_KEY = os.environ["PINECONE_API_KEY"]
 LANGCHAIN_API_KEY = os.environ["LANGCHAIN_API_KEY"]
 PINECONE_INDEX = os.environ["PINECONE_INDEX"]
 DATABASE_URL = os.environ["DATABASE_URL"]
+SOCKET_WEBHOOK_SECRET = os.environ["SOCKET_WEBHOOK_SECRET"]
 
 # Optional environment variables with defaults
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")
@@ -262,17 +263,18 @@ async def startup_event():
                 socket_url = os.getenv("SOCKET_SERVER_URL", "http://localhost:3001")
                 print(f"[SOCKET] Attempting connection to socket server at {socket_url}...")
                 
-                # Configure socket connection
+                # Configure socket connection with webhook auth
                 sio.connect(
                     socket_url,
                     auth={
+                        "token": SOCKET_WEBHOOK_SECRET,
+                        "type": "webhook",
                         "userId": bot_id,
-                        "userName": "Mr. Robot",
-                        "imageUrl": None
+                        "userName": "Mr. Robot"
                     },
-                    transports=['websocket'],  # Force websocket transport
-                    wait_timeout=10,  # Increase timeout
-                    wait=True  # Wait for connection to be established
+                    transports=['websocket'],
+                    wait_timeout=10,
+                    wait=True
                 )
                 print("[SOCKET] Successfully connected to socket server")
                 print("[SOCKET] Connection details:", {
