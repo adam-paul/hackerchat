@@ -246,9 +246,13 @@ def on_channel_created(data):
         traceback.print_exc()
 
 @sio.on("*")
-def catch_all(event, data):
-    """Debug handler to catch all events."""
-    print(f"[SOCKET] Caught event {event}: {data}")
+def catch_all(event, *args):
+    """Debug handler to catch all events.
+    In Socket.IO, catch-all receives:
+    - event: the event name
+    - *args: variable number of data arguments passed with the event
+    """
+    print(f"[SOCKET] Caught event {event} with args: {args}")
 
 @sio.on("message")
 def on_message(data):
