@@ -40,7 +40,6 @@ bot_name = "mr_robot"
 vectorstore = None
 retriever = None
 llm = None
-active_channels = set()  # Track active channels
 
 def fetch_messages_from_db():
     try:
@@ -233,17 +232,10 @@ def connect():
     """Handle socket connection."""
     print("[SOCKET] Connected to server as mr_robot")
     print("[SOCKET] Registered event handlers:", sio.handlers)
-    
-    # Rejoin all active channels after reconnect
-    for channel_id in active_channels:
-        print(f"[SOCKET] Rejoining channel {channel_id} after reconnect")
-        sio.emit("join-channel", channel_id)
 
 @sio.event
 def disconnect():
-    """Handle socket connection loss."""
     print("[SOCKET] Disconnected from server")
-    # Don't clear active_channels here - we want to remember them for reconnect
 
 @sio.on("channel-created")
 def on_channel_created(*args):
@@ -259,7 +251,6 @@ def on_channel_created(*args):
         # Only join DM channels where we're a participant
         if channel_type == "DM" and any(p.get("id") == bot_id for p in participants):
             print(f"[SOCKET] Joining new DM channel {channel_id}")
-            active_channels.add(channel_id)  # Track the channel
             sio.emit("join-channel", channel_id)
             print(f"[SOCKET] Emitted join-channel for {channel_id}")
     except Exception as e:
@@ -271,19 +262,6 @@ def on_join_channel(*args):
     """Handle channel join confirmation."""
     data = args[0] if args else {}
     print(f"[SOCKET] Successfully joined channel: {data}")
-    
-@sio.on("channel-deleted")
-def on_channel_deleted(*args):
-    """Handle channel deletion."""
-    try:
-        data = args[0] if args else {}
-        channel_id = data.get("channelId")
-        if channel_id in active_channels:
-            print(f"[SOCKET] Removing deleted channel {channel_id} from active channels")
-            active_channels.remove(channel_id)
-    except Exception as e:
-        print(f"[ERROR] Failed to process channel deletion: {e}")
-        traceback.print_exc()
 
 @sio.on("error")
 def on_error(*args):
