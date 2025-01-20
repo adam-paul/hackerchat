@@ -19,6 +19,7 @@ import { MessageComponent } from './Message';
 import { ChatSection } from './ChatSection';
 import { ChatInput } from './ChatInput';
 import { useChannelStore } from '@/lib/store/channel';
+import { isChannelDescendant } from '@/lib/utils/channel-tree';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
@@ -400,16 +401,9 @@ export function HomeUI() {
   }, [channels, selectedChannelId, selectChannel, setStoreChannels]);
 
   const handleChannelDeleted = useCallback((deletedChannelId: string) => {
-    const isChildOf = (channelId: string, parentId: string): boolean => {
-      const channel = channels.find(c => c.id === channelId);
-      if (!channel) return false;
-      if (channel.parentId === parentId) return true;
-      return channel.parentId ? isChildOf(channel.parentId, parentId) : false;
-    };
-
     // Filter out the deleted channel and all its descendants
     const remainingChannels = channels.filter(channel => 
-      channel.id !== deletedChannelId && !isChildOf(channel.id, deletedChannelId)
+      channel.id !== deletedChannelId && !isChannelDescendant(channels, channel.id, deletedChannelId)
     );
 
     setStoreChannels(remainingChannels);
@@ -417,7 +411,7 @@ export function HomeUI() {
     // If we're in the deleted channel or any of its children, return to channel select
     if (selectedChannelId && (
       selectedChannelId === deletedChannelId || 
-      isChildOf(selectedChannelId, deletedChannelId)
+      isChannelDescendant(channels, selectedChannelId, deletedChannelId)
     )) {
       handleSelectChannel(null);
     }

@@ -1,11 +1,11 @@
 import type { Channel, Message } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
+import type { ChannelNode } from '@/lib/utils/channel-tree';
 
 export interface OptimisticUpdate {
   type: 'create' | 'update' | 'delete';
   data: Channel;
   metadata?: {
-    parentId?: string;
     messageId?: string;
     initialMessage?: Message;
     threadMetadata?: {
@@ -24,13 +24,13 @@ export interface ChannelStore {
   isLoading: boolean;
 
   // Socket initialization
-  _initSocket: (socket: SocketService) => void;
+  _initSocket: (socketService: SocketService) => void;
 
   // Read operations
   selectChannel: (id: string | null) => void;
   getSelectedChannel: () => Channel | null;
   getChannel: (id: string) => Channel | undefined;
-  getChannelTree: () => Channel[];
+  getChannelTree: () => ChannelNode<Channel>[];
   getRootChannels: () => Channel[];
   getDMChannels: () => Channel[];
   getThreads: (parentId: string) => Channel[];
@@ -40,7 +40,6 @@ export interface ChannelStore {
   createRootChannel: (name: string) => Promise<Channel>;
   createSubchannel: (name: string, parentId: string) => Promise<Channel>;
   createThread: (name: string, parentId: string, message: Message) => Promise<Channel>;
-  updateChannel: (id: string, updates: Partial<Channel>) => Promise<Channel>;
   deleteChannel: (id: string) => Promise<void>;
 
   // Internal actions

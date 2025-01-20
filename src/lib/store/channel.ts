@@ -2,45 +2,9 @@ import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
 import type { Channel, Message } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
+import { buildChannelTree, isChannelDescendant } from '@/lib/utils/channel-tree';
 
 // Store utilities
-const buildChannelTree = (channels: Channel[]): Channel[] => {
-  const channelMap = new Map<string, Channel & { threads: Channel[] }>();
-  const rootNodes: Channel[] = [];
-
-  // Create nodes for all channels
-  channels.forEach(channel => {
-    channelMap.set(channel.id, { ...channel, threads: [] });
-  });
-
-  // Build the tree structure
-  channels.forEach(channel => {
-    const node = channelMap.get(channel.id)!;
-    if (channel.parentId) {
-      const parentNode = channelMap.get(channel.parentId);
-      if (parentNode) {
-        parentNode.threads.push(node);
-      }
-    } else {
-      rootNodes.push(node);
-    }
-  });
-
-  // Sort each level by name
-  const sortNodes = (nodes: Channel[]) => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name));
-    nodes.forEach(node => {
-      if ('threads' in node) {
-        sortNodes((node as any).threads);
-      }
-    });
-  };
-  sortNodes(rootNodes);
-
-  return rootNodes;
-};
-
-// Error handling utilities
 const handleStoreError = (store: ChannelStore, error: unknown, operation: string) => {
   const errorMessage = error instanceof Error ? error.message : `Failed to ${operation}`;
   store._setError(errorMessage);
