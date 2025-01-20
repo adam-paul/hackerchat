@@ -268,23 +268,15 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         return handleStoreError(store, new Error('Channel not found'), 'delete channel');
       }
 
-      // Helper function to check if a channel is a descendant
-      const isDescendant = (channelId: string, ancestorId: string): boolean => {
-        const ch = store.getChannel(channelId);
-        if (!ch) return false;
-        if (ch.parentId === ancestorId) return true;
-        return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
-      };
-
       // Get all affected channels before removal
       const affectedChannels = store.channels.filter((c: Channel) => 
-        c.id === id || isDescendant(c.id, id)
+        c.id === id || isChannelDescendant(store.channels, c.id, id)
       );
 
       // Optimistically remove the channel and its descendants from UI
       set(state => ({
         channels: state.channels.filter(c => 
-          c.id !== id && !isDescendant(c.id, id)
+          c.id !== id && !isChannelDescendant(state.channels, c.id, id)
         ),
         optimisticUpdates: new Map(state.optimisticUpdates).set(id, {
           type: 'delete',
@@ -294,7 +286,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
 
       // If deleted channel was selected, clear selection
       if (store.selectedChannelId === id || 
-          (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
+          (store.selectedChannelId && isChannelDescendant(store.channels, store.selectedChannelId, id))) {
         store.selectChannel(null);
       }
 
@@ -391,22 +383,15 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const store = get();
       
       // Remove channel and its descendants
-      const isDescendant = (id: string, ancestorId: string): boolean => {
-        const channel = store.getChannel(id);
-        if (!channel) return false;
-        if (channel.parentId === ancestorId) return true;
-        return channel.parentId ? isDescendant(channel.parentId, ancestorId) : false;
-      };
-
       set(state => ({
         channels: state.channels.filter(c => 
-          c.id !== channelId && !isDescendant(c.id, channelId)
+          c.id !== channelId && !isChannelDescendant(state.channels, c.id, channelId)
         )
       }));
 
       // If deleted channel was selected, clear selection
       if (store.selectedChannelId === channelId || 
-          (store.selectedChannelId && isDescendant(store.selectedChannelId, channelId))) {
+          (store.selectedChannelId && isChannelDescendant(store.channels, store.selectedChannelId, channelId))) {
         store.selectChannel(null);
       }
     },
