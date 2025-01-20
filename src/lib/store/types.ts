@@ -15,6 +15,29 @@ export interface OptimisticUpdate {
   };
 }
 
+// Channel creation types
+export type BaseChannelCreateParams = {
+  name: string;
+  type?: "DEFAULT" | "DM";
+};
+
+export type RootChannelParams = BaseChannelCreateParams & {
+  kind: 'root';
+};
+
+export type SubchannelParams = BaseChannelCreateParams & {
+  kind: 'subchannel';
+  parentId: string;
+};
+
+export type ThreadParams = BaseChannelCreateParams & {
+  kind: 'thread';
+  parentId: string;
+  message: Message;
+};
+
+export type ChannelCreateParams = RootChannelParams | SubchannelParams | ThreadParams;
+
 export interface ChannelStore {
   // State
   channels: Channel[];
@@ -37,6 +60,7 @@ export interface ChannelStore {
   getChannelPath: (channelId: string) => string[];
 
   // Write operations
+  createChannel: (params: ChannelCreateParams) => Promise<Channel>;
   createRootChannel: (name: string) => Promise<Channel>;
   createSubchannel: (name: string, parentId: string) => Promise<Channel>;
   createThread: (name: string, parentId: string, message: Message) => Promise<Channel>;
