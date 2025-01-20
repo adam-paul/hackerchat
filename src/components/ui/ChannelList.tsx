@@ -6,48 +6,12 @@ import { Fira_Code } from 'next/font/google';
 import type { Channel } from '@/types';
 import { useAuthContext } from '@/lib/auth/context';
 import { useChannelStore } from '@/lib/store/channel';
+import { buildChannelTree, type ChannelNode } from '@/lib/utils/channel-tree';
 
 const firaCode = Fira_Code({ subsets: ['latin'] });
 
 interface ChannelListProps {
   className?: string;
-}
-
-interface ChannelNode {
-  channel: Channel;
-  threads: ChannelNode[];
-}
-
-function buildChannelTree(channels: Channel[]): ChannelNode[] {
-  const channelMap = new Map<string, ChannelNode>();
-  const rootNodes: ChannelNode[] = [];
-
-  // Create nodes for all channels
-  channels.forEach(channel => {
-    channelMap.set(channel.id, { channel, threads: [] });
-  });
-
-  // Build the tree structure
-  channels.forEach(channel => {
-    const node = channelMap.get(channel.id)!;
-    if (channel.parentId) {
-      const parentNode = channelMap.get(channel.parentId);
-      if (parentNode) {
-        parentNode.threads.push(node);
-      }
-    } else {
-      rootNodes.push(node);
-    }
-  });
-
-  // Sort each level by name
-  const sortNodes = (nodes: ChannelNode[]) => {
-    nodes.sort((a, b) => a.channel.name.localeCompare(b.channel.name));
-    nodes.forEach(node => sortNodes(node.threads));
-  };
-  sortNodes(rootNodes);
-
-  return rootNodes;
 }
 
 export function ChannelList({ className = '' }: ChannelListProps) {
@@ -67,7 +31,10 @@ export function ChannelList({ className = '' }: ChannelListProps) {
   const deleteChannel = useChannelStore(state => state.deleteChannel);
 
   // Memoize channel tree
-  const channelTree = useMemo(() => buildChannelTree(channels.filter(c => c.type === "DEFAULT")), [channels]);
+  const channelTree = useMemo(() => 
+    buildChannelTree(channels.filter(c => c.type === "DEFAULT")), 
+    [channels]
+  );
 
   // Memoize handlers
   const handleCreateChannel = useCallback(async () => {

@@ -2,45 +2,9 @@ import { create } from 'zustand';
 import type { ChannelStore, OptimisticUpdate } from './types';
 import type { Channel, Message } from '@/types';
 import type { SocketService } from '@/lib/socket/service';
+import { buildChannelTree, isChannelDescendant } from '@/lib/utils/channel-tree';
 
 // Store utilities
-const buildChannelTree = (channels: Channel[]): Channel[] => {
-  const channelMap = new Map<string, Channel & { threads: Channel[] }>();
-  const rootNodes: Channel[] = [];
-
-  // Create nodes for all channels
-  channels.forEach(channel => {
-    channelMap.set(channel.id, { ...channel, threads: [] });
-  });
-
-  // Build the tree structure
-  channels.forEach(channel => {
-    const node = channelMap.get(channel.id)!;
-    if (channel.parentId) {
-      const parentNode = channelMap.get(channel.parentId);
-      if (parentNode) {
-        parentNode.threads.push(node);
-      }
-    } else {
-      rootNodes.push(node);
-    }
-  });
-
-  // Sort each level by name
-  const sortNodes = (nodes: Channel[]) => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name));
-    nodes.forEach(node => {
-      if ('threads' in node) {
-        sortNodes((node as any).threads);
-      }
-    });
-  };
-  sortNodes(rootNodes);
-
-  return rootNodes;
-};
-
-// Error handling utilities
 const handleStoreError = (store: ChannelStore, error: unknown, operation: string) => {
   const errorMessage = error instanceof Error ? error.message : `Failed to ${operation}`;
   store._setError(errorMessage);
@@ -101,9 +65,50 @@ const selectChannelPath = (state: ChannelStore, channelId: string): string[] => 
   return path;
 };
 
+// Add new type definitions
+type BaseChannelCreateParams = {
+  name: string;
+  type?: "DEFAULT" | "DM";
+};
+
+type RootChannelParams = BaseChannelCreateParams & {
+  kind: 'root';
+};
+
+type SubchannelParams = BaseChannelCreateParams & {
+  kind: 'subchannel';
+  parentId: string;
+};
+
+type ThreadParams = BaseChannelCreateParams & {
+  kind: 'thread';
+  parentId: string;
+  message: Message;
+};
+
+type ChannelCreateParams = RootChannelParams | SubchannelParams | ThreadParams;
+
 export const useChannelStore = create<ChannelStore>((set, get) => {
   // Initialize socket as null - will be set later
   let socket: SocketService | null = null;
+
+  // Helper function to create optimistic channel
+  const createOptimisticChannel = (
+    name: string,
+    params: ChannelCreateParams
+  ): Channel => {
+    const tempId = `temp_${name}`;
+    return {
+      id: tempId,
+      name,
+      type: params.type || "DEFAULT",
+      parentId: 'parentId' in params ? params.parentId : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      creatorId: socket?.getCurrentUserId() || 'optimistic',
+      originalId: tempId
+    };
+  };
 
   return {
     // State
@@ -142,182 +147,81 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
     getChannelPath: (channelId: string) => selectChannelPath(get(), channelId),
 
     // Write operations
-    createRootChannel: async (name: string) => {
+    createChannel: async (params: ChannelCreateParams): Promise<Channel> => {
       if (!socket) throw new Error('Socket not initialized');
       const store = get();
-      const tempId = `temp_${name}`;
       
-      // Create optimistic channel
-      const optimisticChannel: Channel = {
-        id: tempId,
-        name,
-        type: "DEFAULT",
-        parentId: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        creatorId: socket.getCurrentUserId() || 'optimistic',
-        originalId: tempId
-      };
-
-      // Add optimistic update and select it
-      store._addOptimisticChannel(optimisticChannel);
-      store.selectChannel(tempId);
-      
-      try {
-        await socket.createChannel(name, undefined, undefined, {
-          onError: (error) => {
-            store._removeOptimisticChannel(tempId);
-            store._setError(error);
-          },
-          onCreated: (channel) => {
-            // Replace optimistic update with real channel and update selection
-            store._replaceOptimisticWithReal(tempId, {
-              ...channel,
-              originalId: tempId
-            });
-            store.selectChannel(channel.id);
-          }
-        });
-        return optimisticChannel;
-      } catch (error) {
-        store._removeOptimisticChannel(tempId);
-        store._setError(error instanceof Error ? error.message : 'Failed to create channel');
-        throw error;
-      }
-    },
-    
-    createSubchannel: async (name: string, parentId: string) => {
-      if (!socket) throw new Error('Socket not initialized');
-      const store = get();
-      const tempId = `temp_${name}`;
-      
-      // Verify parent exists
-      const parent = store.getChannel(parentId);
-      if (!parent) {
-        throw new Error('Parent channel not found');
+      // Validate parent if needed
+      if ('parentId' in params) {
+        const parent = store.getChannel(params.parentId);
+        if (!parent) {
+          throw new Error('Parent channel not found');
+        }
       }
 
-      // Create optimistic channel
-      const optimisticChannel: Channel = {
-        id: tempId,
-        name,
-        type: "DEFAULT",
-        parentId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        creatorId: socket.getCurrentUserId() || 'optimistic',
-        originalId: tempId
-      };
+      const optimisticChannel = createOptimisticChannel(params.name, params);
 
-      // Add optimistic update and select it
-      store._addOptimisticChannel(optimisticChannel);
-      store.selectChannel(tempId);
-      
-      try {
-        await socket.createChannel(name, parentId, undefined, {
-          onError: (error) => {
-            store._removeOptimisticChannel(tempId);
-            store._setError(error);
-          },
-          onCreated: (channel) => {
-            // Replace optimistic update with real channel and update selection
-            store._replaceOptimisticWithReal(tempId, {
-              ...channel,
-              originalId: tempId
-            });
-            store.selectChannel(channel.id);
-          }
-        });
-        return optimisticChannel;
-      } catch (error) {
-        store._removeOptimisticChannel(tempId);
-        store._setError(error instanceof Error ? error.message : 'Failed to create subchannel');
-        throw error;
-      }
-    },
-
-    createThread: async (name: string, parentId: string, message: Message) => {
-      if (!socket) throw new Error('Socket not initialized');
-      const store = get();
-      const tempId = `temp_${name}`;
-      
-      // Create optimistic thread channel
-      const optimisticThread: Channel = {
-        id: tempId,
-        name,
-        type: "DEFAULT",
-        parentId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        creatorId: message.author.id,
-      };
-
-      // Create optimistic thread message
-      const optimisticThreadMessage: Message = {
-        id: `temp_thread_${Date.now()}`,
-        content: message.content,
-        channelId: tempId,
-        createdAt: new Date().toISOString(),
-        author: message.author,
-        reactions: [],
-        fileUrl: message.fileUrl,
-        fileName: message.fileName,
-        fileType: message.fileType,
-        fileSize: message.fileSize
-      };
-
-      // Add optimistic update for thread channel
-      store._addOptimisticChannel(optimisticThread, {
-        messageId: message.id,
-        initialMessage: optimisticThreadMessage,
+      // Handle thread-specific metadata
+      const metadata = params.kind === 'thread' ? {
+        messageId: params.message.id,
+        initialMessage: {
+          id: `temp_thread_${Date.now()}`,
+          content: params.message.content,
+          channelId: optimisticChannel.id,
+          createdAt: new Date().toISOString(),
+          author: params.message.author,
+          reactions: [],
+          fileUrl: params.message.fileUrl,
+          fileName: params.message.fileName,
+          fileType: params.message.fileType,
+          fileSize: params.message.fileSize
+        },
         threadMetadata: {
-          title: name,
+          title: params.name,
           createdAt: new Date().toISOString()
         }
-      });
-      store.selectChannel(tempId);
+      } : undefined;
+
+      // Add optimistic update and select it
+      store._addOptimisticChannel(optimisticChannel, metadata);
+      store.selectChannel(optimisticChannel.id);
 
       try {
-        // Don't update message with temporary ID - wait for real ID
-        const createPromise = socket.createChannel(name, parentId, message.content, {
-          onError: (error) => {
-            store._removeOptimisticChannel(tempId);
-            store._setError(error);
-          },
-          onCreated: (channel) => {
-            // Replace optimistic update with real channel
-            store._replaceOptimisticWithReal(tempId, {
-              ...channel,
-              originalId: tempId
-            });
-            store.selectChannel(channel.id);
-
-            // Update the source message with real thread metadata
-            if (socket) {
-              socket.updateMessage(message.id, {
-                threadId: channel.id,
-                threadMetadata: {
-                  title: name,
-                  createdAt: channel.createdAt
-                }
+        await socket.createChannel(
+          params.name,
+          'parentId' in params ? params.parentId : undefined,
+          params.kind === 'thread' ? params.message.content : undefined,
+          {
+            onError: (error) => {
+              store._removeOptimisticChannel(optimisticChannel.id);
+              store._setError(error);
+            },
+            onCreated: (channel) => {
+              // Replace optimistic update with real channel
+              store._replaceOptimisticWithReal(optimisticChannel.id, {
+                ...channel,
+                originalId: optimisticChannel.id
               });
-            }
-          },
-          metadata: {
-            messageId: message.id,
-            initialMessage: optimisticThreadMessage,
-            threadMetadata: {
-              title: name,
-              createdAt: new Date().toISOString()
-            }
-          }
-        });
+              store.selectChannel(channel.id);
 
-        await createPromise;
-        return optimisticThread;
+              // Handle thread-specific message updates
+              if (params.kind === 'thread' && socket) {
+                socket.updateMessage(params.message.id, {
+                  threadId: channel.id,
+                  threadMetadata: {
+                    title: params.name,
+                    createdAt: channel.createdAt
+                  }
+                });
+              }
+            },
+            metadata
+          }
+        );
+        return optimisticChannel;
       } catch (error) {
-        store._removeOptimisticChannel(tempId);
-        store._setError(error instanceof Error ? error.message : 'Failed to create thread');
+        store._removeOptimisticChannel(optimisticChannel.id);
+        store._setError(error instanceof Error ? error.message : `Failed to create ${params.kind}`);
         throw error;
       }
     },
@@ -364,23 +268,15 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
         return handleStoreError(store, new Error('Channel not found'), 'delete channel');
       }
 
-      // Helper function to check if a channel is a descendant
-      const isDescendant = (channelId: string, ancestorId: string): boolean => {
-        const ch = store.getChannel(channelId);
-        if (!ch) return false;
-        if (ch.parentId === ancestorId) return true;
-        return ch.parentId ? isDescendant(ch.parentId, ancestorId) : false;
-      };
-
       // Get all affected channels before removal
       const affectedChannels = store.channels.filter((c: Channel) => 
-        c.id === id || isDescendant(c.id, id)
+        c.id === id || isChannelDescendant(store.channels, c.id, id)
       );
 
       // Optimistically remove the channel and its descendants from UI
       set(state => ({
         channels: state.channels.filter(c => 
-          c.id !== id && !isDescendant(c.id, id)
+          c.id !== id && !isChannelDescendant(state.channels, c.id, id)
         ),
         optimisticUpdates: new Map(state.optimisticUpdates).set(id, {
           type: 'delete',
@@ -390,7 +286,7 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
 
       // If deleted channel was selected, clear selection
       if (store.selectedChannelId === id || 
-          (store.selectedChannelId && isDescendant(store.selectedChannelId, id))) {
+          (store.selectedChannelId && isChannelDescendant(store.channels, store.selectedChannelId, id))) {
         store.selectChannel(null);
       }
 
@@ -487,22 +383,15 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
       const store = get();
       
       // Remove channel and its descendants
-      const isDescendant = (id: string, ancestorId: string): boolean => {
-        const channel = store.getChannel(id);
-        if (!channel) return false;
-        if (channel.parentId === ancestorId) return true;
-        return channel.parentId ? isDescendant(channel.parentId, ancestorId) : false;
-      };
-
       set(state => ({
         channels: state.channels.filter(c => 
-          c.id !== channelId && !isDescendant(c.id, channelId)
+          c.id !== channelId && !isChannelDescendant(state.channels, c.id, channelId)
         )
       }));
 
       // If deleted channel was selected, clear selection
       if (store.selectedChannelId === channelId || 
-          (store.selectedChannelId && isDescendant(store.selectedChannelId, channelId))) {
+          (store.selectedChannelId && isChannelDescendant(store.channels, store.selectedChannelId, channelId))) {
         store.selectChannel(null);
       }
     },
@@ -515,5 +404,21 @@ export const useChannelStore = create<ChannelStore>((set, get) => {
           data: channel
         })
       })),
+
+    // Simplified wrapper methods for backward compatibility
+    createRootChannel: async (name: string) => {
+      const store = get();
+      return store.createChannel({ kind: 'root', name });
+    },
+
+    createSubchannel: async (name: string, parentId: string) => {
+      const store = get();
+      return store.createChannel({ kind: 'subchannel', name, parentId });
+    },
+
+    createThread: async (name: string, parentId: string, message: Message) => {
+      const store = get();
+      return store.createChannel({ kind: 'thread', name, parentId, message });
+    },
   };
 }); 
