@@ -78,3 +78,8 @@ chatgenius/
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint 
+
+## Deployment 
+
+- To deploy the socket server, navigate to `socket-service` and run `railway up` (you may need to log in and link)
+- To deploy the rag-api, I am not sure
