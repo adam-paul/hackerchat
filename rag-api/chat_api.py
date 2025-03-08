@@ -77,6 +77,47 @@ def fetch_messages_from_db():
     finally:
         if "conn" in locals():
             conn.close()
+            
+def fetch_bot_channels():
+    """Fetch all channels where the bot is a participant."""
+    try:
+        print("[INIT] Fetching existing channels where bot is a participant...")
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        # Query to find all channels where bot is a participant
+        query = """
+            SELECT c.id 
+            FROM "Channel" c
+            JOIN "_ChannelParticipants" cp ON c.id = cp."A"
+            JOIN users u ON cp."B" = u.id
+            WHERE u.id = %s
+        """
+        cursor.execute(query, (bot_id,))
+        rows = cursor.fetchall()
+        
+        channel_ids = [row[0] for row in rows]
+        print(f"[INIT] Found {len(channel_ids)} existing channels for bot")
+        return channel_ids
+    except Exception as e:
+        print(f"[ERROR] Could not fetch bot channels: {e}")
+        print(traceback.format_exc())
+        return []
+    finally:
+        if "conn" in locals():
+            conn.close()
+
+def join_bot_channels(channel_ids):
+    """Join all channels where the bot is a participant."""
+    if not channel_ids:
+        print("[INIT] No existing channels to join")
+        return
+    
+    print(f"[INIT] Joining {len(channel_ids)} existing channels...")
+    for channel_id in channel_ids:
+        print(f"[SOCKET] Joining existing channel {channel_id}")
+        sio.emit("join-channel", channel_id)
+    print("[INIT] Finished joining existing channels")
 
 def create_documents_from_messages(rows):
     print("[INIT] Converting messages to LangChain Documents...")
@@ -151,12 +192,32 @@ def handle_incoming_message(data):
     try:
         print(f"[SOCKET] Processing message event: {data}")
         
+        # Validate incoming data format
+        if not isinstance(data, dict):
+            print(f"[ERROR] Expected dict data, got {type(data)}: {data}")
+            return
+            
         # Extract message details with proper structure handling
         channel_id = data.get("channelId")
+        if not channel_id:
+            print(f"[ERROR] Missing channelId in message data: {data}")
+            return
+            
         message = data.get("message", {})
+        if not message or not isinstance(message, dict):
+            print(f"[ERROR] Missing or invalid message object: {message}")
+            return
+            
         message_text = message.get("content", "")
         author = message.get("author", {})
+        if not author or not isinstance(author, dict):
+            print(f"[ERROR] Missing or invalid author object: {author}")
+            return
+            
         author_id = author.get("id")
+        if not author_id:
+            print(f"[ERROR] Missing author ID in message: {author}")
+            return
         
         print(f"[BOT] Processing message: channel={channel_id}, author={author_id}, text={message_text}")
         
@@ -169,6 +230,8 @@ def handle_incoming_message(data):
         if not message_text.strip():
             print("[BOT] Ignoring empty message")
             return
+
+        print(f"[BOT] PROCESSING MESSAGE FROM {author_id} IN CHANNEL {channel_id}: {message_text}")
 
         # Retrieve context for RAG
         print("[BOT] Retrieving relevant documents...")
@@ -225,6 +288,8 @@ def handle_incoming_message(data):
 
     except Exception as e:
         print(f"[ERROR] Failed to process message: {e}")
+        print(f"[ERROR] Data received: {data}")
+        print("[ERROR] Full traceback:")
         traceback.print_exc()
 
 @sio.event
@@ -262,6 +327,11 @@ def on_join_channel(*args):
     """Handle channel join confirmation."""
     data = args[0] if args else {}
     print(f"[SOCKET] Successfully joined channel: {data}")
+    
+    # Print all channels we've joined so far
+    if hasattr(sio, 'eio') and hasattr(sio.eio, 'sid'):
+        joined_rooms = sio.rooms(sio.eio.sid)
+        print(f"[SOCKET] Currently joined rooms/channels: {joined_rooms}")
 
 @sio.on("error")
 def on_error(*args):
@@ -280,7 +350,20 @@ def on_message(*args):
     """Handle incoming message events."""
     data = args[0] if args else {}
     print(f"[SOCKET] Received message event: {data}")
-    handle_incoming_message(data)
+    try:
+        # Extract key details for logging
+        channel_id = data.get("channelId")
+        message = data.get("message", {})
+        content = message.get("content", "")
+        author_id = message.get("author", {}).get("id")
+        
+        print(f"[SOCKET] Message details - Channel: {channel_id}, Author: {author_id}, Content: {content[:50]}...")
+        
+        # Process the message
+        handle_incoming_message(data)
+    except Exception as e:
+        print(f"[ERROR] Error in message handler: {e}")
+        print(traceback.format_exc())
 
 def main():
     global vectorstore, retriever, llm
@@ -319,6 +402,10 @@ def main():
             "status": "online"
         })
         print(f"[SOCKET] Registered bot with ID {bot_id}")
+        
+        # 7) Fetch and join existing channels where the bot is a participant
+        channel_ids = fetch_bot_channels()
+        join_bot_channels(channel_ids)
         
     except Exception as e:
         print(f"[ERROR] Could not connect to socket server: {e}")
