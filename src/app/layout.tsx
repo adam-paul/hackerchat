@@ -5,9 +5,13 @@ import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
 import { AuthProvider } from '@/lib/auth/context';
 import { SocketProvider } from '@/lib/socket/context';
+import { IdleManager } from '@/components/ui/IdleManager';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
+
+// 30 minutes in milliseconds
+const IDLE_TIMEOUT = 30 * 60 * 1000;
 
 export const metadata: Metadata = {
   title: 'HackerChat',
@@ -34,6 +38,7 @@ export default function RootLayout({
         <ClerkProvider>
           <AuthProvider>
             <SocketProvider>
+              <IdleManager idleTimeout={IDLE_TIMEOUT} />
               {children}
             </SocketProvider>
           </AuthProvider>
