@@ -9,11 +9,11 @@ type FetchResponse = {
   text: () => Promise<string>;
 };
 
-// Interval for checking inactive sessions (5 minutes)
-const CHECK_INTERVAL = 5 * 60 * 1000; 
+// Interval for checking inactive sessions (1 minute - frequent checks for testing)
+const CHECK_INTERVAL = 1 * 60 * 1000; 
 
-// Max time a user can be shown as online without an active connection (15 minutes)
-const MAX_DISCONNECTED_TIME = 15 * 60 * 1000;
+// Max time a user can be shown as online without an active connection (2 minutes)
+const MAX_DISCONNECTED_TIME = 2 * 60 * 1000;
 
 // Global variable to track the last activity time for each user
 const userLastActivity = new Map<string, number>();
@@ -23,13 +23,28 @@ let onlineUsers = new Set<string>();
 
 // Update a user's last activity time
 export const updateUserActivity = (userId: string): void => {
-  userLastActivity.set(userId, Date.now());
+  const now = Date.now();
+  const previous = userLastActivity.get(userId);
+  userLastActivity.set(userId, now);
+  
+  console.log(
+    `[SessionMonitor] Activity recorded for user ${userId}: ${new Date(now).toISOString()}` +
+    (previous ? ` (last: ${Math.floor((now - previous) / 1000)}s ago)` : ' (first activity)')
+  );
 };
 
 // Check if a socket still exists in the server for a given user
 const isUserConnected = (io: Server, userId: string): boolean => {
   const sockets = Array.from(io.sockets.sockets.values());
-  return sockets.some(socket => socket.data?.userId === userId);
+  const connected = sockets.some(socket => socket.data?.userId === userId);
+  
+  if (connected) {
+    console.log(`[SessionMonitor] User ${userId} has active socket connection`);
+  } else {
+    console.log(`[SessionMonitor] User ${userId} has NO active socket connection`);
+  }
+  
+  return connected;
 };
 
 // Set a user's status to offline
@@ -92,20 +107,41 @@ export const initSessionMonitor = async (io: Server): Promise<() => void> => {
   
   // Monitor session activity
   const intervalId = setInterval(async () => {
-    console.log('[SessionMonitor] Running session activity check');
+    const now = Date.now();
+    const userCount = onlineUsers.size;
+    console.log(`[SessionMonitor] Running session activity check - ${userCount} online users`);
     
     try {
       // Check each user who is marked as online - convert Set to Array first to avoid iteration issues
       const userIdsToCheck = Array.from(onlineUsers);
+      if (userCount === 0) {
+        console.log('[SessionMonitor] No online users to check');
+      }
+      
       for (const userId of userIdsToCheck) {
         const lastActivity = userLastActivity.get(userId) || 0;
-        const timeSinceActivity = Date.now() - lastActivity;
+        const timeSinceActivity = now - lastActivity;
+        const idleTimeFormatted = Math.floor(timeSinceActivity/1000);
         const isConnected = isUserConnected(io, userId);
         
-        console.log(`[SessionMonitor] User ${userId}: Connected=${isConnected}, Last activity=${new Date(lastActivity).toISOString()}, Time since=${Math.floor(timeSinceActivity/1000)}s`);
+        const disconnectedWarning = !isConnected && idleTimeFormatted < Math.floor(MAX_DISCONNECTED_TIME/1000);
+        
+        console.log(
+          `[SessionMonitor] Checking user ${userId}:` +
+          `\n  - Connected: ${isConnected ? 'Yes' : 'No'}` +
+          `\n  - Last activity: ${new Date(lastActivity).toISOString()}` +
+          `\n  - Idle time: ${idleTimeFormatted}s / ${Math.floor(MAX_DISCONNECTED_TIME/1000)}s` +
+          (disconnectedWarning ? `\n  - WARNING: User disconnected but still in grace period (${Math.floor(MAX_DISCONNECTED_TIME/1000) - idleTimeFormatted}s remaining)` : '')
+        );
         
         // If user is not connected or inactive for too long, set them offline
         if (!isConnected || timeSinceActivity > MAX_DISCONNECTED_TIME) {
+          if (!isConnected) {
+            console.log(`[SessionMonitor] User ${userId} has no active connection - marking as offline`);
+          } else {
+            console.log(`[SessionMonitor] User ${userId} exceeded maximum idle time (${Math.floor(MAX_DISCONNECTED_TIME/1000)}s) - marking as offline`);
+          }
+          
           await setUserOffline(userId);
           onlineUsers.delete(userId);
         }
@@ -130,13 +166,33 @@ export const registerUserActivity = (userId: string): void => {
 
 // Register user disconnect
 export const registerUserDisconnect = (userId: string): void => {
-  console.log(`[SessionMonitor] User disconnected: ${userId}`);
+  const now = Date.now();
+  const lastActivity = userLastActivity.get(userId) || now;
+  const timeSinceActivity = now - lastActivity;
+  
+  console.log(
+    `[SessionMonitor] User disconnected: ${userId}` +
+    `\n  - Last activity: ${new Date(lastActivity).toISOString()}` +
+    `\n  - Time since activity: ${Math.floor(timeSinceActivity/1000)}s` +
+    `\n  - Will be marked offline after ${Math.floor(MAX_DISCONNECTED_TIME/1000)}s of inactivity`
+  );
+  
   // We don't immediately remove them from onlineUsers to allow reconnection
 };
 
 // Register user reconnect
 export const registerUserConnect = (userId: string): void => {
-  console.log(`[SessionMonitor] User connected: ${userId}`);
+  const now = Date.now();
+  const wasOnline = onlineUsers.has(userId);
+  const lastActivity = userLastActivity.get(userId);
+  
+  console.log(
+    `[SessionMonitor] User connected: ${userId}` +
+    `\n  - Previously marked as online: ${wasOnline ? 'Yes' : 'No'}` +
+    (lastActivity ? `\n  - Last activity: ${new Date(lastActivity).toISOString()} (${Math.floor((now - lastActivity)/1000)}s ago)` : 
+                   '\n  - No previous activity recorded')
+  );
+  
   updateUserActivity(userId);
   onlineUsers.add(userId);
 };
