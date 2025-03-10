@@ -411,11 +411,29 @@ export class SocketService {
   }
 
   updateStatus(status: 'online' | 'away' | 'busy' | 'offline'): void {
-    if (!this.socket) return;
+    if (!this.socket) {
+      console.error('[SocketService] Cannot update status: Socket not initialized');
+      return;
+    }
     const userId = this.getCurrentUserId();
-    if (!userId) return;
+    if (!userId) {
+      console.error('[SocketService] Cannot update status: No user ID available');
+      return;
+    }
     
-    this.socket.emit('status-update', status);
+    console.log(`[SocketService] Sending status update for user ${userId}: ${status}`);
+    
+    try {
+      this.socket.emit('status-update', status);
+      console.log(`[SocketService] Status update sent successfully for ${userId}: ${status}`);
+      
+      // Test if socket is actually connected
+      if (!this.socket.connected) {
+        console.warn(`[SocketService] Warning: Socket appears to be disconnected while sending status`);
+      }
+    } catch (error) {
+      console.error(`[SocketService] Error sending status update:`, error);
+    }
   }
 
   setStatusChangeHandler(handler: (event: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void): void {
