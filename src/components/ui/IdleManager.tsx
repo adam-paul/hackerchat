@@ -9,16 +9,16 @@ interface IdleManagerProps {
 }
 
 export const IdleManager = ({ idleTimeout }: IdleManagerProps) => {
-  const { isAuthenticated, user } = useAuthContext();
+  const { isAuthenticated, userId } = useAuthContext();
   
   useEffect(() => {
     console.log(`[IdleManager] Initialization - Auth status: ${isAuthenticated ? 'Authenticated' : 'Not authenticated'}`);
-    console.log(`[IdleManager] User: ${user?.id || 'No user'}, timeout: ${idleTimeout}ms`);
-  }, [isAuthenticated, user, idleTimeout]);
+    console.log(`[IdleManager] User ID: ${userId || 'No user'}, timeout: ${idleTimeout}ms`);
+  }, [isAuthenticated, userId, idleTimeout]);
   
   // Only initialize the idle timer if a user is signed in
   if (isAuthenticated) {
-    console.log(`[IdleManager] Starting idle timer for user ${user?.id} with timeout ${idleTimeout}ms`);
+    console.log(`[IdleManager] Starting idle timer for user ${userId} with timeout ${idleTimeout}ms`);
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useIdleTimer(idleTimeout);
   } else {

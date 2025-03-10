@@ -28,7 +28,7 @@ function IdleDebug() {
       
       // Override all event listeners temporarily
       const originalAddEventListener = window.addEventListener;
-      window.addEventListener = function(type, listener, options) {
+      window.addEventListener = function(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
         console.log(`[DEBUG] Blocked event listener registration: ${type}`);
         return undefined as any;
       };

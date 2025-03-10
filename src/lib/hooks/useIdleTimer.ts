@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSocket } from '../socket/context';
 import { useAuthContext } from '@/lib/auth/context';
-import { useSignOut } from '@clerk/nextjs';
+import { useClerk } from '@clerk/nextjs';
 
 const DEFAULT_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds (overridden by IdleManager)
 // Additional timeout before forcing logout (30 seconds after being set to away for testing)
@@ -12,21 +12,21 @@ const LOGOUT_GRACE_PERIOD = 30 * 1000;
 export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
   const [isIdle, setIsIdle] = useState(false);
   const { updateStatus } = useSocket();
-  const { user } = useAuthContext();
-  const { signOut } = useSignOut();
+  const { userId } = useAuthContext();
+  const { signOut } = useClerk();
   const lastActivityRef = useRef(Date.now());
-  const userIdRef = useRef<string | undefined>(undefined);
+  const userIdRef = useRef<string | null>(null);
   const resetCountRef = useRef(0);
   const idleStartTimeRef = useRef<number | null>(null);
   const logoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     // Store user ID for logs
-    if (user?.id) {
-      userIdRef.current = user.id;
-      console.log(`[IdleTimer] Initialized for user ${user.id} with timeout ${timeoutMs}ms`);
+    if (userId) {
+      userIdRef.current = userId;
+      console.log(`[IdleTimer] Initialized for user ${userId} with timeout ${timeoutMs}ms`);
     }
-  }, [user?.id]);
+  }, [userId, timeoutMs]);
   
   // Function to perform logout
   const performLogout = async () => {
