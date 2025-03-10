@@ -5,9 +5,9 @@ import { useSocket } from '../socket/context';
 import { useAuthContext } from '@/lib/auth/context';
 import { useClerk } from '@clerk/nextjs';
 
-const DEFAULT_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds (overridden by IdleManager)
-// Additional timeout before forcing logout (30 seconds after being set to away for testing)
-const LOGOUT_GRACE_PERIOD = 30 * 1000; 
+const DEFAULT_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+// Additional timeout before forcing logout (5 minutes after being set to away)
+const LOGOUT_GRACE_PERIOD = 5 * 60 * 1000; 
 
 export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true) => {
   const [isIdle, setIsIdle] = useState(false);
@@ -18,7 +18,6 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
   // Use refs for mutable values to maintain state across renders
   const lastActivityRef = useRef(Date.now());
   const userIdRef = useRef<string | null>(null);
-  const resetCountRef = useRef(0);
   const idleStartTimeRef = useRef<number | null>(null);
   const logoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isEnabledRef = useRef(isEnabled);
@@ -28,54 +27,43 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
     isEnabledRef.current = isEnabled;
   }, [isEnabled]);
   
+  // Store user ID
   useEffect(() => {
-    // Store user ID for logs
     if (userId) {
       userIdRef.current = userId;
-      console.log(`[IdleTimer] Initialized for user ${userId} with timeout ${timeoutMs}ms`);
     }
-  }, [userId, timeoutMs]);
+  }, [userId]);
   
   // Function to perform logout
   const performLogout = async () => {
-    console.log(`[IdleTimer] PERFORMING AUTOMATIC LOGOUT for user ${userIdRef.current} - idle for ${Math.floor((Date.now() - (idleStartTimeRef.current || 0)) / 1000)}s`);
-    
     try {
       // Set status to offline first
       updateStatus('offline');
-      
       // Then sign out
       await signOut();
-      console.log(`[IdleTimer] Logout completed successfully for user ${userIdRef.current}`);
     } catch (error) {
-      console.error('[IdleTimer] Error during automatic logout:', error);
+      console.error('Error during automatic logout:', error);
     }
   };
   
   useEffect(() => {
     // Only set up the idle timer if it's enabled
     if (!isEnabled) {
-      console.log('[IdleTimer] Timer disabled');
       return;
     }
-    
-    console.log(`[IdleTimer] Setting up idle timer with ${timeoutMs / 1000}s timeout (enabled: ${isEnabled})`);
     
     let idleTimeout: NodeJS.Timeout | null = null;
     let isActive = true;
     
-    // Create an idle check function for logging
+    // Function to check if user is idle
     const checkIdleStatus = () => {
-      // Skip if disabled
       if (!isEnabledRef.current) return;
       
       const now = Date.now();
       const idleTime = now - lastActivityRef.current;
-      console.log(`[IdleTimer] User ${userIdRef.current} idle check: ${Math.floor(idleTime / 1000)}s idle (threshold: ${timeoutMs / 1000}s)`);
       
       // If user has been idle long enough to be marked as away
       if (idleTime >= timeoutMs) {
-        console.log(`[IdleTimer] Setting user ${userIdRef.current} to AWAY - idle for ${Math.floor(idleTime / 1000)}s`);
         updateStatus('away');
         setIsIdle(true);
         
@@ -84,14 +72,11 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
           idleStartTimeRef.current = now;
           
           // Set a timeout for auto-logout after grace period
-          console.log(`[IdleTimer] Starting logout timer - will log out in ${LOGOUT_GRACE_PERIOD / 1000}s if still idle`);
-          
           if (logoutTimeoutRef.current) {
             clearTimeout(logoutTimeoutRef.current);
           }
           
           logoutTimeoutRef.current = setTimeout(() => {
-            // Skip if disabled
             if (!isEnabledRef.current) return;
             
             // Check if still idle before logging out
@@ -104,53 +89,37 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
       }
     };
     
-    // Function to reset the timer with debugging
+    // Reset timer on activity
     const resetIdleTimer = (event?: Event) => {
-      // Skip if disabled
       if (!isEnabledRef.current) return;
-      
-      const resetCount = ++resetCountRef.current;
-      const eventType = event ? event.type : 'initial';
-      const now = Date.now();
-      const idleDuration = now - lastActivityRef.current;
-      
-      // Log the activity that reset the timer
-      console.log(`[IdleTimer] Activity detected (#${resetCount}): ${eventType} - was idle for ${Math.floor(idleDuration / 1000)}s`);
       
       if (idleTimeout) {
         clearTimeout(idleTimeout);
       }
       
       // Update last activity time
-      lastActivityRef.current = now;
+      lastActivityRef.current = Date.now();
       
-      // If we were idle before, set status back to online
-      if (isIdle && isActive) {
-        console.log(`[IdleTimer] Setting user ${userIdRef.current} back to ONLINE after activity`);
+      // Always set status back to online if user was idle OR away
+      if ((isIdle || isEnabledRef.current) && isActive) {
         updateStatus('online');
         setIsIdle(false);
         
         // Clear idle start time and logout timeout
         idleStartTimeRef.current = null;
         if (logoutTimeoutRef.current) {
-          console.log('[IdleTimer] Clearing logout timeout due to activity');
           clearTimeout(logoutTimeoutRef.current);
           logoutTimeoutRef.current = null;
         }
       }
       
       // Set new timeout for idle detection
-      idleTimeout = setTimeout(() => {
-        checkIdleStatus();
-      }, timeoutMs);
-      
-      console.log(`[IdleTimer] Timer reset, will check again in ${timeoutMs / 1000}s`);
+      idleTimeout = setTimeout(checkIdleStatus, timeoutMs);
     };
     
-    // Throttled version of reset to avoid excessive logs on continuous events
+    // Throttled version of reset to avoid excessive calls on continuous events
     let lastReset = 0;
     const throttledReset = (event: Event) => {
-      // Skip if disabled
       if (!isEnabledRef.current) return;
       
       const now = Date.now();
@@ -183,17 +152,11 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
       window.addEventListener(event, throttledReset, { passive: true });
     });
     
-    // Set up periodic checking (every 10 seconds)
-    const periodicCheck = setInterval(() => {
-      checkIdleStatus();
-    }, 10000);
-    
     // Initial timer setup
     resetIdleTimer();
     
     // Cleanup
     return () => {
-      console.log(`[IdleTimer] Cleaning up event listeners for user ${userIdRef.current}`);
       isActive = false;
       if (idleTimeout) {
         clearTimeout(idleTimeout);
@@ -201,7 +164,6 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
       if (logoutTimeoutRef.current) {
         clearTimeout(logoutTimeoutRef.current);
       }
-      clearInterval(periodicCheck);
       
       activityEvents.forEach((event) => {
         window.removeEventListener(event, resetIdleTimer);
@@ -212,7 +174,6 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true)
       });
     };
   }, [timeoutMs, updateStatus, signOut, isEnabled]);
-  // Remove isIdle from dependencies to prevent recreation when the idle state changes
   
   return { isIdle };
 };

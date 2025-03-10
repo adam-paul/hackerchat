@@ -40,16 +40,12 @@ httpServer.listen(PORT, () => {
   
   // Initialize session monitor after server is started
   initSessionMonitor(io).then(cleanup => {
-    console.log('Session monitor initialized');
-    
     // Handle cleanup on server shutdown
     process.on('SIGTERM', () => {
-      console.log('Shutting down session monitor');
       cleanup();
     });
     
     process.on('SIGINT', () => {
-      console.log('Shutting down session monitor');
       cleanup();
     });
   }).catch(err => {
@@ -57,17 +53,11 @@ httpServer.listen(PORT, () => {
   });
 });
 
-// For testing/debugging
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    activeConnections: io.sockets.sockets.size,
-    endpoints: [
-      'GET /health',
-      'GET /api/active-users',
-      'POST /api/force-logout',
-      'POST /api/broadcast-status'
-    ]
+    activeConnections: io.sockets.sockets.size
   });
 });
