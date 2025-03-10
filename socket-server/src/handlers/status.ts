@@ -2,6 +2,7 @@ import type { SocketType, HandlerResult } from '../types/handlers';
 import { handleSocketError } from '../utils/errors';
 import { prisma } from '../lib/db';
 import { z } from 'zod';
+import { registerUserActivity } from '../utils/session-monitor';
 
 const statusSchema = z.enum(['online', 'away', 'busy', 'offline']);
 
@@ -26,6 +27,11 @@ export const handleStatusUpdate = async (
     const userId = socket.data.userId;
     
     console.log(`[StatusHandler] Validated status update: ${validStatus} for user ${userId}`);
+
+    // Register user activity in session monitor (except for 'offline' status)
+    if (validStatus !== 'offline') {
+      registerUserActivity(userId);
+    }
 
     // Update user status in database first
     console.log(`[StatusHandler] Updating database status for user ${userId} to ${validStatus}`);

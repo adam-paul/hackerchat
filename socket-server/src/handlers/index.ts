@@ -16,6 +16,7 @@ import { handleStatusUpdate } from './status';
 import { handleAddReaction, handleRemoveReaction } from './reaction';
 import { EVENTS } from '../config/socket';
 import { prisma } from '../lib/db';
+import { registerUserConnect, registerUserActivity, registerUserDisconnect } from '../utils/session-monitor';
 
 // Track connected users
 const connectedUsers = new Set<string>();
@@ -33,6 +34,9 @@ export const handleConnection = (socket: SocketType): void => {
   
   // Add user to connected users
   connectedUsers.add(userId);
+
+  // Register connection with session monitor
+  registerUserConnect(userId);
 
   // Send currently connected users to the new client
   socket.emit('connected-users', Array.from(connectedUsers));
@@ -158,6 +162,10 @@ export const handleConnection = (socket: SocketType): void => {
   socket.on(EVENTS.DISCONNECT, () => {
     // Remove user from connected users
     connectedUsers.delete(userId);
+    
+    // Register disconnect with session monitor
+    registerUserDisconnect(userId);
+    
     // Broadcast user disconnected event to all clients
     socket.broadcast.emit('user-disconnected', userId);
   });

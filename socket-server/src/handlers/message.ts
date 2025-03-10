@@ -8,6 +8,7 @@ import { EVENTS } from '../config/socket';
 import { prisma } from '../lib/db';
 import { MAX_RETRIES, RETRY_DELAY } from '../config/constants';
 import { createId } from '@paralleldrive/cuid2';
+import { registerUserActivity } from '../utils/session-monitor';
 
 type MessageResult = {
   messageId: string;
@@ -90,6 +91,9 @@ export const handleMessage = async (
   try {
     // Validate message data
     const data = await validateEvent(messageSchema, messageData);
+    
+    // Register user activity when they send a message
+    registerUserActivity(socket.data.userId);
 
     // Persist message to database with retries
     const dbMessage = await persistMessage(data, socket.data.userId);
