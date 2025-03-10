@@ -33,6 +33,20 @@ export const updateUserActivity = (userId: string): void => {
   );
 };
 
+// Force log out a specific user - useful for admin controls or manual intervention
+export const forceLogoutUser = async (userId: string): Promise<boolean> => {
+  try {
+    console.log(`[SessionMonitor] Forcing logout for user ${userId}`);
+    await setUserOffline(userId);
+    onlineUsers.delete(userId);
+    userLastActivity.delete(userId);
+    return true;
+  } catch (err) {
+    console.error(`[SessionMonitor] Error forcing logout for user ${userId}:`, err);
+    return false;
+  }
+};
+
 // Check if a socket still exists in the server for a given user
 const isUserConnected = (io: Server, userId: string): boolean => {
   const sockets = Array.from(io.sockets.sockets.values());
@@ -96,11 +110,28 @@ export const initSessionMonitor = async (io: Server): Promise<() => void> => {
       where: {
         status: { in: ['online', 'away', 'busy'] }
       },
-      select: { id: true }
+      select: { id: true, name: true, status: true, updatedAt: true }
     });
     
-    onlineUsers = new Set(onlineUsersData.map(user => user.id));
-    console.log(`[SessionMonitor] Found ${onlineUsers.size} users currently online`);
+    console.log(`[SessionMonitor] Found ${onlineUsersData.length} users currently marked as active in the database:`);
+    onlineUsersData.forEach(user => {
+      const lastUpdateTime = Math.floor((Date.now() - new Date(user.updatedAt).getTime()) / 1000);
+      console.log(
+        `[SessionMonitor] User ${user.name} (${user.id}):` +
+        `\n  - Status: ${user.status}` +
+        `\n  - Last DB Update: ${new Date(user.updatedAt).toISOString()} (${lastUpdateTime}s ago)`
+      );
+      
+      // Add to our tracked set
+      onlineUsers.add(user.id);
+      
+      // Initialize activity time for existing users - use updatedAt as a fallback
+      if (!userLastActivity.has(user.id)) {
+        userLastActivity.set(user.id, new Date(user.updatedAt).getTime());
+      }
+    });
+    
+    console.log(`[SessionMonitor] Started tracking ${onlineUsers.size} users`);
   } catch (err) {
     console.error('[SessionMonitor] Error getting online users:', err);
   }
@@ -108,17 +139,56 @@ export const initSessionMonitor = async (io: Server): Promise<() => void> => {
   // Monitor session activity
   const intervalId = setInterval(async () => {
     const now = Date.now();
-    const userCount = onlineUsers.size;
-    console.log(`[SessionMonitor] Running session activity check - ${userCount} online users`);
+    console.log(`[SessionMonitor] Running session activity check`);
     
     try {
+      // First, fetch all users marked as active in the database
+      // This ensures we catch any users that somehow got missed in our tracking set
+      const dbActiveUsers = await prisma.user.findMany({
+        where: {
+          status: { in: ['online', 'away', 'busy'] }
+        },
+        select: { id: true, name: true, status: true, updatedAt: true }
+      });
+      
+      console.log(`[SessionMonitor] Database shows ${dbActiveUsers.length} active users, our tracker has ${onlineUsers.size} users`);
+      
+      // Check for any users in the DB that we're not tracking
+      for (const user of dbActiveUsers) {
+        if (!onlineUsers.has(user.id)) {
+          console.log(`[SessionMonitor] Found user in DB that we're not tracking: ${user.name} (${user.id}), status=${user.status}`);
+          // Add to our tracked set with DB timestamp as activity
+          onlineUsers.add(user.id);
+          userLastActivity.set(user.id, new Date(user.updatedAt).getTime());
+        }
+      }
+      
+      // Now check all tracked users
+      const userCount = onlineUsers.size;
+      console.log(`[SessionMonitor] Checking ${userCount} active users`);
+
       // Check each user who is marked as online - convert Set to Array first to avoid iteration issues
       const userIdsToCheck = Array.from(onlineUsers);
       if (userCount === 0) {
         console.log('[SessionMonitor] No online users to check');
+        return;
       }
       
+      // Get user details for better logging
+      const userDetails = await prisma.user.findMany({
+        where: { id: { in: userIdsToCheck } },
+        select: { id: true, name: true, status: true }
+      });
+      
+      // Create a map for quick lookups
+      const userMap = new Map(userDetails.map(user => [user.id, user]));
+      
+      // Check each user
       for (const userId of userIdsToCheck) {
+        const user = userMap.get(userId);
+        const userName = user ? user.name : 'Unknown User';
+        const userStatus = user ? user.status : 'unknown';
+        
         const lastActivity = userLastActivity.get(userId) || 0;
         const timeSinceActivity = now - lastActivity;
         const idleTimeFormatted = Math.floor(timeSinceActivity/1000);
@@ -127,7 +197,8 @@ export const initSessionMonitor = async (io: Server): Promise<() => void> => {
         const disconnectedWarning = !isConnected && idleTimeFormatted < Math.floor(MAX_DISCONNECTED_TIME/1000);
         
         console.log(
-          `[SessionMonitor] Checking user ${userId}:` +
+          `[SessionMonitor] Checking user ${userName} (${userId}):` +
+          `\n  - Status: ${userStatus}` +
           `\n  - Connected: ${isConnected ? 'Yes' : 'No'}` +
           `\n  - Last activity: ${new Date(lastActivity).toISOString()}` +
           `\n  - Idle time: ${idleTimeFormatted}s / ${Math.floor(MAX_DISCONNECTED_TIME/1000)}s` +
@@ -137,9 +208,9 @@ export const initSessionMonitor = async (io: Server): Promise<() => void> => {
         // If user is not connected or inactive for too long, set them offline
         if (!isConnected || timeSinceActivity > MAX_DISCONNECTED_TIME) {
           if (!isConnected) {
-            console.log(`[SessionMonitor] User ${userId} has no active connection - marking as offline`);
+            console.log(`[SessionMonitor] User ${userName} (${userId}) has no active connection - marking as offline`);
           } else {
-            console.log(`[SessionMonitor] User ${userId} exceeded maximum idle time (${Math.floor(MAX_DISCONNECTED_TIME/1000)}s) - marking as offline`);
+            console.log(`[SessionMonitor] User ${userName} (${userId}) exceeded maximum idle time (${Math.floor(MAX_DISCONNECTED_TIME/1000)}s) - marking as offline`);
           }
           
           await setUserOffline(userId);

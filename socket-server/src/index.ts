@@ -59,5 +59,15 @@ httpServer.listen(PORT, () => {
 
 // For testing/debugging
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    activeConnections: io.sockets.sockets.size,
+    endpoints: [
+      'GET /health',
+      'GET /api/active-users',
+      'POST /api/force-logout',
+      'POST /api/broadcast-status'
+    ]
+  });
 });
