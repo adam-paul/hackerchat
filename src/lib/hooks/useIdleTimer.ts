@@ -9,16 +9,24 @@ const DEFAULT_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds (over
 // Additional timeout before forcing logout (30 seconds after being set to away for testing)
 const LOGOUT_GRACE_PERIOD = 30 * 1000; 
 
-export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
+export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT, isEnabled = true) => {
   const [isIdle, setIsIdle] = useState(false);
   const { updateStatus } = useSocket();
   const { userId } = useAuthContext();
   const { signOut } = useClerk();
+  
+  // Use refs for mutable values to maintain state across renders
   const lastActivityRef = useRef(Date.now());
   const userIdRef = useRef<string | null>(null);
   const resetCountRef = useRef(0);
   const idleStartTimeRef = useRef<number | null>(null);
   const logoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isEnabledRef = useRef(isEnabled);
+  
+  // Update the enabled status ref when the prop changes
+  useEffect(() => {
+    isEnabledRef.current = isEnabled;
+  }, [isEnabled]);
   
   useEffect(() => {
     // Store user ID for logs
@@ -45,11 +53,22 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
   };
   
   useEffect(() => {
+    // Only set up the idle timer if it's enabled
+    if (!isEnabled) {
+      console.log('[IdleTimer] Timer disabled');
+      return;
+    }
+    
+    console.log(`[IdleTimer] Setting up idle timer with ${timeoutMs / 1000}s timeout (enabled: ${isEnabled})`);
+    
     let idleTimeout: NodeJS.Timeout | null = null;
     let isActive = true;
     
     // Create an idle check function for logging
     const checkIdleStatus = () => {
+      // Skip if disabled
+      if (!isEnabledRef.current) return;
+      
       const now = Date.now();
       const idleTime = now - lastActivityRef.current;
       console.log(`[IdleTimer] User ${userIdRef.current} idle check: ${Math.floor(idleTime / 1000)}s idle (threshold: ${timeoutMs / 1000}s)`);
@@ -72,6 +91,9 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
           }
           
           logoutTimeoutRef.current = setTimeout(() => {
+            // Skip if disabled
+            if (!isEnabledRef.current) return;
+            
             // Check if still idle before logging out
             const currentIdleTime = Date.now() - lastActivityRef.current;
             if (currentIdleTime >= timeoutMs) {
@@ -84,6 +106,9 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
     
     // Function to reset the timer with debugging
     const resetIdleTimer = (event?: Event) => {
+      // Skip if disabled
+      if (!isEnabledRef.current) return;
+      
       const resetCount = ++resetCountRef.current;
       const eventType = event ? event.type : 'initial';
       const now = Date.now();
@@ -125,6 +150,9 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
     // Throttled version of reset to avoid excessive logs on continuous events
     let lastReset = 0;
     const throttledReset = (event: Event) => {
+      // Skip if disabled
+      if (!isEnabledRef.current) return;
+      
       const now = Date.now();
       // Only handle if it's been 5 seconds since last reset for certain events
       if (event.type === 'mousemove' || event.type === 'scroll') {
@@ -183,7 +211,8 @@ export const useIdleTimer = (timeoutMs = DEFAULT_IDLE_TIMEOUT) => {
         window.removeEventListener(event, throttledReset);
       });
     };
-  }, [isIdle, timeoutMs, updateStatus, signOut]);
+  }, [timeoutMs, updateStatus, signOut, isEnabled]);
+  // Remove isIdle from dependencies to prevent recreation when the idle state changes
   
   return { isIdle };
 };
